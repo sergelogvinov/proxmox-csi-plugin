@@ -19,7 +19,6 @@ package csi
 import (
 	"context"
 	"fmt"
-	"os"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/kubernetes-csi/csi-lib-utils/protosanitizer"
@@ -29,34 +28,25 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clientkubernetes "k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/klog/v2"
 )
 
-var (
-	volumeCaps = []csi.VolumeCapability_AccessMode{
-		{
-			Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER,
-		},
-	}
-)
+var volumeCaps = []csi.VolumeCapability_AccessMode{
+	{
+		Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER,
+	},
+}
 
 type nodeService struct {
 	nodeID  string
-	kclient clientkubernetes.Interface
+	kclient *clientkubernetes.Clientset
 }
 
-func newNodeService(nodeID string) (nodeService, error) {
-	// config, err := rest.InClusterConfig()
-	config, err := clientcmd.BuildConfigFromFlags("", os.Getenv("KUBECONFIG"))
-	if err != nil {
-		return nodeService{}, err
-	}
-
-	return nodeService{
+func NewNodeService(nodeID string, client *clientkubernetes.Clientset) *nodeService {
+	return &nodeService{
 		nodeID:  nodeID,
-		kclient: clientkubernetes.NewForConfigOrDie(config),
-	}, nil
+		kclient: client,
+	}
 }
 
 // NodeStageVolume is called by the CO when a workload that wants to use the specified volume is placed (scheduled) on a node.
@@ -102,6 +92,7 @@ func (n *nodeService) NodePublishVolume(ctx context.Context, request *csi.NodePu
 	// }
 
 	options := make(map[string]string)
+
 	if m := volCap.GetMount(); m != nil {
 		for _, f := range m.MountFlags {
 			// get mountOptions from PV.spec.mountOptions
@@ -181,20 +172,23 @@ func (n *nodeService) NodeGetInfo(ctx context.Context, request *csi.NodeGetInfoR
 }
 
 func isValidVolumeCapabilities(volCaps []*csi.VolumeCapability) bool {
-	hasSupport := func(cap *csi.VolumeCapability) bool {
+	hasSupport := func(reqcap *csi.VolumeCapability) bool {
 		for _, c := range volumeCaps {
-			if c.GetMode() == cap.AccessMode.GetMode() {
+			if c.GetMode() == reqcap.AccessMode.GetMode() {
 				return true
 			}
 		}
+
 		return false
 	}
 
 	foundAll := true
+
 	for _, c := range volCaps {
 		if !hasSupport(c) {
 			foundAll = false
 		}
 	}
+
 	return foundAll
 }

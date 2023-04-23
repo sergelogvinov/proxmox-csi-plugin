@@ -103,7 +103,10 @@ livenessprobe:
   initialDelaySeconds: 10
   timeoutSeconds: 10
   periodSeconds: 60
-  resources: {}
+  resources:
+    requests:
+      cpu: 10m
+      memory: 16Mi
 
 podAnnotations: {}
 
@@ -111,9 +114,9 @@ podSecurityContext: {}
   # fsGroup: 2000
 
 securityContext:
-  capabilities:
-    drop:
-    - ALL
+  # capabilities:
+  #   drop:
+  #   - ALL
   seccompProfile:
     type: RuntimeDefault
   # readOnlyRootFilesystem: true

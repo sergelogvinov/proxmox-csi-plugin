@@ -1,3 +1,4 @@
+// Package cloud implements the multi-cloud provider interface for Proxmox.
 package cloud
 
 import (
@@ -9,12 +10,14 @@ import (
 	"k8s.io/klog/v2"
 )
 
+// Client is a Proxmox client.
 type Client struct {
-	config  *CloudConfig
+	config  *ClustersConfig
 	proxmox map[string]*pxapi.Client
 }
 
-func NewClient(config *CloudConfig) (*Client, error) {
+// NewClient creates a new Proxmox client.
+func NewClient(config *ClustersConfig) (*Client, error) {
 	clusters := len(config.Clusters)
 	if clusters > 0 {
 		proxmox := make(map[string]*pxapi.Client, clusters)
@@ -50,6 +53,7 @@ func NewClient(config *CloudConfig) (*Client, error) {
 	return nil, nil
 }
 
+// GetProxmoxCluster returns a Proxmox cluster client in a given region.
 func (c *Client) GetProxmoxCluster(region string) (*pxapi.Client, error) {
 	if c.proxmox[region] != nil {
 		return c.proxmox[region], nil

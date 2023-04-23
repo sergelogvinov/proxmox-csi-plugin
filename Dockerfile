@@ -3,7 +3,7 @@
 
 FROM golang:1.20-buster AS develop
 
-WORKDIR /app
+WORKDIR /src
 COPY ["go.mod", "go.sum", "/src"]
 RUN go mod download
 
@@ -30,3 +30,13 @@ ARG TARGETARCH
 COPY --from=builder /src/bin/proxmox-csi-${TARGETARCH} /proxmox-csi-controller
 
 ENTRYPOINT ["/proxmox-csi-controller"]
+
+########################################
+
+FROM --platform=${TARGETARCH} gcr.io/distroless/static-debian11:nonroot AS node
+LABEL org.opencontainers.image.source https://github.com/sergelogvinov/proxmox-csi-plugin
+
+ARG TARGETARCH
+COPY --from=builder /src/bin/proxmox-csi-node-${TARGETARCH} /proxmox-csi-node
+
+ENTRYPOINT ["/proxmox-csi-node"]

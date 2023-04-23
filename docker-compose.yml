@@ -8,8 +8,7 @@ services:
       target: develop
     network_mode: "service:base"
     environment:
-      NODE_ID: worker-11
-      ENDPOINT: unix:///csi/csi.sock
+      NODE_NAME: worker-11
       KUBECONFIG: /etc/kubernetes/kubeconfig
     command:
       - "make"
@@ -23,7 +22,7 @@ services:
         target: /etc/kubernetes
       - type: bind
         source: ./
-        target: /app
+        target: /src
   csi-attacher:
     image: registry.k8s.io/sig-storage/csi-attacher:v4.2.0
     network_mode: "service:base"

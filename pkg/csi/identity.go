@@ -25,19 +25,25 @@ import (
 	"k8s.io/klog/v2"
 )
 
+type IdentityService struct{}
+
+// NewIdentityService returns a new identity service
+func NewIdentityService() *IdentityService {
+	return &IdentityService{}
+}
+
 // GetPluginInfo returns the name and version of the plugin
-func (d *Driver) GetPluginInfo(ctx context.Context, request *csi.GetPluginInfoRequest) (*csi.GetPluginInfoResponse, error) {
+func (d *IdentityService) GetPluginInfo(context.Context, *csi.GetPluginInfoRequest) (*csi.GetPluginInfoResponse, error) {
 	klog.V(5).Infof("GetPluginInfo: called")
 
-	resp := &csi.GetPluginInfoResponse{
+	return &csi.GetPluginInfoResponse{
 		Name:          DriverName,
-		VendorVersion: "v1",
-	}
-	return resp, nil
+		VendorVersion: DriverVersion,
+	}, nil
 }
 
 // GetPluginCapabilities returns the capabilities of the plugin
-func (d *Driver) GetPluginCapabilities(ctx context.Context, request *csi.GetPluginCapabilitiesRequest) (*csi.GetPluginCapabilitiesResponse, error) {
+func (d *IdentityService) GetPluginCapabilities(context.Context, *csi.GetPluginCapabilitiesRequest) (*csi.GetPluginCapabilitiesResponse, error) {
 	klog.V(5).Infof("GetPluginCapabilities: called")
 
 	resp := &csi.GetPluginCapabilitiesResponse{
@@ -72,11 +78,12 @@ func (d *Driver) GetPluginCapabilities(ctx context.Context, request *csi.GetPlug
 			},
 		},
 	}
+
 	return resp, nil
 }
 
 // Probe returns the health and readiness of the plugin
-func (d *Driver) Probe(ctx context.Context, request *csi.ProbeRequest) (*csi.ProbeResponse, error) {
+func (d *IdentityService) Probe(ctx context.Context, request *csi.ProbeRequest) (*csi.ProbeResponse, error) {
 	klog.V(5).Infof("Probe: called")
 
 	return &csi.ProbeResponse{

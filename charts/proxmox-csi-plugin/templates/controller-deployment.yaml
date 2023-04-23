@@ -38,17 +38,13 @@ spec:
         - name: {{ include "proxmox-csi-plugin.fullname" . }}-controller
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
-          image: "{{ .Values.controller.plugin.image.repository }}:{{ .Values.controller.plugin.tag | default .Chart.AppVersion }}"
+          image: "{{ .Values.controller.plugin.image.repository }}:{{ .Values.controller.plugin.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.controller.plugin.image.pullPolicy }}
           args:
-            - /bin/proxmox-csi-plugin
             - "-v={{ .Values.logVerbosityLevel }}"
-            - "--endpoint=unix:///csi/csi.sock"
-            - "--cluster={{ .Values.clusterID }}"
-            - "--cloud-config=$(CLOUD_CONFIG)"
-          env:
-            - name: CLOUD_CONFIG
-              value: /etc/proxmox/config.yaml
+            - "--csi-address=unix:///csi/csi.sock"
+            # - "--cluster={{ .Values.clusterID }}"
+            - "--cloud-config=/etc/proxmox/config.yaml"
           resources:
             {{- toYaml .Values.controller.plugin.resources | nindent 12 }}
           volumeMounts:
@@ -65,7 +61,7 @@ spec:
             - "-v={{ .Values.logVerbosityLevel }}"
             - "--csi-address=unix:///csi/csi.sock"
             - "--timeout={{ .Values.timeout }}"
-            - "--leader-election=true"
+            - "--leader-election"
             - "--default-fstype=ext4"
           volumeMounts:
             - name: socket-dir
@@ -80,10 +76,20 @@ spec:
             - "-v={{ .Values.logVerbosityLevel }}"
             - "--csi-address=unix:///csi/csi.sock"
             - "--timeout={{ .Values.timeout }}"
-            - "--leader-election=true"
+            - "--leader-election"
             - "--default-fstype=ext4"
             - "--feature-gates=Topology=True"
             - "--enable-capacity"
+            - "--capacity-ownerref-level=2"
+          env:
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
           volumeMounts:
             - name: socket-dir
               mountPath: /csi
@@ -98,7 +104,7 @@ spec:
             - "--csi-address=unix:///csi/csi.sock"
             - "--timeout={{ .Values.timeout }}"
             - "--handle-volume-inuse-error=false"
-            - "--leader-election=true"
+            - "--leader-election"
           volumeMounts:
             - name: socket-dir
               mountPath: /csi
@@ -110,8 +116,8 @@ spec:
             - "-v={{ .Values.logVerbosityLevel }}"
             - "--csi-address=unix:///csi/csi.sock"
           volumeMounts:
-            - mountPath: /csi
-              name: socket-dir
+            - name: socket-dir
+              mountPath: /csi
           resources: {{ toYaml .Values.livenessprobe.resources | nindent 12 }}
       volumes:
         - name: socket-dir

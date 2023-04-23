@@ -62,33 +62,19 @@ metadata:
     app.kubernetes.io/version: "0.0.1"
     app.kubernetes.io/managed-by: Helm
 rules:
-  - apiGroups:
-      - ""
-    resources:
-      - persistentvolumes
-    verbs:
-      - get
-      - list
-      - watch
-      - create
-      - delete
-  - apiGroups:
-      - ""
-    resources:
-      - persistentvolumeclaims
-    verbs:
-      - get
-      - list
-      - watch
-      - update
-  - apiGroups:
-      - storage.k8s.io
-    resources:
-      - storageclasses
-    verbs:
-      - get
-      - list
-      - watch
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get", "watch", "list", "delete", "update", "create"]
+  # csi-provisioner-role
+  - apiGroups: [""]
+    resources: ["persistentvolumes"]
+    verbs: ["get", "list", "watch", "create", "delete"]
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims"]
+    verbs: ["get", "list", "watch", "update"]
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["storageclasses"]
+    verbs: ["get", "list", "watch"]
   - apiGroups:
       - ""
     resources:
@@ -116,6 +102,13 @@ rules:
       - get
       - list
       - watch
+  # csi-attacher-role
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["volumeattachments"]
+    verbs: ["get", "list", "watch", "patch"]
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["volumeattachments/status"]
+    verbs: ["patch"]
 ---
 # Source: proxmox-csi-plugin/templates/node-clusterrole.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -165,6 +158,47 @@ subjects:
     name: proxmox-csi-plugin-node
     namespace: csi-proxmox
 ---
+# Source: proxmox-csi-plugin/templates/controller-role.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: proxmox-csi-plugin-controller
+  namespace: csi-proxmox
+  labels:
+    helm.sh/chart: proxmox-csi-plugin-0.0.1
+    app.kubernetes.io/name: proxmox-csi-plugin
+    app.kubernetes.io/instance: proxmox-csi-plugin
+    app.kubernetes.io/version: "0.0.1"
+    app.kubernetes.io/managed-by: Helm
+rules:
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get", "watch", "list", "delete", "update", "create"]
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["csistoragecapacities"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get"]
+  - apiGroups: ["apps"]
+    resources: ["replicasets"]
+    verbs: ["get"]
+---
+# Source: proxmox-csi-plugin/templates/controller-rolebinding.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: proxmox-csi-plugin-controller
+  namespace: csi-proxmox
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: proxmox-csi-plugin-controller
+subjects:
+  - kind: ServiceAccount
+    name: proxmox-csi-plugin-controller
+    namespace: csi-proxmox
+---
 # Source: proxmox-csi-plugin/templates/controller-deployment.yaml
 apiVersion: apps/v1
 kind: Deployment
@@ -201,22 +235,15 @@ spec:
       containers:
         - name: proxmox-csi-plugin-controller
           securityContext:
-            capabilities:
-              drop:
-              - ALL
             seccompProfile:
               type: RuntimeDefault
-          image: "ghcr.io/sergelogvinov/proxmox-csi-plugin:0.0.1"
+          image: "ghcr.io/sergelogvinov/proxmox-csi-plugin:edge"
           imagePullPolicy: Always
           args:
-            - /bin/proxmox-csi-plugin
             - "-v=5"
-            - "--endpoint=unix:///csi/csi.sock"
-            - "--cluster=kubernetes"
-            - "--cloud-config=$(CLOUD_CONFIG)"
-          env:
-            - name: CLOUD_CONFIG
-              value: /etc/proxmox/config.yaml
+            - "--csi-address=unix:///csi/csi.sock"
+            # - "--cluster=kubernetes"
+            - "--cloud-config=/etc/proxmox/config.yaml"
           resources:
             requests:
               cpu: 10m
@@ -228,9 +255,6 @@ spec:
               mountPath: /etc/proxmox/
         - name: csi-attacher
           securityContext:
-            capabilities:
-              drop:
-              - ALL
             seccompProfile:
               type: RuntimeDefault
           image: "registry.k8s.io/sig-storage/csi-attacher:v4.2.0"
@@ -239,7 +263,7 @@ spec:
             - "-v=5"
             - "--csi-address=unix:///csi/csi.sock"
             - "--timeout=3m"
-            - "--leader-election=true"
+            - "--leader-election"
             - "--default-fstype=ext4"
           volumeMounts:
             - name: socket-dir
@@ -250,9 +274,6 @@ spec:
               memory: 16Mi
         - name: csi-provisioner
           securityContext:
-            capabilities:
-              drop:
-              - ALL
             seccompProfile:
               type: RuntimeDefault
           image: "registry.k8s.io/sig-storage/csi-provisioner:v3.4.0"
@@ -261,10 +282,20 @@ spec:
             - "-v=5"
             - "--csi-address=unix:///csi/csi.sock"
             - "--timeout=3m"
-            - "--leader-election=true"
+            - "--leader-election"
             - "--default-fstype=ext4"
             - "--feature-gates=Topology=True"
             - "--enable-capacity"
+            - "--capacity-ownerref-level=2"
+          env:
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
           volumeMounts:
             - name: socket-dir
               mountPath: /csi
@@ -274,9 +305,6 @@ spec:
               memory: 16Mi
         - name: csi-resizer
           securityContext:
-            capabilities:
-              drop:
-              - ALL
             seccompProfile:
               type: RuntimeDefault
           image: "registry.k8s.io/sig-storage/csi-resizer:v1.7.0"
@@ -286,7 +314,7 @@ spec:
             - "--csi-address=unix:///csi/csi.sock"
             - "--timeout=3m"
             - "--handle-volume-inuse-error=false"
-            - "--leader-election=true"
+            - "--leader-election"
           volumeMounts:
             - name: socket-dir
               mountPath: /csi
@@ -301,10 +329,12 @@ spec:
             - "-v=5"
             - "--csi-address=unix:///csi/csi.sock"
           volumeMounts:
-            - mountPath: /csi
-              name: socket-dir
+            - name: socket-dir
+              mountPath: /csi
           resources: 
-            {}
+            requests:
+              cpu: 10m
+              memory: 16Mi
       volumes:
         - name: socket-dir
           emptyDir: {}

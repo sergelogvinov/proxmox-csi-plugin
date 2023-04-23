@@ -19,18 +19,15 @@ package csi
 import (
 	"context"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 
 	pxapi "github.com/Telmate/proxmox-api-go/proxmox"
-
-	proxmox "github.com/sergelogvinov/proxmox-csi-plugin/pkg/proxmox"
-
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/kubernetes-csi/csi-lib-utils/protosanitizer"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	proxmox "github.com/sergelogvinov/proxmox-csi-plugin/pkg/proxmox"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/cloud-provider-openstack/pkg/util"
@@ -38,54 +35,42 @@ import (
 )
 
 const (
-	vmId = 9999
+	vmID = 9999
 )
 
-var (
-	controllerCaps = []csi.ControllerServiceCapability_RPC_Type{
-		csi.ControllerServiceCapability_RPC_CREATE_DELETE_VOLUME,
-		// csi.ControllerServiceCapability_RPC_PUBLISH_UNPUBLISH_VOLUME,
-		csi.ControllerServiceCapability_RPC_GET_CAPACITY,
-		csi.ControllerServiceCapability_RPC_EXPAND_VOLUME,
-		csi.ControllerServiceCapability_RPC_GET_VOLUME,
-	}
-)
+var controllerCaps = []csi.ControllerServiceCapability_RPC_Type{
+	csi.ControllerServiceCapability_RPC_CREATE_DELETE_VOLUME,
+	csi.ControllerServiceCapability_RPC_PUBLISH_UNPUBLISH_VOLUME,
+	csi.ControllerServiceCapability_RPC_GET_CAPACITY,
+	csi.ControllerServiceCapability_RPC_EXPAND_VOLUME,
+	csi.ControllerServiceCapability_RPC_GET_VOLUME,
+}
 
 type controllerService struct {
 	cluster proxmox.Client
 }
 
-func newControllerService() (controllerService, error) {
-	cloudConfig := "/etc/kubernetes/cloud.yaml"
-
-	f, err := os.Open(
-		filepath.Join(cloudConfig))
+// NewControllerService returns a new controller service
+func NewControllerService(cloudConfig string) (*controllerService, error) {
+	cfg, err := proxmox.ReadFromFileCloudConfig(cloudConfig)
 	if err != nil {
-		return controllerService{}, fmt.Errorf("error reading %s on config drive: %v", cloudConfig, err)
-	}
-	defer f.Close()
-
-	cfg, err := proxmox.ReadCloudConfig(f)
-	if err != nil {
-		klog.Errorf("failed to read config: %v", err)
-
-		return controllerService{}, nil
+		return nil, fmt.Errorf("failed to read config: %v", err)
 	}
 
 	cluster, err := proxmox.NewClient(&cfg)
 	if err != nil {
-		klog.Errorf("failed to read config: %v", err)
-
-		return controllerService{}, nil
+		return nil, fmt.Errorf("failed to create proxmox client: %v", err)
 	}
 
-	return controllerService{
+	return &controllerService{
 		cluster: *cluster,
 	}, nil
 }
 
 // CreateVolume creates a volume
-func (d *controllerService) CreateVolume(ctx context.Context, request *csi.CreateVolumeRequest) (*csi.CreateVolumeResponse, error) {
+//
+//lint:gocyclo
+func (d *controllerService) CreateVolume(_ context.Context, request *csi.CreateVolumeRequest) (*csi.CreateVolumeResponse, error) {
 	klog.V(4).Infof("CreateVolume: called with args %+v", protosanitizer.StripSecrets(*request))
 
 	volName := request.GetName()
@@ -101,8 +86,9 @@ func (d *controllerService) CreateVolume(ctx context.Context, request *csi.Creat
 	// Volume Size - Default is 10 GiB
 	volSizeBytes := int64(10 * 1024 * 1024 * 1024)
 	if request.GetCapacityRange() != nil {
-		volSizeBytes = int64(request.GetCapacityRange().GetRequiredBytes())
+		volSizeBytes = request.GetCapacityRange().GetRequiredBytes()
 	}
+
 	volSizeGB := int(util.RoundUpSize(volSizeBytes, 1024*1024*1024))
 
 	volCtx := make(map[string]string)
@@ -125,9 +111,11 @@ func (d *controllerService) CreateVolume(ctx context.Context, request *csi.Creat
 			if t.GetSegments()[corev1.LabelTopologyRegion] != "" {
 				region = t.GetSegments()[corev1.LabelTopologyRegion]
 			}
+
 			if t.GetSegments()[corev1.LabelTopologyZone] != "" {
 				zone = t.GetSegments()[corev1.LabelTopologyZone]
 			}
+
 			if t.GetSegments()[corev1.LabelHostname] != "" {
 				node = t.GetSegments()[corev1.LabelHostname]
 			}
@@ -151,7 +139,7 @@ func (d *controllerService) CreateVolume(ctx context.Context, request *csi.Creat
 	klog.V(4).Infof("CreateVolume: volCtx=%+v", volCtx)
 
 	volume := csi.Volume{
-		VolumeId:           fmt.Sprintf("%s/%s/vm-%d-%s", volCtx["region"], volCtx["zone"], vmId, volName),
+		VolumeId:           fmt.Sprintf("%s/%s/vm-%d-%s", volCtx["region"], volCtx["zone"], vmID, volName),
 		VolumeContext:      volCtx,
 		ContentSource:      request.GetVolumeContentSource(),
 		CapacityBytes:      int64(volSizeGB * 1024 * 1024 * 1024),
@@ -166,12 +154,12 @@ func (d *controllerService) CreateVolume(ctx context.Context, request *csi.Creat
 	}
 
 	diskParams := map[string]interface{}{
-		"vmid":     vmId,
-		"filename": fmt.Sprintf("vm-%d-%s", vmId, volName),
+		"vmID":     vmID,
+		"filename": fmt.Sprintf("vm-%d-%s", vmID, volName),
 		"size":     fmt.Sprintf("%dG", volSizeGB),
 	}
 
-	err = cl.CreateVMDisk(volCtx["zone"], volCtx["storage-id"], fmt.Sprintf("%s:vm-%d-%s", volCtx["storage-id"], vmId, volName), diskParams)
+	err = cl.CreateVMDisk(volCtx["zone"], volCtx["storage-id"], fmt.Sprintf("%s:vm-%d-%s", volCtx["storage-id"], vmID, volName), diskParams)
 	if err != nil {
 		klog.Errorf("failed to create vm disk: %v", err)
 
@@ -181,7 +169,7 @@ func (d *controllerService) CreateVolume(ctx context.Context, request *csi.Creat
 	return &csi.CreateVolumeResponse{Volume: &volume}, nil
 }
 
-// DeleteVolume deletes a volume
+// DeleteVolume deletes a volume.
 func (d *controllerService) DeleteVolume(ctx context.Context, request *csi.DeleteVolumeRequest) (*csi.DeleteVolumeResponse, error) {
 	klog.V(4).Infof("DeleteVolume: called with args %+v", protosanitizer.StripSecrets(*request))
 
@@ -202,7 +190,7 @@ func (d *controllerService) DeleteVolume(ctx context.Context, request *csi.Delet
 	// 	return nil, status.Error(codes.Internal, err.Error())
 	// }
 
-	// vmr := pxapi.NewVmRef(vmId)
+	// vmr := pxapi.NewVmRef(vmID)
 	// vmr.SetNode(volIDParts[1])
 	// vmr.SetVmType("qemu")
 
@@ -218,11 +206,12 @@ func (d *controllerService) DeleteVolume(ctx context.Context, request *csi.Delet
 	return &csi.DeleteVolumeResponse{}, nil
 }
 
-// ControllerGetCapabilities get controller capabilities
+// ControllerGetCapabilities get controller capabilities.
 func (d *controllerService) ControllerGetCapabilities(ctx context.Context, request *csi.ControllerGetCapabilitiesRequest) (*csi.ControllerGetCapabilitiesResponse, error) {
 	klog.V(4).Infof("ControllerGetCapabilities: called with args %+v", protosanitizer.StripSecrets(*request))
 
-	var caps []*csi.ControllerServiceCapability
+	caps := []*csi.ControllerServiceCapability{}
+
 	for _, cap := range controllerCaps {
 		c := &csi.ControllerServiceCapability{
 			Type: &csi.ControllerServiceCapability_Rpc{
@@ -233,6 +222,7 @@ func (d *controllerService) ControllerGetCapabilities(ctx context.Context, reque
 		}
 		caps = append(caps, c)
 	}
+
 	return &csi.ControllerGetCapabilitiesResponse{Capabilities: caps}, nil
 }
 

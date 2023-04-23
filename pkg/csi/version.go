@@ -24,25 +24,24 @@ import (
 
 // These are set during build time via -ldflags
 var (
-	driverVersion string
-	gitCommit     string
-	buildDate     string
+	gitCommit string
+	buildDate string
 )
 
 // VersionInfo struct
 type VersionInfo struct {
-	DriverVersion string
-	GitCommit     string
-	BuildDate     string
-	GoVersion     string
-	Compiler      string
-	Platform      string
+	DriverVersion string `json:"driverVersion"`
+	GitCommit     string `json:"gitCommit"`
+	BuildDate     string `json:"buildDate"`
+	GoVersion     string `json:"goVersion"`
+	Compiler      string `json:"compiler"`
+	Platform      string `json:"platform"`
 }
 
 // GetVersion returns VersionInfo
 func GetVersion() VersionInfo {
 	return VersionInfo{
-		DriverVersion: driverVersion,
+		DriverVersion: DriverVersion,
 		GitCommit:     gitCommit,
 		BuildDate:     buildDate,
 		GoVersion:     runtime.Version(),
@@ -54,9 +53,11 @@ func GetVersion() VersionInfo {
 // GetVersionJSON returns version in JSON
 func GetVersionJSON() (string, error) {
 	info := GetVersion()
-	marshalled, err := json.MarshalIndent(&info, "", "  ")
+
+	marshaled, err := json.MarshalIndent(&info, "", "  ")
 	if err != nil {
 		return "", err
 	}
-	return string(marshalled), nil
+
+	return string(marshaled), nil
 }
