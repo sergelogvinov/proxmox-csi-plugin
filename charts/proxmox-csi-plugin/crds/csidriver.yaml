@@ -1,0 +1,11 @@
+apiVersion: storage.k8s.io/v1
+kind: CSIDriver
+metadata:
+  name: csi.proxmox.com
+spec:
+  attachRequired: true
+  podInfoOnMount: true
+  storageCapacity: true
+  volumeLifecycleModes:
+  - Persistent
+  - Ephemeral

@@ -1,0 +1,132 @@
+# Default values for proxmox-csi-plugin.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+replicaCount: 1
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+priorityClassName: system-cluster-critical
+
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+
+clusterID: kubernetes
+logVerbosityLevel: 5
+timeout: 3m
+
+config:
+  clusters: []
+  #   - url: https://cluster-api-1.exmple.com:8006/api2/json
+  #     insecure: false
+  #     token_id: "login!name"
+  #     token_secret: "secret"
+  #     region: cluster-1
+
+storageClass: []
+  # - name: proxmox-data-xfs
+  #   storageID: data
+  #   reclaimPolicy: Delete
+  #   fstype: xfs
+
+controller:
+  plugin:
+    image:
+      repository: ghcr.io/sergelogvinov/proxmox-csi-plugin
+      pullPolicy: IfNotPresent
+      # Overrides the image tag whose default is the chart appVersion.
+      tag: ""
+    resources:
+      requests:
+        cpu: 10m
+        memory: 16Mi
+  attacher:
+    image:
+      repository: registry.k8s.io/sig-storage/csi-attacher
+      pullPolicy: IfNotPresent
+      tag: v4.2.0
+    resources:
+      requests:
+        cpu: 10m
+        memory: 16Mi
+  provisioner:
+    image:
+      repository: registry.k8s.io/sig-storage/csi-provisioner
+      pullPolicy: IfNotPresent
+      tag: v3.4.0
+    resources:
+      requests:
+        cpu: 10m
+        memory: 16Mi
+  resizer:
+    image:
+      repository: registry.k8s.io/sig-storage/csi-resizer
+      pullPolicy: IfNotPresent
+      tag: v1.7.0
+    resources:
+      requests:
+        cpu: 10m
+        memory: 16Mi
+
+node:
+  plugin:
+    image:
+      repository: ghcr.io/sergelogvinov/proxmox-csi-node
+      pullPolicy: IfNotPresent
+      # Overrides the image tag whose default is the chart appVersion.
+      tag: ""
+    resources: {}
+  node-driver-registrar:
+    image:
+      repository: registry.k8s.io/sig-storage/csi-node-driver-registrar
+      pullPolicy: IfNotPresent
+      tag: v2.7.0
+    resources:
+      requests:
+        cpu: 10m
+        memory: 16Mi
+
+livenessprobe:
+  image:
+    repository: registry.k8s.io/sig-storage/livenessprobe
+    pullPolicy: IfNotPresent
+    tag: v2.9.0
+  failureThreshold: 5
+  initialDelaySeconds: 10
+  timeoutSeconds: 10
+  periodSeconds: 60
+  resources: {}
+
+podAnnotations: {}
+
+podSecurityContext: {}
+  # fsGroup: 2000
+
+securityContext:
+  capabilities:
+    drop:
+    - ALL
+  seccompProfile:
+    type: RuntimeDefault
+  # readOnlyRootFilesystem: true
+  # runAsNonRoot: true
+  # runAsUser: 1000
+
+updateStrategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxUnavailable: 1
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}

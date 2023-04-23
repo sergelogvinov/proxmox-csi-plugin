@@ -7,6 +7,7 @@
 *.dll
 *.so
 *.dylib
+bin/
 
 # Test binary, built with `go test -c`
 *.test
@@ -19,3 +20,10 @@
 
 # Go workspace file
 go.work
+
+#
+/charts/proxmox-csi-plugin/values.*.yaml
+/hack/cloud-config.yaml
+/hack/kubeconfig
+kubeconfig
+.cache/
