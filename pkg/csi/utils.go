@@ -31,3 +31,17 @@ func ParseEndpoint(endpoint string) (string, string, error) {
 
 	return scheme, addr, nil
 }
+
+func parseVolumeID(volumeID string) (string, string, string, string, error) {
+	volIDParts := strings.Split(volumeID, "/")
+	if len(volIDParts) != 4 {
+		return "", "", "", "", fmt.Errorf("DeleteVolume Volume ID must be in the format of region/zone/storageName/volume-name")
+	}
+
+	region := volIDParts[0]
+	zone := volIDParts[1]
+	storageName := volIDParts[2]
+	pvc := volIDParts[3]
+
+	return region, zone, storageName, pvc, nil
+}

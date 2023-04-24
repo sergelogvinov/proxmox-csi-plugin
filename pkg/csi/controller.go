@@ -18,7 +18,9 @@ package csi
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
+	"strconv"
 	"strings"
 
 	pxapi "github.com/Telmate/proxmox-api-go/proxmox"
@@ -84,7 +86,7 @@ func (d *controllerService) CreateVolume(_ context.Context, request *csi.CreateV
 	}
 
 	// Volume Size - Default is 10 GiB
-	volSizeBytes := int64(10 * 1024 * 1024 * 1024)
+	volSizeBytes := int64(DefaultVolumeSize * 1024 * 1024 * 1024)
 	if request.GetCapacityRange() != nil {
 		volSizeBytes = request.GetCapacityRange().GetRequiredBytes()
 	}
@@ -96,17 +98,15 @@ func (d *controllerService) CreateVolume(_ context.Context, request *csi.CreateV
 		volCtx[k] = v
 	}
 
-	volCtx["subPath"] = volName
-
 	accessibleTopology := request.GetAccessibilityRequirements().GetPreferred()
 
-	if len(accessibleTopology) != 0 {
-		var (
-			region string
-			zone   string
-			node   string
-		)
+	var (
+		region string
+		zone   string
+		node   string
+	)
 
+	if len(accessibleTopology) != 0 {
 		for _, t := range accessibleTopology {
 			if t.GetSegments()[corev1.LabelTopologyRegion] != "" {
 				region = t.GetSegments()[corev1.LabelTopologyRegion]
@@ -121,32 +121,22 @@ func (d *controllerService) CreateVolume(_ context.Context, request *csi.CreateV
 			}
 
 			if region != "" && (zone != "" || node != "") {
-				volCtx["region"] = region
-
-				if zone != "" {
-					volCtx["zone"] = zone
-				}
-
-				if node != "" {
-					volCtx["node"] = node
-				}
-
 				break
 			}
 		}
 	}
 
-	klog.V(4).Infof("CreateVolume: volCtx=%+v volSizeGB=%d", volCtx, volSizeGB)
+	if region == "" || zone == "" {
+		klog.Errorf("CreateVolume: region or zone is empty: region=%s zone=%s", region, zone)
 
-	volume := csi.Volume{
-		VolumeId:           fmt.Sprintf("%s/%s/vm-%d-%s", volCtx["region"], volCtx["zone"], vmID, volName),
-		VolumeContext:      volCtx,
-		ContentSource:      request.GetVolumeContentSource(),
-		CapacityBytes:      int64(volSizeGB * 1024 * 1024 * 1024),
-		AccessibleTopology: accessibleTopology,
+		return nil, status.Error(codes.InvalidArgument, "region or zone is empty")
 	}
 
-	cl, err := d.cluster.GetProxmoxCluster(volCtx["region"])
+	volumeName := fmt.Sprintf("vm-%d-%s", vmID, volName)
+	volumeSize := fmt.Sprintf("%dG", volSizeGB)
+	volumeID := fmt.Sprintf("%s/%s/%s/%s", region, zone, volCtx[StorageIDKey], volumeName)
+
+	cl, err := d.cluster.GetProxmoxCluster(region)
 	if err != nil {
 		klog.Errorf("failed to get proxmox cluster: %v", err)
 
@@ -155,17 +145,34 @@ func (d *controllerService) CreateVolume(_ context.Context, request *csi.CreateV
 
 	diskParams := map[string]interface{}{
 		"vmid":     vmID,
-		"filename": fmt.Sprintf("vm-%d-%s", vmID, volName),
-		"size":     fmt.Sprintf("%dG", volSizeGB),
+		"filename": volumeName,
+		"size":     volumeSize,
 	}
 
-	klog.V(4).Infof("CreateVolume: diskParams=%+v", diskParams)
+	klog.V(4).Infof("CreateVolume: pvesh create /nodes/%s/storage/%s/content -vmid %d -filename %s -size %s",
+		zone, volCtx[StorageIDKey], vmID, volumeName, volumeSize)
 
-	err = cl.CreateVMDisk(volCtx["zone"], volCtx[StorageIDKey], fmt.Sprintf("%s:%s", volCtx[StorageIDKey], diskParams["filename"]), diskParams)
+	err = cl.CreateVMDisk(zone, volCtx[StorageIDKey], fmt.Sprintf("%s:%s", volCtx[StorageIDKey], volumeName), diskParams)
 	if err != nil {
 		klog.Errorf("failed to create vm disk: %v", err)
 
 		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+
+	volCtx["subPath"] = volName
+	volume := csi.Volume{
+		VolumeId:      volumeID,
+		VolumeContext: volCtx,
+		ContentSource: request.GetVolumeContentSource(),
+		CapacityBytes: int64(volSizeGB * 1024 * 1024 * 1024),
+		AccessibleTopology: []*csi.Topology{
+			{
+				Segments: map[string]string{
+					corev1.LabelTopologyRegion: region,
+					corev1.LabelTopologyZone:   zone,
+				},
+			},
+		},
 	}
 
 	return &csi.CreateVolumeResponse{Volume: &volume}, nil
@@ -180,30 +187,30 @@ func (d *controllerService) DeleteVolume(ctx context.Context, request *csi.Delet
 		return nil, status.Error(codes.InvalidArgument, "DeleteVolume Volume ID must be provided")
 	}
 
-	volIDParts := strings.Split(volID, "/")
-	if len(volIDParts) != 3 {
-		return nil, status.Error(codes.InvalidArgument, "DeleteVolume Volume ID must be in the format of region/zone/volume-name")
+	region, zone, storageName, pvc, err := parseVolumeID(volID)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
-	// cl, err := d.cluster.GetProxmoxCluster(volIDParts[0])
-	// if err != nil {
-	// 	klog.Errorf("failed to get proxmox cluster: %v", err)
+	cl, err := d.cluster.GetProxmoxCluster(region)
+	if err != nil {
+		klog.Errorf("failed to get proxmox cluster: %v", err)
 
-	// 	return nil, status.Error(codes.Internal, err.Error())
-	// }
+		return nil, status.Error(codes.Internal, err.Error())
+	}
 
-	// vmr := pxapi.NewVmRef(vmID)
-	// vmr.SetNode(volIDParts[1])
-	// vmr.SetVmType("qemu")
+	vmr := pxapi.NewVmRef(vmID)
+	vmr.SetNode(zone)
+	vmr.SetVmType("qemu")
 
-	// result, err := cl.DeleteVolume(vmr, "data", volIDParts[2])
-	// if err != nil {
-	// 	klog.Errorf("failed to delete volume: %v", err)
+	result, err := cl.DeleteVolume(vmr, storageName, pvc)
+	if err != nil {
+		klog.Errorf("failed to delete volume: %v", err)
 
-	// 	return nil, status.Error(codes.Internal, err.Error())
-	// }
+		return nil, status.Error(codes.Internal, err.Error())
+	}
 
-	// klog.V(4).Infof("DeleteVolume: Successfully deleted volume %s, result %+v", volID, result)
+	klog.V(4).Infof("DeleteVolume: Successfully deleted volume %s, result %+v", volID, result)
 
 	return &csi.DeleteVolumeResponse{}, nil
 }
@@ -232,11 +239,13 @@ func (d *controllerService) ControllerGetCapabilities(ctx context.Context, reque
 func (d *controllerService) ControllerPublishVolume(ctx context.Context, request *csi.ControllerPublishVolumeRequest) (*csi.ControllerPublishVolumeResponse, error) {
 	klog.V(4).Infof("ControllerPublishVolume: called with args %+v", protosanitizer.StripSecrets(*request))
 
-	if request.VolumeId == "" {
+	volID := request.GetVolumeId()
+	if volID == "" {
 		return nil, status.Error(codes.InvalidArgument, "missing volume id")
 	}
 
-	if request.NodeId == "" {
+	nodeID := request.GetNodeId()
+	if nodeID == "" {
 		return nil, status.Error(codes.InvalidArgument, "missing node id")
 	}
 
@@ -244,13 +253,48 @@ func (d *controllerService) ControllerPublishVolume(ctx context.Context, request
 		return nil, status.Error(codes.InvalidArgument, "missing volume capabilities")
 	}
 
+	readonly := ""
 	if request.Readonly {
-		return nil, status.Error(codes.InvalidArgument, "readonly volumes are not supported")
+		readonly = ",ro=1"
+	}
+
+	region, _, storageName, pvc, err := parseVolumeID(volID)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+
+	cl, err := d.cluster.GetProxmoxCluster(region)
+	if err != nil {
+		klog.Errorf("failed to get proxmox cluster: %v", err)
+
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	vm, err := cl.GetVmRefByName(nodeID)
+	if err != nil {
+		klog.Errorf("failed to get vm ref by name: %v", err)
+
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	lun := 1
+	wwm := hex.EncodeToString([]byte(fmt.Sprintf("PVC-ID%02d", lun)))
+	vmParams := map[string]interface{}{
+		fmt.Sprintf("scsi%d", lun): fmt.Sprintf("%s:%s,backup=0,iothread=1,ssd=1,wwn=0x%s%s", storageName, pvc, wwm, readonly),
+	}
+
+	_, err = cl.SetVmConfig(vm, vmParams)
+	if err != nil {
+		klog.Errorf("failed to attach disk: %v, vmParams=%+v", err, vmParams)
+
+		return nil, status.Error(codes.Internal, err.Error())
 	}
 
 	// Publish Volume Info
 	pvInfo := map[string]string{}
-	pvInfo["DevicePath"] = request.VolumeContext["subPath"]
+	pvInfo["DevicePath"] = "/dev/disk/by-id/wwn-0x" + wwm
+	pvInfo["lun"] = strconv.Itoa(lun)
+	pvInfo["wwm"] = wwm
 
 	return &csi.ControllerPublishVolumeResponse{
 		PublishContext: pvInfo,
@@ -260,6 +304,47 @@ func (d *controllerService) ControllerPublishVolume(ctx context.Context, request
 // ControllerUnpublishVolume unpublish a volume
 func (d *controllerService) ControllerUnpublishVolume(ctx context.Context, request *csi.ControllerUnpublishVolumeRequest) (*csi.ControllerUnpublishVolumeResponse, error) {
 	klog.V(4).Infof("ControllerUnpublishVolume: called with args %+v", protosanitizer.StripSecrets(*request))
+
+	volID := request.GetVolumeId()
+	if volID == "" {
+		return nil, status.Error(codes.InvalidArgument, "missing volume id")
+	}
+
+	nodeID := request.GetNodeId()
+	if nodeID == "" {
+		return nil, status.Error(codes.InvalidArgument, "missing node id")
+	}
+
+	region, zone, _, _, err := parseVolumeID(volID)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+
+	cl, err := d.cluster.GetProxmoxCluster(region)
+	if err != nil {
+		klog.Errorf("failed to get proxmox cluster: %v", err)
+
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	vm, err := cl.GetVmRefByName(nodeID)
+	if err != nil {
+		klog.Errorf("failed to get vm ref by name: %v", err)
+
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	lun := 1
+	vmParams := map[string]interface{}{
+		"idlist": fmt.Sprintf("scsi%d", lun),
+	}
+
+	err = cl.Put(vmParams, "/nodes/"+zone+"/qemu/"+strconv.Itoa(vm.VmId())+"/unlink")
+	if err != nil {
+		klog.Errorf("failed to set vm config: %v, vmParams=%+v", err, vmParams)
+
+		return nil, status.Error(codes.Internal, err.Error())
+	}
 
 	return &csi.ControllerUnpublishVolumeResponse{}, nil
 }

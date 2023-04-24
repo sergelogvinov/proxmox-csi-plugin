@@ -57,8 +57,8 @@ clean: ## Clean
 build: ## Build
 	CGO_ENABLED=0 GOOS=$(OS) GOARCH=$(ARCH) go build $(GO_LDFLAGS) \
 		-o bin/proxmox-csi-$(ARCH) ./cmd/controller
-	# CGO_ENABLED=0 GOOS=$(OS) GOARCH=$(ARCH) go build $(GO_LDFLAGS) \
-	# 	-o bin/proxmox-csi-node-$(ARCH) ./cmd/node
+	CGO_ENABLED=0 GOOS=$(OS) GOARCH=$(ARCH) go build $(GO_LDFLAGS) \
+		-o bin/proxmox-csi-node-$(ARCH) ./cmd/node
 
 .PHONY: run
 run: build ## Run
@@ -98,11 +98,11 @@ docker-init:
 
 .PHONY: images
 images:
-	@docker buildx build $(BUILD_ARGS) \
-		--build-arg TAG=$(TAG) \
-		-t $(IMAGE):$(TAG) \
-		--target controller \
-		-f Dockerfile .
+	# @docker buildx build $(BUILD_ARGS) \
+	# 	--build-arg TAG=$(TAG) \
+	# 	-t $(IMAGE):$(TAG) \
+	# 	--target controller \
+	# 	-f Dockerfile .
 	@docker buildx build $(BUILD_ARGS) \
 		--build-arg TAG=$(TAG) \
 		-t $(IMAGE)-node:$(TAG) \

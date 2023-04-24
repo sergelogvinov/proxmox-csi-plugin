@@ -31,5 +31,5 @@ const (
 	// MinVolumeSize is the minimum size of a volume
 	MinVolumeSize = 1 // GB
 	// DefaultVolumeSize is the default size of a volume
-	DefaultVolumeSize = MinVolumeSize
+	DefaultVolumeSize = 10 // GB
 )

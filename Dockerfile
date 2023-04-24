@@ -33,8 +33,10 @@ ENTRYPOINT ["/proxmox-csi-controller"]
 
 ########################################
 
-FROM --platform=${TARGETARCH} gcr.io/distroless/static-debian11:nonroot AS node
+FROM --platform=${TARGETARCH} alpine:3.17 AS node
 LABEL org.opencontainers.image.source https://github.com/sergelogvinov/proxmox-csi-plugin
+
+RUN apk add --no-cache e2fsprogs xfsprogs xfsprogs-extra e2fsprogs-extra
 
 ARG TARGETARCH
 COPY --from=builder /src/bin/proxmox-csi-node-${TARGETARCH} /proxmox-csi-node
