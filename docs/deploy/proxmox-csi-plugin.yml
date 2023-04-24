@@ -199,6 +199,112 @@ subjects:
     name: proxmox-csi-plugin-controller
     namespace: csi-proxmox
 ---
+# Source: proxmox-csi-plugin/templates/node-deployment.yaml
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: proxmox-csi-plugin-node
+  namespace: csi-proxmox
+  labels:
+    helm.sh/chart: proxmox-csi-plugin-0.0.1
+    app.kubernetes.io/name: proxmox-csi-plugin
+    app.kubernetes.io/instance: proxmox-csi-plugin
+    app.kubernetes.io/version: "0.0.1"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  updateStrategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: proxmox-csi-plugin
+      app.kubernetes.io/instance: proxmox-csi-plugin
+      app.kubernetes.io/component: node
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: proxmox-csi-plugin
+        app.kubernetes.io/instance: proxmox-csi-plugin
+        app.kubernetes.io/component: node
+    spec:
+      priorityClassName: system-node-critical
+      enableServiceLinks: false
+      serviceAccountName: proxmox-csi-plugin-node
+      securityContext: {}
+      containers:
+        - name: proxmox-csi-plugin-node
+          securityContext:
+            runAsUser: 0
+            runAsGroup: 0
+            privileged: true
+          image: "ghcr.io/sergelogvinov/proxmox-csi-plugin-node:edge"
+          imagePullPolicy: Always
+          args:
+            - "-v=5"
+            - "--csi-address=unix:///csi/csi.sock"
+            - "--node-id=$(NODE_NAME)"
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          resources:
+            {}
+          volumeMounts:
+            - name: socket
+              mountPath: /csi
+            - name: kubelet
+              mountPath: /var/lib/kubelet
+              mountPropagation: Bidirectional
+            - name: dev
+              mountPath: /dev
+
+        - name: csi-node-driver-registrar
+          image: "registry.k8s.io/sig-storage/csi-node-driver-registrar:v2.7.0"
+          imagePullPolicy: IfNotPresent
+          args:
+            - "-v=5"
+            - "--csi-address=unix:///csi/csi.sock"
+            - "--kubelet-registration-path=/var/lib/kubelet/plugins/csi.proxmox.com/csi.sock"
+          volumeMounts:
+            - name: socket
+              mountPath: /csi
+            - name: registration
+              mountPath: /registration
+          resources: 
+            requests:
+              cpu: 10m
+              memory: 16Mi
+        - name: liveness-probe
+          image: "registry.k8s.io/sig-storage/livenessprobe:v2.9.0"
+          imagePullPolicy: IfNotPresent
+          args:
+            - "-v=5"
+            - "--csi-address=unix:///csi/csi.sock"
+          volumeMounts:
+            - name: socket
+              mountPath: /csi
+          resources: 
+            requests:
+              cpu: 10m
+              memory: 16Mi
+      volumes:
+        - name: socket
+          hostPath:
+            path: /var/lib/kubelet/plugins/csi.proxmox.com/
+            type: DirectoryOrCreate
+        - name: registration
+          hostPath:
+            path: /var/lib/kubelet/plugins_registry/
+            type: Directory
+        - name: kubelet
+          hostPath:
+            path: /var/lib/kubelet
+            type: Directory
+        - name: dev
+          hostPath:
+            path: /dev
+            type: Directory
+---
 # Source: proxmox-csi-plugin/templates/controller-deployment.yaml
 apiVersion: apps/v1
 kind: Deployment
@@ -221,11 +327,13 @@ spec:
     matchLabels:
       app.kubernetes.io/name: proxmox-csi-plugin
       app.kubernetes.io/instance: proxmox-csi-plugin
+      app.kubernetes.io/component: controller
   template:
     metadata:
       labels:
         app.kubernetes.io/name: proxmox-csi-plugin
         app.kubernetes.io/instance: proxmox-csi-plugin
+        app.kubernetes.io/component: controller
     spec:
       priorityClassName: system-cluster-critical
       enableServiceLinks: false

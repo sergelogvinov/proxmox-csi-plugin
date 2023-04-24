@@ -84,7 +84,7 @@ node:
       # Overrides the image tag whose default is the chart appVersion.
       tag: ""
     resources: {}
-  node-driver-registrar:
+  driverRegistrar:
     image:
       repository: registry.k8s.io/sig-storage/csi-node-driver-registrar
       pullPolicy: IfNotPresent
@@ -93,6 +93,10 @@ node:
       requests:
         cpu: 10m
         memory: 16Mi
+
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
 
 livenessprobe:
   image:

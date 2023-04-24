@@ -57,14 +57,13 @@ clean: ## Clean
 build: ## Build
 	CGO_ENABLED=0 GOOS=$(OS) GOARCH=$(ARCH) go build $(GO_LDFLAGS) \
 		-o bin/proxmox-csi-$(ARCH) ./cmd/controller
-	CGO_ENABLED=0 GOOS=$(OS) GOARCH=$(ARCH) go build $(GO_LDFLAGS) \
-		-o bin/proxmox-csi-node-$(ARCH) ./cmd/node
+	# CGO_ENABLED=0 GOOS=$(OS) GOARCH=$(ARCH) go build $(GO_LDFLAGS) \
+	# 	-o bin/proxmox-csi-node-$(ARCH) ./cmd/node
 
 .PHONY: run
 run: build ## Run
-	./bin/proxmox-csi-node-$(ARCH) --cloud-config=hack/cloud-config.yaml -v=5
-
-	# ./bin/proxmox-csi-$(ARCH) --cloud-config=hack/cloud-config.yaml -v=5
+	# ./bin/proxmox-csi-node-$(ARCH) --cloud-config=hack/cloud-config.yaml -v=5
+	./bin/proxmox-csi-$(ARCH) --cloud-config=hack/cloud-config.yaml -v=4
 
 .PHONY: lint
 lint: ## Lint Code

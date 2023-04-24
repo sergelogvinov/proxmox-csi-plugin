@@ -23,6 +23,9 @@ const (
 	// DriverVersion is the version of the CSI driver
 	DriverVersion = "0.0.1"
 
+	// StorageIDKey is the ID of the Proxmox storage
+	StorageIDKey = "storageID"
+
 	// MaxVolumesPerNode is the maximum number of volumes that can be attached to a node
 	MaxVolumesPerNode = 16
 	// MinVolumeSize is the minimum size of a volume

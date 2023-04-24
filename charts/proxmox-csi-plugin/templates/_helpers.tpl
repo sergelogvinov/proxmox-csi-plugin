@@ -35,7 +35,8 @@ Common labels
 */}}
 {{- define "proxmox-csi-plugin.labels" -}}
 helm.sh/chart: {{ include "proxmox-csi-plugin.chart" . }}
-{{ include "proxmox-csi-plugin.selectorLabels" . }}
+app.kubernetes.io/name: {{ include "proxmox-csi-plugin.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
 {{- if .Chart.AppVersion }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 {{- end }}
@@ -48,7 +49,15 @@ Selector labels
 {{- define "proxmox-csi-plugin.selectorLabels" -}}
 app.kubernetes.io/name: {{ include "proxmox-csi-plugin.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/component: controller
 {{- end }}
+
+{{- define "proxmox-csi-plugin-node.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "proxmox-csi-plugin.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/component: node
+{{- end }}
+
 
 {{/*
 Create the name of the service account to use

@@ -136,7 +136,7 @@ func (d *controllerService) CreateVolume(_ context.Context, request *csi.CreateV
 		}
 	}
 
-	klog.V(4).Infof("CreateVolume: volCtx=%+v", volCtx)
+	klog.V(4).Infof("CreateVolume: volCtx=%+v volSizeGB=%d", volCtx, volSizeGB)
 
 	volume := csi.Volume{
 		VolumeId:           fmt.Sprintf("%s/%s/vm-%d-%s", volCtx["region"], volCtx["zone"], vmID, volName),
@@ -154,12 +154,14 @@ func (d *controllerService) CreateVolume(_ context.Context, request *csi.CreateV
 	}
 
 	diskParams := map[string]interface{}{
-		"vmID":     vmID,
+		"vmid":     vmID,
 		"filename": fmt.Sprintf("vm-%d-%s", vmID, volName),
 		"size":     fmt.Sprintf("%dG", volSizeGB),
 	}
 
-	err = cl.CreateVMDisk(volCtx["zone"], volCtx["storage-id"], fmt.Sprintf("%s:vm-%d-%s", volCtx["storage-id"], vmID, volName), diskParams)
+	klog.V(4).Infof("CreateVolume: diskParams=%+v", diskParams)
+
+	err = cl.CreateVMDisk(volCtx["zone"], volCtx[StorageIDKey], fmt.Sprintf("%s:%s", volCtx[StorageIDKey], diskParams["filename"]), diskParams)
 	if err != nil {
 		klog.Errorf("failed to create vm disk: %v", err)
 
@@ -230,14 +232,36 @@ func (d *controllerService) ControllerGetCapabilities(ctx context.Context, reque
 func (d *controllerService) ControllerPublishVolume(ctx context.Context, request *csi.ControllerPublishVolumeRequest) (*csi.ControllerPublishVolumeResponse, error) {
 	klog.V(4).Infof("ControllerPublishVolume: called with args %+v", protosanitizer.StripSecrets(*request))
 
-	return nil, status.Error(codes.Unimplemented, "")
+	if request.VolumeId == "" {
+		return nil, status.Error(codes.InvalidArgument, "missing volume id")
+	}
+
+	if request.NodeId == "" {
+		return nil, status.Error(codes.InvalidArgument, "missing node id")
+	}
+
+	if request.VolumeCapability == nil {
+		return nil, status.Error(codes.InvalidArgument, "missing volume capabilities")
+	}
+
+	if request.Readonly {
+		return nil, status.Error(codes.InvalidArgument, "readonly volumes are not supported")
+	}
+
+	// Publish Volume Info
+	pvInfo := map[string]string{}
+	pvInfo["DevicePath"] = request.VolumeContext["subPath"]
+
+	return &csi.ControllerPublishVolumeResponse{
+		PublishContext: pvInfo,
+	}, nil
 }
 
 // ControllerUnpublishVolume unpublish a volume
 func (d *controllerService) ControllerUnpublishVolume(ctx context.Context, request *csi.ControllerUnpublishVolumeRequest) (*csi.ControllerUnpublishVolumeResponse, error) {
 	klog.V(4).Infof("ControllerUnpublishVolume: called with args %+v", protosanitizer.StripSecrets(*request))
 
-	return nil, status.Error(codes.Unimplemented, "")
+	return &csi.ControllerUnpublishVolumeResponse{}, nil
 }
 
 // ValidateVolumeCapabilities validate volume capabilities
@@ -260,9 +284,13 @@ func (d *controllerService) GetCapacity(ctx context.Context, request *csi.GetCap
 
 	topology := request.GetAccessibleTopology()
 	if topology != nil {
-		region := topology.Segments["topology.kubernetes.io/region"]
-		zone := topology.Segments["topology.kubernetes.io/zone"]
-		storageName := request.GetParameters()["storage-id"]
+		region := topology.Segments[corev1.LabelTopologyRegion]
+		zone := topology.Segments[corev1.LabelTopologyZone]
+		storageName := request.GetParameters()[StorageIDKey]
+
+		if region == "" || zone == "" || storageName == "" {
+			return nil, status.Error(codes.InvalidArgument, "GetCapacity Region, Zone and StorageName must be provided")
+		}
 
 		klog.V(4).Infof("GetCapacity: region=%s, zone=%s, storageName=%s", region, zone, storageName)
 

@@ -29,7 +29,7 @@ import (
 
 	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/csi"
 
-	"k8s.io/klog/v2"
+	"k8s.io/klog"
 )
 
 var (

@@ -1,0 +1,30 @@
+policies:
+  - type: commit
+    spec:
+      header:
+        length: 89
+        imperative: true
+        case: lower
+        invalidLastCharacters: .
+      body:
+        required: true
+      dco: true
+      gpg: true
+      spellcheck:
+        locale: US
+      maximumOfOneCommit: false
+      conventional:
+        types:
+          - build
+          - chore
+          - ci
+          - docs
+          - perf
+          - refactor
+          - revert
+          - style
+          - test
+        scopes:
+          - deps
+          - main
+        descriptionLength: 72
