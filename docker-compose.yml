@@ -8,7 +8,7 @@ services:
       target: develop
     network_mode: "service:base"
     environment:
-      NODE_NAME: worker-11
+      # NODE_NAME: worker-11
       KUBECONFIG: /etc/kubernetes/kubeconfig
     command:
       - "make"
@@ -50,13 +50,13 @@ services:
       - "--feature-gates=Topology=true"
       - "--enable-capacity"
       - "--capacity-ownerref-level=-1"
-      - "--extra-create-metadata=true"
-      - "--node-deployment"
+      # - "--extra-create-metadata=true"
+      # - "--node-deployment"
       - "--kubeconfig=/etc/kubernetes/kubeconfig"
     environment:
-      NAMESPACE: kube-system
+      NAMESPACE: csi-proxmox
       POD_NAME: csi-provisioner
-      NODE_NAME: worker-11
+      # NODE_NAME: worker-11
     volumes:
       - type: volume
         source: socket-dir

@@ -1,12 +1,13 @@
 REGISTRY ?= ghcr.io
 USERNAME ?= sergelogvinov
-PROJECT ?= proxmox-csi-plugin
+PROJECT ?= proxmox-csi
 IMAGE ?= $(REGISTRY)/$(USERNAME)/$(PROJECT)
 PLATFORM ?= linux/arm64,linux/amd64
 PUSH ?= false
 
 SHA ?= $(shell git describe --match=none --always --abbrev=8 --dirty)
 TAG ?= $(shell git describe --tag --always --match v[0-9]\*)
+GO_LDFLAGS := -ldflags "-w -s -X github.com/sergelogvinov/proxmox-csi-plugin/pkg/csi.gitCommit=$(SHA)"
 
 OS ?= $(shell go env GOOS)
 ARCH ?= $(shell go env GOARCH)
@@ -53,17 +54,16 @@ build-all-archs:
 clean: ## Clean
 	rm -rf bin .cache
 
+build-%:
+	CGO_ENABLED=0 GOOS=$(OS) GOARCH=$(ARCH) go build $(GO_LDFLAGS) \
+		-o bin/proxmox-csi-$*-$(ARCH) ./cmd/$*
+
 .PHONY: build
-build: ## Build
-	CGO_ENABLED=0 GOOS=$(OS) GOARCH=$(ARCH) go build $(GO_LDFLAGS) \
-		-o bin/proxmox-csi-$(ARCH) ./cmd/controller
-	CGO_ENABLED=0 GOOS=$(OS) GOARCH=$(ARCH) go build $(GO_LDFLAGS) \
-		-o bin/proxmox-csi-node-$(ARCH) ./cmd/node
+build: build-controller build-node ## Build
 
 .PHONY: run
-run: build ## Run
-	# ./bin/proxmox-csi-node-$(ARCH) --cloud-config=hack/cloud-config.yaml -v=5
-	./bin/proxmox-csi-$(ARCH) --cloud-config=hack/cloud-config.yaml -v=4
+run: build-controller ## Run
+	./bin/proxmox-csi-controller-$(ARCH) --cloud-config=hack/cloud-config.yaml -v=4
 
 .PHONY: lint
 lint: ## Lint Code
@@ -96,15 +96,13 @@ docker-init:
 	docker context use multiarch
 	docker buildx inspect --bootstrap multiarch
 
-.PHONY: images
-images:
-	# @docker buildx build $(BUILD_ARGS) \
-	# 	--build-arg TAG=$(TAG) \
-	# 	-t $(IMAGE):$(TAG) \
-	# 	--target controller \
-	# 	-f Dockerfile .
-	@docker buildx build $(BUILD_ARGS) \
+image-%:
+	docker buildx build $(BUILD_ARGS) \
 		--build-arg TAG=$(TAG) \
-		-t $(IMAGE)-node:$(TAG) \
-		--target node \
+		--build-arg SHA=$(SHA) \
+		-t $(IMAGE)-$*:$(TAG) \
+		--target $* \
 		-f Dockerfile .
+
+.PHONY: images
+images: image-controller image-node ## Build images

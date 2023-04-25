@@ -27,3 +27,4 @@ go.work
 /hack/kubeconfig
 kubeconfig
 .cache/
+/log

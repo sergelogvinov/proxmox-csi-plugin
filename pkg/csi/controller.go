@@ -127,7 +127,7 @@ func (d *controllerService) CreateVolume(_ context.Context, request *csi.CreateV
 	}
 
 	if region == "" || zone == "" {
-		klog.Errorf("CreateVolume: region or zone is empty: region=%s zone=%s", region, zone)
+		klog.Errorf("CreateVolume: region or zone is empty: accessibleTopology=%+v", accessibleTopology)
 
 		return nil, status.Error(codes.InvalidArgument, "region or zone is empty")
 	}
@@ -159,7 +159,6 @@ func (d *controllerService) CreateVolume(_ context.Context, request *csi.CreateV
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
-	volCtx["subPath"] = volName
 	volume := csi.Volume{
 		VolumeId:      volumeID,
 		VolumeContext: volCtx,
@@ -239,18 +238,18 @@ func (d *controllerService) ControllerGetCapabilities(ctx context.Context, reque
 func (d *controllerService) ControllerPublishVolume(ctx context.Context, request *csi.ControllerPublishVolumeRequest) (*csi.ControllerPublishVolumeResponse, error) {
 	klog.V(4).Infof("ControllerPublishVolume: called with args %+v", protosanitizer.StripSecrets(*request))
 
-	volID := request.GetVolumeId()
-	if volID == "" {
-		return nil, status.Error(codes.InvalidArgument, "missing volume id")
+	volumeID := request.GetVolumeId()
+	if volumeID == "" {
+		return nil, status.Error(codes.InvalidArgument, "VolumeID must be provided")
 	}
 
 	nodeID := request.GetNodeId()
 	if nodeID == "" {
-		return nil, status.Error(codes.InvalidArgument, "missing node id")
+		return nil, status.Error(codes.InvalidArgument, "NodeID must be provided")
 	}
 
 	if request.VolumeCapability == nil {
-		return nil, status.Error(codes.InvalidArgument, "missing volume capabilities")
+		return nil, status.Error(codes.InvalidArgument, "VolumeCapability must be provided")
 	}
 
 	readonly := ""
@@ -258,7 +257,7 @@ func (d *controllerService) ControllerPublishVolume(ctx context.Context, request
 		readonly = ",ro=1"
 	}
 
-	region, _, storageName, pvc, err := parseVolumeID(volID)
+	region, _, storageName, pvc, err := parseVolumeID(volumeID)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
@@ -305,17 +304,17 @@ func (d *controllerService) ControllerPublishVolume(ctx context.Context, request
 func (d *controllerService) ControllerUnpublishVolume(ctx context.Context, request *csi.ControllerUnpublishVolumeRequest) (*csi.ControllerUnpublishVolumeResponse, error) {
 	klog.V(4).Infof("ControllerUnpublishVolume: called with args %+v", protosanitizer.StripSecrets(*request))
 
-	volID := request.GetVolumeId()
-	if volID == "" {
-		return nil, status.Error(codes.InvalidArgument, "missing volume id")
+	volumeID := request.GetVolumeId()
+	if volumeID == "" {
+		return nil, status.Error(codes.InvalidArgument, "VolumeID must be provided")
 	}
 
 	nodeID := request.GetNodeId()
 	if nodeID == "" {
-		return nil, status.Error(codes.InvalidArgument, "missing node id")
+		return nil, status.Error(codes.InvalidArgument, "NodeID must be provided")
 	}
 
-	region, zone, _, _, err := parseVolumeID(volID)
+	region, zone, _, _, err := parseVolumeID(volumeID)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
@@ -374,17 +373,19 @@ func (d *controllerService) GetCapacity(ctx context.Context, request *csi.GetCap
 		storageName := request.GetParameters()[StorageIDKey]
 
 		if region == "" || zone == "" || storageName == "" {
-			return nil, status.Error(codes.InvalidArgument, "GetCapacity Region, Zone and StorageName must be provided")
+			return nil, status.Error(codes.InvalidArgument, "region, zone and storageName must be provided")
 		}
 
 		klog.V(4).Infof("GetCapacity: region=%s, zone=%s, storageName=%s", region, zone, storageName)
 
 		cl, err := d.cluster.GetProxmoxCluster(region)
 		if err != nil {
-			return nil, status.Error(codes.InvalidArgument, err.Error())
+			klog.Errorf("failed to get proxmox cluster: %v", err)
+
+			return nil, status.Error(codes.Internal, err.Error())
 		}
 
-		vmr := pxapi.NewVmRef(0)
+		vmr := pxapi.NewVmRef(vmID)
 		vmr.SetNode(zone)
 		vmr.SetVmType("qemu")
 
@@ -402,12 +403,12 @@ func (d *controllerService) GetCapacity(ctx context.Context, request *csi.GetCap
 		}
 
 		return &csi.GetCapacityResponse{
-			// MinimumVolumeSize: 1024 * 1024 * 1024,
+			// MinimumVolumeSize: MinVolumeSize * 1024 * 1024 * 1024,
 			AvailableCapacity: availableCapacity,
 		}, nil
 	}
 
-	return nil, status.Error(codes.InvalidArgument, "GetCapacity: no topology specified")
+	return nil, status.Error(codes.InvalidArgument, "no topology specified")
 }
 
 // CreateSnapshot create a snapshot
@@ -435,7 +436,42 @@ func (d *controllerService) ListSnapshots(ctx context.Context, request *csi.List
 func (d *controllerService) ControllerExpandVolume(ctx context.Context, request *csi.ControllerExpandVolumeRequest) (*csi.ControllerExpandVolumeResponse, error) {
 	klog.V(4).Infof("ControllerExpandVolume: called with args %+v", protosanitizer.StripSecrets(*request))
 
-	return nil, status.Error(codes.Unimplemented, "")
+	volumeID := request.GetVolumeId()
+	if volumeID == "" {
+		return nil, status.Error(codes.InvalidArgument, "VolumeID must be provided")
+	}
+
+	capacityRange := request.GetCapacityRange()
+	if capacityRange == nil {
+		return nil, status.Error(codes.InvalidArgument, "CapacityRange must be provided")
+	}
+
+	volSizeBytes := request.GetCapacityRange().GetRequiredBytes()
+	volSizeGB := int(util.RoundUpSize(volSizeBytes, 1024*1024*1024))
+	maxVolSize := capacityRange.GetLimitBytes()
+
+	if maxVolSize > 0 && maxVolSize < volSizeBytes {
+		return nil, status.Error(codes.OutOfRange, "After round-up, volume size exceeds the limit specified")
+	}
+
+	klog.V(4).Infof("ControllerExpandVolume resized volume %v to size %vG", volumeID, volSizeGB)
+
+	// region, _, _, _, err := parseVolumeID(volumeID)
+	// if err != nil {
+	// 	return nil, status.Error(codes.InvalidArgument, err.Error())
+	// }
+
+	// _, err = d.cluster.GetProxmoxCluster(region)
+	// if err != nil {
+	// 	klog.Errorf("failed to get proxmox cluster: %v", err)
+
+	// 	return nil, status.Error(codes.Internal, err.Error())
+	// }
+
+	return &csi.ControllerExpandVolumeResponse{
+		CapacityBytes:         volSizeBytes,
+		NodeExpansionRequired: true,
+	}, nil
 }
 
 // ControllerGetVolume get a volume

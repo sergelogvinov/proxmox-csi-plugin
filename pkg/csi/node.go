@@ -19,8 +19,6 @@ package csi
 import (
 	"context"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
@@ -71,24 +69,24 @@ func (n *nodeService) NodeStageVolume(ctx context.Context, request *csi.NodeStag
 
 	volumeID := request.GetVolumeId()
 	if len(volumeID) == 0 {
-		return nil, status.Error(codes.InvalidArgument, "VolumeID not provided")
+		return nil, status.Error(codes.InvalidArgument, "VolumeID must be provided")
 	}
 
 	stagingTarget := request.GetStagingTargetPath()
 	if len(stagingTarget) == 0 {
-		return nil, status.Error(codes.InvalidArgument, "TargetPath not provided")
+		return nil, status.Error(codes.InvalidArgument, "TargetPath must be provided")
 	}
 
 	volumeCapability := request.GetVolumeCapability()
 	if volumeCapability == nil {
-		return nil, status.Error(codes.InvalidArgument, "VolumeCapability not provided")
+		return nil, status.Error(codes.InvalidArgument, "VolumeCapability must be provided")
 	}
 
 	devicePath := request.GetPublishContext()["DevicePath"]
 	if len(devicePath) == 0 {
-		klog.Errorf("NodePublishVolume: DevicePath not provided")
+		klog.Errorf("NodePublishVolume: DevicePath must be provided")
 
-		return nil, status.Error(codes.InvalidArgument, "DevicePath not provided")
+		return nil, status.Error(codes.InvalidArgument, "DevicePath must be provided")
 	}
 
 	m := n.Mount
@@ -128,17 +126,13 @@ func (n *nodeService) NodeStageVolume(ctx context.Context, request *csi.NodeStag
 }
 
 // NodeUnstageVolume is called by the CO when a workload that was using the specified volume is being moved to a different node.
+// nolint:dupl
 func (n *nodeService) NodeUnstageVolume(ctx context.Context, request *csi.NodeUnstageVolumeRequest) (*csi.NodeUnstageVolumeResponse, error) {
 	klog.V(4).Infof("NodeUnstageVolume: called with args %+v", protosanitizer.StripSecrets(*request))
 
-	volumeID := request.GetVolumeId()
-	if len(volumeID) == 0 {
-		return nil, status.Error(codes.InvalidArgument, "Volume Id not provided")
-	}
-
 	stagingTargetPath := request.GetStagingTargetPath()
 	if len(stagingTargetPath) == 0 {
-		return nil, status.Error(codes.InvalidArgument, "Staging Target Path must be provided")
+		return nil, status.Error(codes.InvalidArgument, "StagingTargetPath must be provided")
 	}
 
 	err := n.Mount.UnmountPath(stagingTargetPath)
@@ -152,27 +146,23 @@ func (n *nodeService) NodeUnstageVolume(ctx context.Context, request *csi.NodeUn
 }
 
 // NodePublishVolume mounts the volume on the node.
+// nolint:dupl
 func (n *nodeService) NodePublishVolume(ctx context.Context, request *csi.NodePublishVolumeRequest) (*csi.NodePublishVolumeResponse, error) {
 	klog.V(4).Infof("NodePublishVolume: called with args %+v", protosanitizer.StripSecrets(*request))
 
-	volumeID := request.GetVolumeId()
-	if len(volumeID) == 0 {
-		return nil, status.Error(codes.InvalidArgument, "VolumeID not provided")
-	}
-
 	stagingTargetPath := request.GetStagingTargetPath()
 	if len(stagingTargetPath) == 0 {
-		return nil, status.Error(codes.InvalidArgument, "Staging Target Path must be provided")
+		return nil, status.Error(codes.InvalidArgument, "StagingTargetPath must be provided")
 	}
 
 	targetPath := request.GetTargetPath()
 	if len(targetPath) == 0 {
-		return nil, status.Error(codes.InvalidArgument, "TargetPath not provided")
+		return nil, status.Error(codes.InvalidArgument, "TargetPath must be provided")
 	}
 
 	volumeCapability := request.GetVolumeCapability()
 	if volumeCapability == nil {
-		return nil, status.Error(codes.InvalidArgument, "VolumeCapability not provided")
+		return nil, status.Error(codes.InvalidArgument, "VolumeCapability must be provided")
 	}
 
 	if !isValidVolumeCapabilities([]*csi.VolumeCapability{volumeCapability}) {
@@ -183,9 +173,9 @@ func (n *nodeService) NodePublishVolume(ctx context.Context, request *csi.NodePu
 
 	devicePath := request.GetPublishContext()["DevicePath"]
 	if len(devicePath) == 0 {
-		klog.Errorf("NodePublishVolume: DevicePath not provided")
+		klog.Errorf("NodePublishVolume: DevicePath must be provided")
 
-		return nil, status.Error(codes.InvalidArgument, "DevicePath not provided")
+		return nil, status.Error(codes.InvalidArgument, "DevicePath must be provided")
 	}
 
 	mountOptions := []string{"bind"}
@@ -196,22 +186,11 @@ func (n *nodeService) NodePublishVolume(ctx context.Context, request *csi.NodePu
 	}
 
 	if blk := volumeCapability.GetBlock(); blk != nil {
-		return nodePublishVolumeForBlock(request, n, mountOptions)
+		return nil, status.Error(codes.Unimplemented, "publish block volume is not supported")
 	}
 
 	m := n.Mount
 
-	// if exists, err := utilpath.Exists(utilpath.CheckFollowSymlink, targetPath); err == nil {
-	// 	if !exists {
-	// 		if err = m.MakeDir(targetPath); err != nil {
-	// 			return nil, status.Errorf(codes.Internal, "Could not create dir %q: %v", targetPath, err)
-	// 		}
-	// 	}
-	// } else {
-	// 	return nil, status.Error(codes.Internal, err.Error())
-	// }
-
-	// Verify whether mounted
 	notMnt, err := m.IsLikelyNotMountPointAttach(targetPath)
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
@@ -237,53 +216,14 @@ func (n *nodeService) NodePublishVolume(ctx context.Context, request *csi.NodePu
 	return &csi.NodePublishVolumeResponse{}, nil
 }
 
-func nodePublishVolumeForBlock(request *csi.NodePublishVolumeRequest, n *nodeService, mountOptions []string) (*csi.NodePublishVolumeResponse, error) {
-	klog.V(4).Infof("nodePublishVolumeForBlock: called with args %+v", protosanitizer.StripSecrets(*request))
-
-	devicePath := request.GetPublishContext()["DevicePath"]
-	targetPath := request.GetTargetPath()
-	podVolumePath := filepath.Dir(targetPath)
-
-	m := n.Mount
-
-	exists, err := utilpath.Exists(utilpath.CheckFollowSymlink, podVolumePath)
-	if err != nil {
-		return nil, status.Error(codes.Internal, err.Error())
-	}
-
-	if !exists {
-		if err := m.MakeDir(podVolumePath); err != nil {
-			return nil, status.Errorf(codes.Internal, "Could not create dir %q: %v", podVolumePath, err)
-		}
-	}
-
-	if err := m.MakeFile(targetPath); err != nil {
-		return nil, status.Errorf(codes.Internal, "Error in making file %v", err)
-	}
-
-	if err := m.Mounter().Mount(devicePath, targetPath, "", mountOptions); err != nil {
-		if removeErr := os.Remove(targetPath); removeErr != nil {
-			return nil, status.Errorf(codes.Internal, "Could not remove mount target %q: %v", targetPath, err)
-		}
-
-		return nil, status.Errorf(codes.Internal, "Could not mount %q at %q: %v", devicePath, targetPath, err)
-	}
-
-	return &csi.NodePublishVolumeResponse{}, nil
-}
-
 // NodeUnpublishVolume unmount the volume from the target path
+// nolint:dupl
 func (n *nodeService) NodeUnpublishVolume(ctx context.Context, request *csi.NodeUnpublishVolumeRequest) (*csi.NodeUnpublishVolumeResponse, error) {
 	klog.V(4).Infof("NodeUnpublishVolume: called with args %+v", protosanitizer.StripSecrets(*request))
 
-	volumeID := request.GetVolumeId()
-	if len(volumeID) == 0 {
-		return nil, status.Error(codes.InvalidArgument, "VolumeID not provided")
-	}
-
 	targetPath := request.GetTargetPath()
 	if len(targetPath) == 0 {
-		return nil, status.Error(codes.InvalidArgument, "TargetPath not provided")
+		return nil, status.Error(codes.InvalidArgument, "TargetPath must be provided")
 	}
 
 	err := n.Mount.UnmountPath(targetPath)
@@ -300,14 +240,9 @@ func (n *nodeService) NodeUnpublishVolume(ctx context.Context, request *csi.Node
 func (n *nodeService) NodeGetVolumeStats(ctx context.Context, request *csi.NodeGetVolumeStatsRequest) (*csi.NodeGetVolumeStatsResponse, error) {
 	klog.V(4).Infof("NodeGetVolumeStats: called with args %+v", protosanitizer.StripSecrets(*request))
 
-	volumeID := request.GetVolumeId()
-	if len(volumeID) == 0 {
-		return nil, status.Error(codes.InvalidArgument, "VolumeID not provided")
-	}
-
 	volumePath := request.GetVolumePath()
 	if len(volumePath) == 0 {
-		return nil, status.Error(codes.InvalidArgument, "VolumePath not provided")
+		return nil, status.Error(codes.InvalidArgument, "VolumePath must be provided")
 	}
 
 	exists, err := utilpath.Exists(utilpath.CheckFollowSymlink, request.VolumePath)
@@ -351,12 +286,12 @@ func (n *nodeService) NodeExpandVolume(ctx context.Context, request *csi.NodeExp
 
 	volumeID := request.GetVolumeId()
 	if len(volumeID) == 0 {
-		return nil, status.Error(codes.InvalidArgument, "VolumeID not provided")
+		return nil, status.Error(codes.InvalidArgument, "VolumeID must be provided")
 	}
 
 	volumePath := request.GetVolumePath()
 	if len(volumePath) == 0 {
-		return nil, status.Error(codes.InvalidArgument, "VolumePath not provided")
+		return nil, status.Error(codes.InvalidArgument, "VolumePath must be provided")
 	}
 
 	output, err := n.Mount.GetMountFs(volumePath)

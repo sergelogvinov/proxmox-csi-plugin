@@ -35,12 +35,17 @@ storageClass: []
   # - name: proxmox-data-xfs
   #   storageID: data
   #   reclaimPolicy: Delete
-  #   fstype: xfs
+  #   fstype: ext4|xfs
+  #
+  #   # https://pve.proxmox.com/wiki/Performance_Tweaks
+  #   cache: directsync|none|writeback|writethrough
+  #   ssd: true
+  #   discard: ignore|on
 
 controller:
   plugin:
     image:
-      repository: ghcr.io/sergelogvinov/proxmox-csi-plugin
+      repository: ghcr.io/sergelogvinov/proxmox-csi-controller
       pullPolicy: IfNotPresent
       # Overrides the image tag whose default is the chart appVersion.
       tag: ""

@@ -43,14 +43,16 @@ func main() {
 	flag.Set("logtostderr", "true") // nolint: errcheck
 	flag.Parse()
 
-	if *showVersion {
-		info, err := csi.GetVersionJSON()
-		if err != nil {
-			klog.Fatalln(err)
-		}
+	info, err := csi.GetVersionJSON()
+	if err != nil {
+		klog.Fatalln(err)
+	}
 
+	if *showVersion {
 		fmt.Println(info)
 		os.Exit(0)
+	} else {
+		klog.Infof(info)
 	}
 
 	if *csiEndpoint == "" {

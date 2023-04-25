@@ -236,7 +236,7 @@ spec:
             runAsUser: 0
             runAsGroup: 0
             privileged: true
-          image: "ghcr.io/sergelogvinov/proxmox-csi-plugin-node:edge"
+          image: "ghcr.io/sergelogvinov/proxmox-csi-node:edge"
           imagePullPolicy: Always
           args:
             - "-v=5"
@@ -345,7 +345,7 @@ spec:
           securityContext:
             seccompProfile:
               type: RuntimeDefault
-          image: "ghcr.io/sergelogvinov/proxmox-csi-plugin:edge"
+          image: "ghcr.io/sergelogvinov/proxmox-csi-controller:edge"
           imagePullPolicy: Always
           args:
             - "-v=5"
