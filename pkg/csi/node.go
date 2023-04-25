@@ -46,6 +46,9 @@ var volumeCaps = []csi.VolumeCapability_AccessMode{
 	{
 		Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER,
 	},
+	{
+		Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_READER_ONLY,
+	},
 }
 
 type nodeService struct {

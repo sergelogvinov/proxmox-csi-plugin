@@ -181,12 +181,12 @@ func (d *controllerService) CreateVolume(_ context.Context, request *csi.CreateV
 func (d *controllerService) DeleteVolume(ctx context.Context, request *csi.DeleteVolumeRequest) (*csi.DeleteVolumeResponse, error) {
 	klog.V(4).Infof("DeleteVolume: called with args %+v", protosanitizer.StripSecrets(*request))
 
-	volID := request.GetVolumeId()
-	if len(volID) == 0 {
+	volumeID := request.GetVolumeId()
+	if len(volumeID) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "DeleteVolume Volume ID must be provided")
 	}
 
-	region, zone, storageName, pvc, err := parseVolumeID(volID)
+	region, zone, storageName, pvc, err := parseVolumeID(volumeID)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
@@ -196,6 +196,19 @@ func (d *controllerService) DeleteVolume(ctx context.Context, request *csi.Delet
 		klog.Errorf("failed to get proxmox cluster: %v", err)
 
 		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	exist, err := isPvcExists(cl, volumeID)
+	if err != nil {
+		klog.Errorf("failed to check if pvc exists: %v", err)
+
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	if !exist {
+		klog.V(3).Infof("DeleteVolume: volume %s is already deleted.", volumeID)
+
+		return &csi.DeleteVolumeResponse{}, nil
 	}
 
 	vmr := pxapi.NewVmRef(vmID)
@@ -209,7 +222,7 @@ func (d *controllerService) DeleteVolume(ctx context.Context, request *csi.Delet
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
-	klog.V(4).Infof("DeleteVolume: Successfully deleted volume %s, result %+v", volID, result)
+	klog.V(4).Infof("DeleteVolume: successfully deleted volume %s, result %+v", volumeID, result)
 
 	return &csi.DeleteVolumeResponse{}, nil
 }
@@ -276,28 +289,45 @@ func (d *controllerService) ControllerPublishVolume(ctx context.Context, request
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
-	lun := 1
-	wwm := hex.EncodeToString([]byte(fmt.Sprintf("PVC-ID%02d", lun)))
-	vmParams := map[string]interface{}{
-		fmt.Sprintf("scsi%d", lun): fmt.Sprintf("%s:%s,backup=0,iothread=1,ssd=1,wwn=0x%s%s", storageName, pvc, wwm, readonly),
-	}
-
-	_, err = cl.SetVmConfig(vm, vmParams)
+	config, err := cl.GetVmConfig(vm)
 	if err != nil {
-		klog.Errorf("failed to attach disk: %v, vmParams=%+v", err, vmParams)
+		klog.Errorf("failed to get vm config: %v", err)
 
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
-	// Publish Volume Info
-	pvInfo := map[string]string{}
-	pvInfo["DevicePath"] = "/dev/disk/by-id/wwn-0x" + wwm
-	pvInfo["lun"] = strconv.Itoa(lun)
-	pvInfo["wwm"] = wwm
+	for i := 1; i < 30; i++ {
+		if config["scsi"+strconv.Itoa(i)] == nil {
+			lun := i
+			wwm := hex.EncodeToString([]byte(fmt.Sprintf("PVC-ID%02d", lun)))
+			vmParams := map[string]interface{}{
+				"scsi" + strconv.Itoa(i): fmt.Sprintf("%s:%s,backup=0,iothread=1,ssd=1,wwn=0x%s%s", storageName, pvc, wwm, readonly),
+			}
 
-	return &csi.ControllerPublishVolumeResponse{
-		PublishContext: pvInfo,
-	}, nil
+			_, err = cl.SetVmConfig(vm, vmParams)
+			if err != nil {
+				klog.Errorf("failed to attach disk: %v, vmParams=%+v", err, vmParams)
+
+				return nil, status.Error(codes.Internal, err.Error())
+			}
+
+			if err := waitForDiskAttach(cl, vm, lun); err != nil {
+				klog.Errorf("failed to wait for disk attach: %v", err)
+
+				return nil, status.Error(codes.Internal, err.Error())
+			}
+
+			// Publish Volume Info
+			pvInfo := map[string]string{}
+			pvInfo["DevicePath"] = "/dev/disk/by-id/wwn-0x" + wwm
+			pvInfo["lun"] = strconv.Itoa(lun)
+			pvInfo["wwm"] = wwm
+
+			return &csi.ControllerPublishVolumeResponse{PublishContext: pvInfo}, nil
+		}
+	}
+
+	return nil, status.Error(codes.Internal, "cannot find free scsi slot")
 }
 
 // ControllerUnpublishVolume unpublish a volume
@@ -314,7 +344,7 @@ func (d *controllerService) ControllerUnpublishVolume(ctx context.Context, reque
 		return nil, status.Error(codes.InvalidArgument, "NodeID must be provided")
 	}
 
-	region, zone, _, _, err := parseVolumeID(volumeID)
+	region, zone, _, pvc, err := parseVolumeID(volumeID)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
@@ -333,17 +363,29 @@ func (d *controllerService) ControllerUnpublishVolume(ctx context.Context, reque
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
-	lun := 1
-	vmParams := map[string]interface{}{
-		"idlist": fmt.Sprintf("scsi%d", lun),
-	}
-
-	err = cl.Put(vmParams, "/nodes/"+zone+"/qemu/"+strconv.Itoa(vm.VmId())+"/unlink")
+	config, err := cl.GetVmConfig(vm)
 	if err != nil {
-		klog.Errorf("failed to set vm config: %v, vmParams=%+v", err, vmParams)
+		klog.Errorf("failed to get vm config: %v", err)
 
 		return nil, status.Error(codes.Internal, err.Error())
 	}
+
+	for i := 1; i < 30; i++ {
+		if config["scsi"+strconv.Itoa(i)] != nil && strings.Contains(config["scsi"+strconv.Itoa(i)].(string), pvc) {
+			vmParams := map[string]interface{}{
+				"idlist": fmt.Sprintf("scsi%d", i),
+			}
+
+			err = cl.Put(vmParams, "/nodes/"+zone+"/qemu/"+strconv.Itoa(vm.VmId())+"/unlink")
+			if err != nil {
+				klog.Errorf("failed to set vm config: %v, vmParams=%+v", err, vmParams)
+
+				return nil, status.Error(codes.Internal, err.Error())
+			}
+		}
+	}
+
+	klog.V(3).Infof("ControllerUnpublishVolume assuming volume %s is detached, because pvc %s does not exist", volumeID, pvc)
 
 	return &csi.ControllerUnpublishVolumeResponse{}, nil
 }
@@ -456,22 +498,82 @@ func (d *controllerService) ControllerExpandVolume(ctx context.Context, request 
 
 	klog.V(4).Infof("ControllerExpandVolume resized volume %v to size %vG", volumeID, volSizeGB)
 
-	// region, _, _, _, err := parseVolumeID(volumeID)
-	// if err != nil {
-	// 	return nil, status.Error(codes.InvalidArgument, err.Error())
-	// }
+	region, zone, _, pvc, err := parseVolumeID(volumeID)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
 
-	// _, err = d.cluster.GetProxmoxCluster(region)
-	// if err != nil {
-	// 	klog.Errorf("failed to get proxmox cluster: %v", err)
+	cl, err := d.cluster.GetProxmoxCluster(region)
+	if err != nil {
+		klog.Errorf("failed to get proxmox cluster: %v", err)
 
-	// 	return nil, status.Error(codes.Internal, err.Error())
-	// }
+		return nil, status.Error(codes.Internal, err.Error())
+	}
 
-	return &csi.ControllerExpandVolumeResponse{
-		CapacityBytes:         volSizeBytes,
-		NodeExpansionRequired: true,
-	}, nil
+	exist, err := isPvcExists(cl, volumeID)
+	if err != nil {
+		klog.Errorf("failed to check if pvc exists: %v", err)
+
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	if !exist {
+		return nil, status.Error(codes.NotFound, "volume not found")
+	}
+
+	vmlist, err := cl.GetVmList()
+	if err != nil {
+		klog.Errorf("failed to get vm list: %v", err)
+
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	vms, ok := vmlist["data"].([]interface{})
+	if !ok {
+		err = fmt.Errorf("failed to cast response to list, vmlist: %v", vmlist)
+
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	for vmii := range vms {
+		vm, ok := vms[vmii].(map[string]interface{})
+		if !ok {
+			return nil, status.Errorf(codes.Internal, "failed to cast response to map, vm: %v", vm)
+		}
+
+		if vm["node"].(string) == zone {
+			vmID := int(vm["vmid"].(float64))
+
+			vmr := pxapi.NewVmRef(vmID)
+			vmr.SetNode(zone)
+			vmr.SetVmType("qemu")
+
+			config, err := cl.GetVmConfig(vmr)
+			if err != nil {
+				klog.Errorf("failed to get vm config: %v", err)
+
+				return nil, status.Error(codes.Internal, err.Error())
+			}
+
+			for i := 1; i < 30; i++ {
+				if config["scsi"+strconv.Itoa(i)] != nil && strings.Contains(config["scsi"+strconv.Itoa(i)].(string), pvc) {
+					_, err := cl.ResizeQemuDiskRaw(vmr, "scsi"+strconv.Itoa(i), fmt.Sprintf("%dG", volSizeGB))
+					if err != nil {
+						klog.Errorf("failed to resize vm disk: %s, %v", pvc, err)
+
+						return nil, status.Error(codes.Internal, err.Error())
+					}
+
+					return &csi.ControllerExpandVolumeResponse{
+						CapacityBytes:         volSizeBytes,
+						NodeExpansionRequired: true,
+					}, nil
+				}
+			}
+		}
+	}
+
+	return nil, status.Error(codes.NotFound, "failed to find vm with pvc")
 }
 
 // ControllerGetVolume get a volume

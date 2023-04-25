@@ -25,7 +25,7 @@ RUN make build-all-archs
 ########################################
 
 FROM --platform=${TARGETARCH} gcr.io/distroless/static-debian11:nonroot AS controller
-LABEL org.opencontainers.image.source https://github.com/sergelogvinov/proxmox-csi-plugin
+LABEL org.opencontainers.image.source = "https://github.com/sergelogvinov/proxmox-csi-plugin"
 
 ARG TARGETARCH
 COPY --from=builder /src/bin/proxmox-csi-controller-${TARGETARCH} /proxmox-csi-controller
@@ -34,10 +34,14 @@ ENTRYPOINT ["/proxmox-csi-controller"]
 
 ########################################
 
-FROM --platform=${TARGETARCH} alpine:3.17 AS node
-LABEL org.opencontainers.image.source https://github.com/sergelogvinov/proxmox-csi-plugin
+FROM --platform=${TARGETARCH} registry.k8s.io/build-image/debian-base:bullseye-v1.4.3 AS node
+LABEL org.opencontainers.image.source = "https://github.com/sergelogvinov/proxmox-csi-plugin"
 
-RUN apk add --no-cache e2fsprogs xfsprogs xfsprogs-extra e2fsprogs-extra
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    mount \
+    e2fsprogs \
+    xfsprogs \
+    && rm -rf /var/lib/apt/lists/*
 
 ARG TARGETARCH
 COPY --from=builder /src/bin/proxmox-csi-node-${TARGETARCH} /proxmox-csi-node

@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: test
+  namespace: default
+  labels:
+    app: alpine
+spec:
+  podManagementPolicy: Parallel  # default is OrderedReady
+  serviceName: test
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: alpine
+    spec:
+      terminationGracePeriodSeconds: 3
+      nodeSelector:
+        topology.kubernetes.io/zone: worker-metal-1
+      containers:
+        - name: alpine
+          image: alpine
+          command: ["sleep","6000"]
+          securityContext:
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: storage
+              mountPath: /mnt
+  updateStrategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app: alpine
+  volumeClaimTemplates:
+    - metadata:
+        name: storage
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi
+        storageClassName: proxmox-data-xfs
