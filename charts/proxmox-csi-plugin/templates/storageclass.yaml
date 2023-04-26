@@ -3,7 +3,7 @@ apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
   name: {{ $storage.name }}
-provisioner: csi.proxmox.com
+provisioner: {{ $.Values.provisionerName }}
 allowVolumeExpansion: true
 volumeBindingMode: WaitForFirstConsumer
 reclaimPolicy: {{ default "Delete" $storage.reclaimPolicy }}

@@ -8,15 +8,15 @@ metadata:
 spec:
   podManagementPolicy: Parallel  # default is OrderedReady
   serviceName: test
-  replicas: 1
+  replicas: 2
   template:
     metadata:
       labels:
         app: alpine
     spec:
       terminationGracePeriodSeconds: 3
-      nodeSelector:
-        topology.kubernetes.io/zone: worker-metal-1
+      # nodeSelector:
+      #   topology.kubernetes.io/zone: worker-metal-1
       containers:
         - name: alpine
           image: alpine

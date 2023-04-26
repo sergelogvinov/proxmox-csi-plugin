@@ -19,6 +19,8 @@ serviceAccount:
   # If not set and create is true, a name is generated using the fullname template
   name: ""
 
+provisionerName: csi.proxmox.com
+
 clusterID: kubernetes
 logVerbosityLevel: 5
 timeout: 3m

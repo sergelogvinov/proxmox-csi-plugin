@@ -78,9 +78,13 @@ docs:
 	helm template -n kube-system proxmox-csi-plugin \
 		-f charts/proxmox-csi-plugin/values.dev.yaml \
 		--set-string image.tag=$(TAG) \
-		--include-crds \
 		-n csi-proxmox \
 		charts/proxmox-csi-plugin > docs/deploy/proxmox-csi-plugin.yml
+	helm template -n kube-system proxmox-csi-plugin \
+		-f charts/proxmox-csi-plugin/values.talos.yaml \
+		--set-string image.tag=$(TAG) \
+		-n csi-proxmox \
+		charts/proxmox-csi-plugin > docs/deploy/proxmox-csi-plugin-talos.yml
 
 ############
 #

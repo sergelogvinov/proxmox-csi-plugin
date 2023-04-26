@@ -228,8 +228,8 @@ spec:
             runAsUser: 0
             runAsGroup: 0
             privileged: true
-          image: "ghcr.io/sergelogvinov/proxmox-csi-node:edge"
-          imagePullPolicy: Always
+          image: "ghcr.io/sergelogvinov/proxmox-csi-node:0.0.1"
+          imagePullPolicy: IfNotPresent
           args:
             - "-v=5"
             - "--csi-address=unix:///csi/csi.sock"
@@ -296,6 +296,8 @@ spec:
           hostPath:
             path: /dev
             type: Directory
+      nodeSelector:
+        node.cloudprovider.kubernetes.io/platform: nocloud
 ---
 # Source: proxmox-csi-plugin/templates/controller-deployment.yaml
 apiVersion: apps/v1
@@ -337,8 +339,8 @@ spec:
           securityContext:
             seccompProfile:
               type: RuntimeDefault
-          image: "ghcr.io/sergelogvinov/proxmox-csi-controller:edge"
-          imagePullPolicy: Always
+          image: "ghcr.io/sergelogvinov/proxmox-csi-controller:0.0.1"
+          imagePullPolicy: IfNotPresent
           args:
             - "-v=5"
             - "--csi-address=unix:///csi/csi.sock"

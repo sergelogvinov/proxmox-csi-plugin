@@ -62,7 +62,7 @@ spec:
           args:
             - "-v={{ .Values.logVerbosityLevel }}"
             - "--csi-address=unix:///csi/csi.sock"
-            - "--kubelet-registration-path=/var/lib/kubelet/plugins/csi.proxmox.com/csi.sock"
+            - "--kubelet-registration-path=/var/lib/kubelet/plugins/{{ .Values.provisionerName }}/csi.sock"
           volumeMounts:
             - name: socket
               mountPath: /csi
@@ -82,7 +82,7 @@ spec:
       volumes:
         - name: socket
           hostPath:
-            path: /var/lib/kubelet/plugins/csi.proxmox.com/
+            path: /var/lib/kubelet/plugins/{{ .Values.provisionerName }}/
             type: DirectoryOrCreate
         - name: registration
           hostPath:
