@@ -3,6 +3,7 @@ package cloud
 
 import (
 	"crypto/tls"
+	"fmt"
 	"os"
 
 	pxapi "github.com/Telmate/proxmox-api-go/proxmox"
@@ -59,5 +60,5 @@ func (c *Client) GetProxmoxCluster(region string) (*pxapi.Client, error) {
 		return c.proxmox[region], nil
 	}
 
-	return nil, nil
+	return nil, fmt.Errorf("proxmox cluster %s not found", region)
 }

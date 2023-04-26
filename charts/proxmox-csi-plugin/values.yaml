@@ -19,7 +19,7 @@ serviceAccount:
   # If not set and create is true, a name is generated using the fullname template
   name: ""
 
-provisionerName: csi.proxmox.com
+provisionerName: csi.proxmox.sinextra.dev
 
 clusterID: kubernetes
 logVerbosityLevel: 5
@@ -102,8 +102,13 @@ node:
         memory: 16Mi
 
   nodeSelector: {}
-  tolerations: []
-  affinity: {}
+  tolerations:
+    - key: node.kubernetes.io/unschedulable
+      operator: Exists
+      effect: NoSchedule
+    - key: node.kubernetes.io/disk-pressure
+      operator: Exists
+      effect: NoSchedule
 
 livenessprobe:
   image:

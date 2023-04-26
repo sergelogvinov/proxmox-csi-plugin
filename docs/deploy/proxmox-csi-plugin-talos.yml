@@ -40,13 +40,26 @@ apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
   name: proxmox-data-xfs
-provisioner: csi.proxmox.com
+provisioner: csi.proxmox.sinextra.dev
 allowVolumeExpansion: true
 volumeBindingMode: WaitForFirstConsumer
 reclaimPolicy: Delete
 parameters:
   storageID: data
   csi.storage.k8s.io/fstype: xfs
+---
+# Source: proxmox-csi-plugin/templates/storageclass.yaml
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: proxmox-data
+provisioner: csi.proxmox.sinextra.dev
+allowVolumeExpansion: true
+volumeBindingMode: WaitForFirstConsumer
+reclaimPolicy: Delete
+parameters:
+  storageID: data
+  csi.storage.k8s.io/fstype: ext4
 ---
 # Source: proxmox-csi-plugin/templates/controller-clusterrole.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -249,14 +262,15 @@ spec:
               mountPropagation: Bidirectional
             - name: dev
               mountPath: /dev
-
+            - name: sys
+              mountPath: /sys
         - name: csi-node-driver-registrar
           image: "registry.k8s.io/sig-storage/csi-node-driver-registrar:v2.7.0"
           imagePullPolicy: IfNotPresent
           args:
             - "-v=5"
             - "--csi-address=unix:///csi/csi.sock"
-            - "--kubelet-registration-path=/var/lib/kubelet/plugins/csi.proxmox.com/csi.sock"
+            - "--kubelet-registration-path=/var/lib/kubelet/plugins/csi.proxmox.sinextra.dev/csi.sock"
           volumeMounts:
             - name: socket
               mountPath: /csi
@@ -282,7 +296,7 @@ spec:
       volumes:
         - name: socket
           hostPath:
-            path: /var/lib/kubelet/plugins/csi.proxmox.com/
+            path: /var/lib/kubelet/plugins/csi.proxmox.sinextra.dev/
             type: DirectoryOrCreate
         - name: registration
           hostPath:
@@ -296,8 +310,14 @@ spec:
           hostPath:
             path: /dev
             type: Directory
+        - name: sys
+          hostPath:
+            path: /sys
+            type: Directory
       nodeSelector:
         node.cloudprovider.kubernetes.io/platform: nocloud
+      tolerations:
+        - operator: Exists
 ---
 # Source: proxmox-csi-plugin/templates/controller-deployment.yaml
 apiVersion: apps/v1
@@ -453,7 +473,7 @@ spec:
 apiVersion: storage.k8s.io/v1
 kind: CSIDriver
 metadata:
-  name: csi.proxmox.com
+  name: csi.proxmox.sinextra.dev
 spec:
   attachRequired: true
   podInfoOnMount: true

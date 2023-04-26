@@ -55,7 +55,8 @@ spec:
               mountPropagation: Bidirectional
             - name: dev
               mountPath: /dev
-
+            - name: sys
+              mountPath: /sys
         - name: csi-node-driver-registrar
           image: "{{ .Values.node.driverRegistrar.image.repository }}:{{ .Values.node.driverRegistrar.image.tag }}"
           imagePullPolicy: {{ .Values.node.driverRegistrar.image.pullPolicy }}
@@ -96,12 +97,12 @@ spec:
           hostPath:
             path: /dev
             type: Directory
+        - name: sys
+          hostPath:
+            path: /sys
+            type: Directory
       {{- with .Values.node.nodeSelector }}
       nodeSelector:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
-      {{- with .Values.node.affinity }}
-      affinity:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       {{- with .Values.node.tolerations }}

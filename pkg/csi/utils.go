@@ -1,15 +1,19 @@
 package csi
 
 import (
+	"encoding/hex"
 	"fmt"
 	"net/url"
 	"os"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
 	pxapi "github.com/Telmate/proxmox-api-go/proxmox"
+
+	"k8s.io/klog"
 )
 
 const (
@@ -43,7 +47,7 @@ func ParseEndpoint(endpoint string) (string, string, error) {
 func parseVolumeID(volumeID string) (string, string, string, string, error) {
 	volIDParts := strings.Split(volumeID, "/")
 	if len(volIDParts) != 4 {
-		return "", "", "", "", fmt.Errorf("DeleteVolume Volume ID must be in the format of region/zone/storageName/volume-name")
+		return "", "", "", "", fmt.Errorf("volumID must be in the format of region/zone/storageName/volume-name")
 	}
 
 	region := volIDParts[0]
@@ -90,7 +94,23 @@ func isPvcExists(cl *pxapi.Client, volumeID string) (bool, error) {
 	return false, nil
 }
 
-func waitForDiskAttach(cl *pxapi.Client, vmr *pxapi.VmRef, lun int) error {
+func isVolumeAttached(vmConfig map[string]interface{}, pvc string) (int, bool) {
+	if pvc == "" {
+		return 0, false
+	}
+
+	for lun := 1; lun < 30; lun++ {
+		device := fmt.Sprintf("scsi%d", lun)
+
+		if vmConfig[device] != nil && strings.Contains(vmConfig[device].(string), pvc) {
+			return lun, true
+		}
+	}
+
+	return 0, false
+}
+
+func waitForVolumeAttach(cl *pxapi.Client, vmr *pxapi.VmRef, lun int) error {
 	waited := 0
 	for waited < TaskTimeout {
 		config, err := cl.GetVmConfig(vmr)
@@ -108,4 +128,100 @@ func waitForDiskAttach(cl *pxapi.Client, vmr *pxapi.VmRef, lun int) error {
 	}
 
 	return fmt.Errorf("timeout waiting for disk to attach")
+}
+
+func waitForVolumeDetach(cl *pxapi.Client, vmr *pxapi.VmRef, lun int) error {
+	return nil
+}
+
+func attachVolume(cl *pxapi.Client, vmr *pxapi.VmRef, storageName string, pvc string, options map[string]string) (map[string]string, error) {
+	config, err := cl.GetVmConfig(vmr)
+	if err != nil {
+		klog.Errorf("failed to get vm config: %v", err)
+
+		return nil, err
+	}
+
+	wwm := ""
+
+	lun, exist := isVolumeAttached(config, pvc)
+	if exist {
+		klog.V(3).Infof("volume %s already attached", pvc)
+
+		wwm = hex.EncodeToString([]byte(fmt.Sprintf("PVC-ID%02d", lun)))
+	} else {
+		for lun = 1; lun < 30; lun++ {
+			if config["scsi"+strconv.Itoa(lun)] == nil {
+				wwm = hex.EncodeToString([]byte(fmt.Sprintf("PVC-ID%02d", lun)))
+
+				options["wwn"] = "0x" + wwm
+
+				opt := make([]string, 0, len(options))
+				for k := range options {
+					opt = append(opt, fmt.Sprintf("%s=%s", k, options[k]))
+				}
+
+				vmParams := map[string]interface{}{
+					"scsi" + strconv.Itoa(lun): fmt.Sprintf("%s:%s,%s", storageName, pvc, strings.Join(opt, ",")),
+				}
+
+				klog.Infof("attaching disk: %+v", vmParams)
+
+				_, err = cl.SetVmConfig(vmr, vmParams)
+				if err != nil {
+					klog.Errorf("failed to attach disk: %v, vmParams=%+v", err, vmParams)
+
+					return nil, err
+				}
+
+				if err := waitForVolumeAttach(cl, vmr, lun); err != nil {
+					klog.Errorf("failed to wait for disk attach: %v", err)
+
+					return nil, err
+				}
+
+				break
+			}
+		}
+	}
+
+	if wwm != "" {
+		return map[string]string{
+			"DevicePath": "/dev/disk/by-id/wwn-0x" + wwm,
+			"lun":        strconv.Itoa(lun),
+		}, nil
+	}
+
+	return nil, fmt.Errorf("no free lun found")
+}
+
+func detachVolume(cl *pxapi.Client, vmr *pxapi.VmRef, pvc string) error {
+	config, err := cl.GetVmConfig(vmr)
+	if err != nil {
+		return fmt.Errorf("failed to get vm config: %v", err)
+	}
+
+	lun, exist := isVolumeAttached(config, pvc)
+	if !exist {
+		return nil
+	}
+
+	vmParams := map[string]interface{}{
+		"idlist": fmt.Sprintf("scsi%d", lun),
+	}
+
+	err = cl.Put(vmParams, "/nodes/"+vmr.Node()+"/qemu/"+strconv.Itoa(vmr.VmId())+"/unlink")
+	if err != nil {
+		klog.Errorf("failed to set vm config: %v, vmParams=%+v", err, vmParams)
+
+		return err
+	}
+
+	if err := waitForVolumeDetach(cl, vmr, lun); err != nil {
+		klog.Errorf("failed to wait for disk detach: %v", err)
+
+		return err
+	}
+
+	return nil
 }

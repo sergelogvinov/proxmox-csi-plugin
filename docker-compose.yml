@@ -86,7 +86,7 @@ services:
   #   command:
   #     - "--v=5"
   #     - "--csi-address=unix:///csi/csi.sock"
-  #     - "--kubelet-registration-path=/var/lib/kubelet/plugins/csi.proxmox.com/csi.sock"
+  #     - "--kubelet-registration-path=/var/lib/kubelet/plugins/csi.proxmox.sinextra.dev/csi.sock"
   #   environment:
   #     KUBE_NODE_NAME: worker-11
   #   volumes:

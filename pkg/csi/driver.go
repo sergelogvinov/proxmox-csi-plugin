@@ -19,7 +19,7 @@ package csi
 
 const (
 	// DriverName is the name of the CSI driver
-	DriverName = "csi.proxmox.com"
+	DriverName = "csi.proxmox.sinextra.dev"
 	// DriverVersion is the version of the CSI driver
 	DriverVersion = "0.0.1"
 

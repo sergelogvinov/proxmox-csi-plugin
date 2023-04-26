@@ -2,6 +2,8 @@
 node:
   nodeSelector:
     node.cloudprovider.kubernetes.io/platform: nocloud
+  tolerations:
+    - operator: Exists
 
 nodeSelector:
   node-role.kubernetes.io/control-plane: ""
@@ -14,3 +16,6 @@ storageClass:
     storageID: data
     reclaimPolicy: Delete
     fstype: xfs
+  - name: proxmox-data
+    storageID: data
+    reclaimPolicy: Delete

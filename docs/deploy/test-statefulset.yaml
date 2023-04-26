@@ -8,7 +8,7 @@ metadata:
 spec:
   podManagementPolicy: Parallel  # default is OrderedReady
   serviceName: test
-  replicas: 2
+  replicas: 4
   template:
     metadata:
       labels:
@@ -42,4 +42,4 @@ spec:
         resources:
           requests:
             storage: 1Gi
-        storageClassName: proxmox-data-xfs
+        storageClassName: proxmox-data
