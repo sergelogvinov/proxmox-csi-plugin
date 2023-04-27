@@ -7,8 +7,6 @@ import (
 	"os"
 
 	pxapi "github.com/Telmate/proxmox-api-go/proxmox"
-
-	"k8s.io/klog/v2"
 )
 
 // Client is a Proxmox client.
@@ -37,9 +35,7 @@ func NewClient(config *ClustersConfig) (*Client, error) {
 			client.SetAPIToken(cfg.TokenID, cfg.TokenSecret)
 
 			if _, err := client.GetVersion(); err != nil {
-				klog.Errorf("failed to initialized proxmox client in cluster %s: %v", cfg.Region, err)
-
-				return nil, err
+				return nil, fmt.Errorf("failed to initialized proxmox client in cluster %s: %v", cfg.Region, err)
 			}
 
 			proxmox[cfg.Region] = client

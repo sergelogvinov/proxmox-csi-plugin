@@ -1,5 +1,5 @@
 // Package volume
-package cloud
+package volume
 
 import (
 	"fmt"
@@ -10,16 +10,16 @@ type volume struct {
 	region  string
 	zone    string
 	storage string
-	pvc     string
+	disk    string
 }
 
 // NewVolume creates a new volume ID.
-func NewVolume(region, zone, storage, pvc string) *volume {
+func NewVolume(region, zone, storage, disk string) *volume {
 	return &volume{
 		region:  region,
 		zone:    zone,
 		storage: storage,
-		pvc:     pvc,
+		disk:    disk,
 	}
 }
 
@@ -37,13 +37,13 @@ func parseVolumeID(vol string) (*volume, error) {
 		region:  parts[0],
 		zone:    parts[1],
 		storage: parts[2],
-		pvc:     parts[3],
+		disk:    parts[3],
 	}, nil
 }
 
 // VolumeID function returns the volume magic string.
 func (v *volume) VolumeID() string {
-	return v.region + "/" + v.zone + "/" + v.storage + "/" + v.pvc
+	return v.region + "/" + v.zone + "/" + v.storage + "/" + v.disk
 }
 
 // Region function returns the region in which the volume was created.
@@ -61,9 +61,9 @@ func (v *volume) Storage() string {
 	return v.storage
 }
 
-// PVC function returns the Proxmox PVC name.
-func (v *volume) PVC() string {
-	return v.pvc
+// Disk function returns the Proxmox disk name.
+func (v *volume) Disk() string {
+	return v.disk
 }
 
 // Cluster function returns the cluster name in which the volume was created.

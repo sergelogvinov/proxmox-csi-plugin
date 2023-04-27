@@ -30,6 +30,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	proxmox "github.com/sergelogvinov/proxmox-csi-plugin/pkg/proxmox"
+	volume "github.com/sergelogvinov/proxmox-csi-plugin/pkg/volume"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/cloud-provider-openstack/pkg/util"
@@ -76,8 +77,8 @@ func NewControllerService(cloudConfig string) (*controllerService, error) {
 func (d *controllerService) CreateVolume(_ context.Context, request *csi.CreateVolumeRequest) (*csi.CreateVolumeResponse, error) {
 	klog.V(4).Infof("CreateVolume: called with args %+v", protosanitizer.StripSecrets(*request))
 
-	volName := request.GetName()
-	if len(volName) == 0 {
+	pvc := request.GetName()
+	if len(pvc) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "Volume Name cannot be empty")
 	}
 
@@ -140,8 +141,8 @@ func (d *controllerService) CreateVolume(_ context.Context, request *csi.CreateV
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
-	volumeName := fmt.Sprintf("vm-%d-%s", vmID, volName)
-	vol := proxmox.NewVolume(region, zone, volCtx[StorageIDKey], volumeName)
+	volumeName := fmt.Sprintf("vm-%d-%s", vmID, pvc)
+	vol := volume.NewVolume(region, zone, volCtx[StorageIDKey], volumeName)
 
 	diskParams := map[string]interface{}{
 		"vmid":     vmID,
@@ -183,7 +184,7 @@ func (d *controllerService) DeleteVolume(ctx context.Context, request *csi.Delet
 		return nil, status.Error(codes.InvalidArgument, "DeleteVolume Volume ID must be provided")
 	}
 
-	vol, err := proxmox.NewVolumeFromVolumeID(volumeID)
+	vol, err := volume.NewVolumeFromVolumeID(volumeID)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
@@ -212,14 +213,14 @@ func (d *controllerService) DeleteVolume(ctx context.Context, request *csi.Delet
 	vmr.SetNode(vol.Node())
 	vmr.SetVmType("qemu")
 
-	_, err = cl.DeleteVolume(vmr, vol.Storage(), vol.PVC())
+	_, err = cl.DeleteVolume(vmr, vol.Storage(), vol.Disk())
 	if err != nil {
 		klog.Errorf("failed to delete volume: %v", err)
 
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
-	klog.V(4).Infof("DeleteVolume: successfully deleted volume %s", vol.PVC())
+	klog.V(4).Infof("DeleteVolume: successfully deleted volume %s", vol.Disk())
 
 	return &csi.DeleteVolumeResponse{}, nil
 }
@@ -262,12 +263,12 @@ func (d *controllerService) ControllerPublishVolume(ctx context.Context, request
 		return nil, status.Error(codes.InvalidArgument, "VolumeCapability must be provided")
 	}
 
-	region, _, storageName, pvc, err := parseVolumeID(volumeID)
+	vol, err := volume.NewVolumeFromVolumeID(volumeID)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
-	cl, err := d.cluster.GetProxmoxCluster(region)
+	cl, err := d.cluster.GetProxmoxCluster(vol.Cluster())
 	if err != nil {
 		klog.Errorf("failed to get proxmox cluster: %v", err)
 
@@ -293,7 +294,7 @@ func (d *controllerService) ControllerPublishVolume(ctx context.Context, request
 	d.volumeLocks.Lock()
 	defer d.volumeLocks.Unlock()
 
-	pvInfo, err := attachVolume(cl, vm, storageName, pvc, options)
+	pvInfo, err := attachVolume(cl, vm, vol.Storage(), vol.Disk(), options)
 	if err != nil {
 		klog.Errorf("failed to attach volume: %v", err)
 
@@ -317,7 +318,7 @@ func (d *controllerService) ControllerUnpublishVolume(ctx context.Context, reque
 		return nil, status.Error(codes.InvalidArgument, "NodeID must be provided")
 	}
 
-	vol, err := proxmox.NewVolumeFromVolumeID(volumeID)
+	vol, err := volume.NewVolumeFromVolumeID(volumeID)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
@@ -336,7 +337,7 @@ func (d *controllerService) ControllerUnpublishVolume(ctx context.Context, reque
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
-	if detachVolume(cl, vm, vol.PVC()) != nil {
+	if detachVolume(cl, vm, vol.Disk()) != nil {
 		klog.Errorf("failed to detachVolume vm config: %v, vmr=%+v", err, vm)
 
 		return nil, status.Error(codes.Internal, err.Error())
@@ -453,12 +454,12 @@ func (d *controllerService) ControllerExpandVolume(ctx context.Context, request 
 
 	klog.V(4).Infof("ControllerExpandVolume resized volume %v to size %vG", volumeID, volSizeGB)
 
-	region, zone, _, pvc, err := parseVolumeID(volumeID)
+	vol, err := volume.NewVolumeFromVolumeID(volumeID)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
-	cl, err := d.cluster.GetProxmoxCluster(region)
+	cl, err := d.cluster.GetProxmoxCluster(vol.Cluster())
 	if err != nil {
 		klog.Errorf("failed to get proxmox cluster: %v", err)
 
@@ -498,11 +499,11 @@ func (d *controllerService) ControllerExpandVolume(ctx context.Context, request 
 			return nil, status.Errorf(codes.Internal, "failed to cast response to map, vm: %v", vm)
 		}
 
-		if vm["node"].(string) == zone {
+		if vm["node"].(string) == vol.Node() {
 			vmID := int(vm["vmid"].(float64))
 
 			vmr := pxapi.NewVmRef(vmID)
-			vmr.SetNode(zone)
+			vmr.SetNode(vol.Node())
 			vmr.SetVmType("qemu")
 
 			config, err := cl.GetVmConfig(vmr)
@@ -512,7 +513,7 @@ func (d *controllerService) ControllerExpandVolume(ctx context.Context, request 
 				return nil, status.Error(codes.Internal, err.Error())
 			}
 
-			lun, exist := isVolumeAttached(config, pvc)
+			lun, exist := isVolumeAttached(config, vol.Disk())
 			if !exist {
 				continue
 			}
@@ -521,7 +522,7 @@ func (d *controllerService) ControllerExpandVolume(ctx context.Context, request 
 
 			_, err = cl.ResizeQemuDiskRaw(vmr, device, fmt.Sprintf("%dG", volSizeGB))
 			if err != nil {
-				klog.Errorf("failed to resize vm disk: %s, %v", pvc, err)
+				klog.Errorf("failed to resize vm disk: %s, %v", vol.Disk(), err)
 
 				return nil, status.Error(codes.Internal, err.Error())
 			}
@@ -533,7 +534,7 @@ func (d *controllerService) ControllerExpandVolume(ctx context.Context, request 
 		}
 	}
 
-	klog.Errorf("cannot resize unpublished volume %s", pvc)
+	klog.Errorf("cannot resize unpublished volumeID %s", volumeID)
 
 	return &csi.ControllerExpandVolumeResponse{}, nil
 }

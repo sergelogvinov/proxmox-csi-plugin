@@ -25,6 +25,10 @@ clusterID: kubernetes
 logVerbosityLevel: 5
 timeout: 3m
 
+existingConfigSecret: ~
+existingConfigSecretKey: config.yaml
+
+configFile: /etc/proxmox/config.yaml
 config:
   clusters: []
   #   - url: https://cluster-api-1.exmple.com:8006/api2/json
@@ -126,18 +130,20 @@ livenessprobe:
 
 podAnnotations: {}
 
-podSecurityContext: {}
-  # fsGroup: 2000
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  runAsGroup: 65532
+  fsGroup: 65532
+  fsGroupChangePolicy: OnRootMismatch
 
 securityContext:
-  # capabilities:
-  #   drop:
-  #   - ALL
+  capabilities:
+    drop:
+    - ALL
   seccompProfile:
     type: RuntimeDefault
-  # readOnlyRootFilesystem: true
-  # runAsNonRoot: true
-  # runAsUser: 1000
+  readOnlyRootFilesystem: true
 
 updateStrategy:
   type: RollingUpdate

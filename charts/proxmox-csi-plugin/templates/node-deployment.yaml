@@ -58,6 +58,13 @@ spec:
             - name: sys
               mountPath: /sys
         - name: csi-node-driver-registrar
+          securityContext:
+            capabilities:
+              drop:
+              - ALL
+            # readOnlyRootFilesystem: true
+            seccompProfile:
+              type: RuntimeDefault
           image: "{{ .Values.node.driverRegistrar.image.repository }}:{{ .Values.node.driverRegistrar.image.tag }}"
           imagePullPolicy: {{ .Values.node.driverRegistrar.image.pullPolicy }}
           args:
@@ -71,6 +78,13 @@ spec:
               mountPath: /registration
           resources: {{ toYaml .Values.node.driverRegistrar.resources | nindent 12 }}
         - name: liveness-probe
+          securityContext:
+            capabilities:
+              drop:
+              - ALL
+            readOnlyRootFilesystem: true
+            seccompProfile:
+              type: RuntimeDefault
           image: "{{ .Values.livenessprobe.image.repository }}:{{ .Values.livenessprobe.image.tag }}"
           imagePullPolicy: {{ .Values.livenessprobe.image.pullPolicy }}
           args:

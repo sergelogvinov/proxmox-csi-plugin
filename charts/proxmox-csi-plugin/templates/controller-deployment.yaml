@@ -43,8 +43,7 @@ spec:
           args:
             - "-v={{ .Values.logVerbosityLevel }}"
             - "--csi-address=unix:///csi/csi.sock"
-            # - "--cluster={{ .Values.clusterID }}"
-            - "--cloud-config=/etc/proxmox/config.yaml"
+            - "--cloud-config={{ .Values.configFile }}"
           resources:
             {{- toYaml .Values.controller.plugin.resources | nindent 12 }}
           volumeMounts:
@@ -122,9 +121,18 @@ spec:
       volumes:
         - name: socket-dir
           emptyDir: {}
+        {{- if .Values.existingConfigSecret }}
+        - name: cloud-config
+          secret:
+            secretName: {{ .Values.existingConfigSecret }}
+            items:
+              - key: {{ .Values.existingConfigSecretKey }}
+                path: config.yaml
+        {{- else }}
         - name: cloud-config
           secret:
             secretName: {{ include "proxmox-csi-plugin.fullname" . }}
+        {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

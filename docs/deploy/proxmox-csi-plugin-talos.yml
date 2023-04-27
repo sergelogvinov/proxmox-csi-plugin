@@ -265,6 +265,13 @@ spec:
             - name: sys
               mountPath: /sys
         - name: csi-node-driver-registrar
+          securityContext:
+            capabilities:
+              drop:
+              - ALL
+            # readOnlyRootFilesystem: true
+            seccompProfile:
+              type: RuntimeDefault
           image: "registry.k8s.io/sig-storage/csi-node-driver-registrar:v2.7.0"
           imagePullPolicy: IfNotPresent
           args:
@@ -281,6 +288,13 @@ spec:
               cpu: 10m
               memory: 16Mi
         - name: liveness-probe
+          securityContext:
+            capabilities:
+              drop:
+              - ALL
+            readOnlyRootFilesystem: true
+            seccompProfile:
+              type: RuntimeDefault
           image: "registry.k8s.io/sig-storage/livenessprobe:v2.9.0"
           imagePullPolicy: IfNotPresent
           args:
@@ -353,10 +367,18 @@ spec:
       enableServiceLinks: false
       serviceAccountName: proxmox-csi-plugin-controller
       securityContext:
-        {}
+        fsGroup: 65532
+        fsGroupChangePolicy: OnRootMismatch
+        runAsGroup: 65532
+        runAsNonRoot: true
+        runAsUser: 65532
       containers:
         - name: proxmox-csi-plugin-controller
           securityContext:
+            capabilities:
+              drop:
+              - ALL
+            readOnlyRootFilesystem: true
             seccompProfile:
               type: RuntimeDefault
           image: "ghcr.io/sergelogvinov/proxmox-csi-controller:0.0.1"
@@ -364,7 +386,6 @@ spec:
           args:
             - "-v=5"
             - "--csi-address=unix:///csi/csi.sock"
-            # - "--cluster=kubernetes"
             - "--cloud-config=/etc/proxmox/config.yaml"
           resources:
             requests:
@@ -377,6 +398,10 @@ spec:
               mountPath: /etc/proxmox/
         - name: csi-attacher
           securityContext:
+            capabilities:
+              drop:
+              - ALL
+            readOnlyRootFilesystem: true
             seccompProfile:
               type: RuntimeDefault
           image: "registry.k8s.io/sig-storage/csi-attacher:v4.2.0"
@@ -396,6 +421,10 @@ spec:
               memory: 16Mi
         - name: csi-provisioner
           securityContext:
+            capabilities:
+              drop:
+              - ALL
+            readOnlyRootFilesystem: true
             seccompProfile:
               type: RuntimeDefault
           image: "registry.k8s.io/sig-storage/csi-provisioner:v3.4.0"
@@ -427,6 +456,10 @@ spec:
               memory: 16Mi
         - name: csi-resizer
           securityContext:
+            capabilities:
+              drop:
+              - ALL
+            readOnlyRootFilesystem: true
             seccompProfile:
               type: RuntimeDefault
           image: "registry.k8s.io/sig-storage/csi-resizer:v1.7.0"
