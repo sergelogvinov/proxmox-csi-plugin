@@ -4,8 +4,8 @@ metadata:
   name: test
   namespace: default
 spec:
-  nodeSelector:
-     kubernetes.io/hostname: worker-11
+  # nodeSelector:
+  #    kubernetes.io/hostname: worker-11
   containers:
     - name: alpine
       image: alpine

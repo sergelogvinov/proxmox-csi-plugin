@@ -10,5 +10,8 @@ reclaimPolicy: {{ default "Delete" $storage.reclaimPolicy }}
 parameters:
   storageID: {{ $storage.storageID }}
   csi.storage.k8s.io/fstype: {{ default "ext4" $storage.fstype }}
+  {{- if $storage.cache }}
+  cache: {{  $storage.cache }}
+  {{- end }}
 ---
 {{- end }}

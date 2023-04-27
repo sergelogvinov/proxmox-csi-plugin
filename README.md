@@ -93,6 +93,41 @@ kubectl -f https://raw.githubusercontent.com/sergelogvinov/proxmox-csi-plugin/ma
 Check status of PV,PVC
 
 ```shell
+$ kubectl -n default get pods,pvc
+NAME       READY   STATUS    RESTARTS   AGE
+pod/test   1/1     Running   0          45s
+
+NAME                             STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS      AGE
+persistentvolumeclaim/test-pvc   Bound    pvc-5bc58ec7-da55-48d2-9dc5-75d4d6629a4e   1Gi        RWO            proxmox-data-xfs  45s
+
+$ kubectl describe pv pvc-5bc58ec7-da55-48d2-9dc5-75d4d6629a4e
+Name:              pvc-5bc58ec7-da55-48d2-9dc5-75d4d6629a4e
+Labels:            <none>
+Annotations:       pv.kubernetes.io/provisioned-by: csi.proxmox.sinextra.dev
+                   volume.kubernetes.io/provisioner-deletion-secret-name:
+                   volume.kubernetes.io/provisioner-deletion-secret-namespace:
+Finalizers:        [kubernetes.io/pv-protection external-attacher/csi-proxmox-sinextra-dev]
+StorageClass:      proxmox-data-xfs
+Status:            Bound
+Claim:             default/test-pvc
+Reclaim Policy:    Delete
+Access Modes:      RWO
+VolumeMode:        Filesystem
+Capacity:          1Gi
+Node Affinity:
+  Required Terms:
+    Term 0:        topology.kubernetes.io/region in [Region-1]
+                   topology.kubernetes.io/zone in [pve-1]
+Message:
+Source:
+    Type:              CSI (a Container Storage Interface (CSI) volume source)
+    Driver:            csi.proxmox.sinextra.dev
+    FSType:            xfs
+    VolumeHandle:      Region-1/pve-1/data/vm-9999-pvc-5bc58ec7-da55-48d2-9dc5-75d4d6629a4e
+    ReadOnly:          false
+    VolumeAttributes:      cache=writethrough
+                           storage.kubernetes.io/csiProvisionerIdentity=1682607985217-8081-csi.proxmox.sinextra.dev
+                           storageID=data
 ```
 
 ### Statefulset with persistent storage
@@ -104,6 +139,47 @@ kubectl -f https://raw.githubusercontent.com/sergelogvinov/proxmox-csi-plugin/ma
 Check status of PV,PVC
 
 ```shell
+$ kubectl -n default get pods,pvc -owide
+NAME         READY   STATUS    RESTARTS   AGE   IP             NODE        NOMINATED NODE   READINESS GATES
+pod/test-0   1/1     Running   0          27s   10.32.8.251    worker-11   <none>           <none>
+pod/test-1   1/1     Running   0          27s   10.32.13.202   worker-31   <none>           <none>
+pod/test-2   1/1     Running   0          26s   10.32.2.236    worker-12   <none>           <none>
+pod/test-3   1/1     Running   0          26s   10.32.14.20    worker-32   <none>           <none>
+
+NAME                                   STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS      AGE   VOLUMEMODE
+persistentvolumeclaim/storage-test-0   Bound    pvc-3b76c8aa-1024-4f2e-88ca-8b3e27e27f65   1Gi        RWO            proxmox-data-xfs  27s   Filesystem
+persistentvolumeclaim/storage-test-1   Bound    pvc-70394f08-db69-435f-a373-6c4526732042   1Gi        RWO            proxmox-data-xfs  27s   Filesystem
+persistentvolumeclaim/storage-test-2   Bound    pvc-8a64b28e-826c-4ece-84f7-7bd921250881   1Gi        RWO            proxmox-data-xfs  26s   Filesystem
+persistentvolumeclaim/storage-test-3   Bound    pvc-847c1eca-1c1f-4be3-ba15-754785ffe4ad   1Gi        RWO            proxmox-data-xfs  26s   Filesystem
+
+$ kubectl describe pv pvc-3b76c8aa-1024-4f2e-88ca-8b3e27e27f65
+Name:              pvc-3b76c8aa-1024-4f2e-88ca-8b3e27e27f65
+Labels:            <none>
+Annotations:       pv.kubernetes.io/provisioned-by: csi.proxmox.sinextra.dev
+                   volume.kubernetes.io/provisioner-deletion-secret-name:
+                   volume.kubernetes.io/provisioner-deletion-secret-namespace:
+Finalizers:        [kubernetes.io/pv-protection external-attacher/csi-proxmox-sinextra-dev]
+StorageClass:      proxmox
+Status:            Bound
+Claim:             default/storage-test-0
+Reclaim Policy:    Delete
+Access Modes:      RWO
+VolumeMode:        Filesystem
+Capacity:          1Gi
+Node Affinity:
+  Required Terms:
+    Term 0:        topology.kubernetes.io/zone in [pve-1]
+                   topology.kubernetes.io/region in [Region-1]
+Message:
+Source:
+    Type:              CSI (a Container Storage Interface (CSI) volume source)
+    Driver:            csi.proxmox.sinextra.dev
+    FSType:            xfs
+    VolumeHandle:      Region-1/pve-1/data/vm-9999-pvc-3b76c8aa-1024-4f2e-88ca-8b3e27e27f65
+    ReadOnly:          false
+    VolumeAttributes:      cache=writethrough
+                           storage.kubernetes.io/csiProvisionerIdentity=1682607985217-8081-csi.proxmox.sinextra.dev
+                           storageID=data
 ```
 
 ### Usage
@@ -121,7 +197,8 @@ Check Proxmox pool capacity
 ```shell
 $ kubectl get csistoragecapacities -ocustom-columns=CLASS:.storageClassName,AVAIL:.capacity,ZONE:.nodeTopology.matchLabels -A
 CLASS              AVAIL       ZONE
-proxmox-data-xfs   4234740Mi   map[topology.kubernetes.io/region:cluster-1 topology.kubernetes.io/zone:pve-1]
+proxmox-data-xfs   470268Mi    map[topology.kubernetes.io/region:Region-2 topology.kubernetes.io/zone:pve-3]
+proxmox-data-xfs   5084660Mi   map[topology.kubernetes.io/region:Region-1 topology.kubernetes.io/zone:pve-1]
 ```
 
 Check node CSI drivers on the node
