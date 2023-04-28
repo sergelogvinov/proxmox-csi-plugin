@@ -7,7 +7,7 @@ PUSH ?= false
 
 SHA ?= $(shell git describe --match=none --always --abbrev=8 --dirty)
 TAG ?= $(shell git describe --tag --always --match v[0-9]\*)
-GO_LDFLAGS := -ldflags "-w -s -X github.com/sergelogvinov/proxmox-csi-plugin/pkg/csi.gitCommit=$(SHA)"
+GO_LDFLAGS := -ldflags "-w -s -X main.version=$(SHA)"
 
 OS ?= $(shell go env GOOS)
 ARCH ?= $(shell go env GOARCH)

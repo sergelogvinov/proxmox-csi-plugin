@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-type volume struct {
+type Volume struct {
 	region  string
 	zone    string
 	storage string
@@ -14,8 +14,8 @@ type volume struct {
 }
 
 // NewVolume creates a new volume ID.
-func NewVolume(region, zone, storage, disk string) *volume {
-	return &volume{
+func NewVolume(region, zone, storage, disk string) *Volume {
+	return &Volume{
 		region:  region,
 		zone:    zone,
 		storage: storage,
@@ -23,17 +23,17 @@ func NewVolume(region, zone, storage, disk string) *volume {
 	}
 }
 
-func NewVolumeFromVolumeID(volume string) (*volume, error) {
+func NewVolumeFromVolumeID(volume string) (*Volume, error) {
 	return parseVolumeID(volume)
 }
 
-func parseVolumeID(vol string) (*volume, error) {
+func parseVolumeID(vol string) (*Volume, error) {
 	parts := strings.Split(vol, "/")
 	if len(parts) != 4 {
 		return nil, fmt.Errorf("volumID must be in the format of region/zone/storageName/diskName")
 	}
 
-	return &volume{
+	return &Volume{
 		region:  parts[0],
 		zone:    parts[1],
 		storage: parts[2],
@@ -42,36 +42,36 @@ func parseVolumeID(vol string) (*volume, error) {
 }
 
 // VolumeID function returns the volume magic string.
-func (v *volume) VolumeID() string {
+func (v *Volume) VolumeID() string {
 	return v.region + "/" + v.zone + "/" + v.storage + "/" + v.disk
 }
 
 // Region function returns the region in which the volume was created.
-func (v *volume) Region() string {
+func (v *Volume) Region() string {
 	return v.region
 }
 
 // Zone function returns the zone in which the volume was created.
-func (v *volume) Zone() string {
+func (v *Volume) Zone() string {
 	return v.zone
 }
 
 // Storage function returns the Proxmox storage name.
-func (v *volume) Storage() string {
+func (v *Volume) Storage() string {
 	return v.storage
 }
 
 // Disk function returns the Proxmox disk name.
-func (v *volume) Disk() string {
+func (v *Volume) Disk() string {
 	return v.disk
 }
 
 // Cluster function returns the cluster name in which the volume was created.
-func (v *volume) Cluster() string {
+func (v *Volume) Cluster() string {
 	return v.region
 }
 
 // Node function returns the node name in which the volume was created.
-func (v *volume) Node() string {
+func (v *Volume) Node() string {
 	return v.zone
 }

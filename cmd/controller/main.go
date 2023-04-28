@@ -20,7 +20,6 @@ package main
 import (
 	"context"
 	"flag"
-	"fmt"
 	"net"
 	"os"
 
@@ -29,13 +28,15 @@ import (
 
 	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/csi"
 
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 )
 
 var (
 	showVersion = flag.Bool("version", false, "Print the version and exit.")
 	csiEndpoint = flag.String("csi-address", "unix:///csi/csi.sock", "CSI Endpoint")
 	cloudconfig = flag.String("cloud-config", "", "The path to the CSI driver cloud config.")
+
+	version string
 )
 
 func main() {
@@ -43,16 +44,11 @@ func main() {
 	flag.Set("logtostderr", "true") // nolint: errcheck
 	flag.Parse()
 
-	info, err := csi.GetVersionJSON()
-	if err != nil {
-		klog.Fatalln(err)
-	}
+	klog.V(2).Infof("Driver version %v, GitVersion %s", csi.DriverVersion, version)
 
 	if *showVersion {
-		fmt.Println(info)
+		klog.Infof("Driver version %v, GitVersion %s", csi.DriverVersion, version)
 		os.Exit(0)
-	} else {
-		klog.Infof(info)
 	}
 
 	if *csiEndpoint == "" {

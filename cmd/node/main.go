@@ -19,7 +19,6 @@ package main
 import (
 	"context"
 	"flag"
-	"fmt"
 	"net"
 	"os"
 
@@ -36,15 +35,13 @@ import (
 
 var (
 	showVersion = flag.Bool("version", false, "Print the version and exit.")
+	csiEndpoint = flag.String("csi-address", "unix:///csi/csi.sock", "CSI Endpoint")
+	nodeID      = flag.String("node-id", "", "Node name")
 
 	master     = flag.String("master", "", "Master URL to build a client config from. Either this or kubeconfig needs to be set if the provisioner is being run out of cluster.")
 	kubeconfig = flag.String("kubeconfig", "", "Absolute path to the kubeconfig file. Either this or master needs to be set if the provisioner is being run out of cluster.")
-	// cluster     = flag.String("cluster", "", "The identifier of the cluster that the plugin is running in.")
 
-	csiEndpoint = flag.String("csi-address", "unix:///csi/csi.sock", "CSI Endpoint")
-	// cloudconfig = flag.String("cloud-config", "", "The path to the CSI driver cloud config.")
-
-	nodeID = flag.String("node-id", "", "Node name")
+	version string
 )
 
 func main() {
@@ -52,13 +49,10 @@ func main() {
 	flag.Set("logtostderr", "true") // nolint: errcheck
 	flag.Parse()
 
-	if *showVersion {
-		info, err := csi.GetVersionJSON()
-		if err != nil {
-			klog.Fatalln(err)
-		}
+	klog.V(2).Infof("Driver version %v, GitVersion %s", csi.DriverVersion, version)
 
-		fmt.Println(info)
+	if *showVersion {
+		klog.Infof("Driver version %v, GitVersion %s", csi.DriverVersion, version)
 		os.Exit(0)
 	}
 
@@ -99,10 +93,6 @@ func main() {
 		klog.Fatalln("csi-address must be provided")
 	}
 
-	// if *cloudconfig == "" {
-	// 	klog.Fatalln("cloud-config must be provided")
-	// }
-
 	nodeName := *nodeID
 	if nodeName == "" {
 		nodeName = os.Getenv("NODE_NAME")
@@ -137,15 +127,9 @@ func main() {
 
 	srv := grpc.NewServer(opts...)
 
-	// controllerService, err := csi.NewControllerService(*cloudconfig)
-	// if err != nil {
-	// 	klog.Fatalf("Failed to create controller service: %v", err)
-	// }
-
 	identityService := csi.NewIdentityService()
 	nodeService := csi.NewNodeService(nodeName, clientset)
 
-	// proto.RegisterControllerServer(srv, controllerService)
 	proto.RegisterIdentityServer(srv, identityService)
 	proto.RegisterNodeServer(srv, nodeService)
 

@@ -29,12 +29,12 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	proxmox "github.com/sergelogvinov/proxmox-csi-plugin/pkg/proxmox"
+	proxmox "github.com/sergelogvinov/proxmox-cloud-controller-manager/pkg/cluster"
 	volume "github.com/sergelogvinov/proxmox-csi-plugin/pkg/volume"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/cloud-provider-openstack/pkg/util"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 )
 
 const (
@@ -56,7 +56,7 @@ type controllerService struct {
 
 // NewControllerService returns a new controller service
 func NewControllerService(cloudConfig string) (*controllerService, error) {
-	cfg, err := proxmox.ReadFromFileCloudConfig(cloudConfig)
+	cfg, err := proxmox.ReadCloudConfigFromFile(cloudConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read config: %v", err)
 	}
@@ -196,7 +196,7 @@ func (d *controllerService) DeleteVolume(ctx context.Context, request *csi.Delet
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
-	exist, err := isPvcExists(cl, volumeID)
+	exist, err := isPvcExists(cl, vol)
 	if err != nil {
 		klog.Errorf("failed to check if pvc exists: %v", err)
 
@@ -466,7 +466,7 @@ func (d *controllerService) ControllerExpandVolume(ctx context.Context, request 
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
-	exist, err := isPvcExists(cl, volumeID)
+	exist, err := isPvcExists(cl, vol)
 	if err != nil {
 		klog.Errorf("failed to check if pvc exists: %v", err)
 

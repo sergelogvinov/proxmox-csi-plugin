@@ -242,8 +242,8 @@ volumeBindingMode: WaitForFirstConsumer
 Storage parameters:
 * storageID - proxmox storage ID
 * cache - qemu cache param: `directsync`, `none`, `writeback`, `writethrough` see [official documentation](https://pve.proxmox.com/wiki/Performance_Tweaks)
-* ssh - true if SSD/NVME disk
-* discard - use SSD/NVME discard command
+* ssd - true if SSD/NVME disk
+* discard - accept SSD/NVME discard commands
 
 ## In Scope
 

@@ -13,7 +13,9 @@ import (
 
 	pxapi "github.com/Telmate/proxmox-api-go/proxmox"
 
-	"k8s.io/klog"
+	volume "github.com/sergelogvinov/proxmox-csi-plugin/pkg/volume"
+
+	"k8s.io/klog/v2"
 )
 
 const (
@@ -44,31 +46,12 @@ func ParseEndpoint(endpoint string) (string, string, error) {
 	return scheme, addr, nil
 }
 
-func parseVolumeID(volumeID string) (string, string, string, string, error) {
-	volIDParts := strings.Split(volumeID, "/")
-	if len(volIDParts) != 4 {
-		return "", "", "", "", fmt.Errorf("volumID must be in the format of region/zone/storageName/volume-name")
-	}
-
-	region := volIDParts[0]
-	zone := volIDParts[1]
-	storageName := volIDParts[2]
-	pvc := volIDParts[3]
-
-	return region, zone, storageName, pvc, nil
-}
-
-func isPvcExists(cl *pxapi.Client, volumeID string) (bool, error) {
-	_, zone, storageName, pvc, err := parseVolumeID(volumeID)
-	if err != nil {
-		return false, err
-	}
-
+func isPvcExists(cl *pxapi.Client, vol *volume.Volume) (bool, error) {
 	vmr := pxapi.NewVmRef(vmID)
-	vmr.SetNode(zone)
+	vmr.SetNode(vol.Node())
 	vmr.SetVmType("qemu")
 
-	context, err := cl.GetStorageContent(vmr, storageName)
+	context, err := cl.GetStorageContent(vmr, vol.Storage())
 	if err != nil {
 		return false, fmt.Errorf("failed to get storage list: %v", err)
 	}
@@ -78,7 +61,7 @@ func isPvcExists(cl *pxapi.Client, volumeID string) (bool, error) {
 		return false, fmt.Errorf("failed to cast images to map: %v", err)
 	}
 
-	volid := fmt.Sprintf("%s:%s", storageName, pvc)
+	volid := fmt.Sprintf("%s:%s", vol.Storage(), vol.Disk())
 
 	for i := range images {
 		image, ok := images[i].(map[string]interface{})
