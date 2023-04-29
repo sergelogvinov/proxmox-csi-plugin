@@ -6,7 +6,7 @@ Welcome to the v0.0.2 release of Proxmox CSI Plugin!
 
 ### Changelog
 
-* 2611530 chore: release v0.0.2
+* 8390a9f chore: release v0.0.2
 
 <a name="v0.01"></a>
 ## [v0.01](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.0.1...v0.01) (2023-04-29)

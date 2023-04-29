@@ -23,7 +23,7 @@ jobs:
         shell: bash
         id: release
         run: |
-          echo "TAG=${GITHUB_HEAD_REF:8}" >> "$GITHUB_ENV"
+          echo "TAG=v${GITHUB_HEAD_REF:8}" >> "$GITHUB_ENV"
 
       - name: Helm docs
         uses: gabe565/setup-helm-docs-action@v1
