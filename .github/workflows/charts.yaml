@@ -1,0 +1,27 @@
+name: Helm chart check
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'charts/**'
+
+jobs:
+  helm-lint:
+    name: Helm chart check
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Unshallow
+        run: git fetch --prune --unshallow
+
+      - name: Install chart-testing tools
+        id: lint
+        uses: helm/chart-testing-action@v2.3.1
+
+      - name: Run helm chart linter
+        run: ct --config hack/ct.yml lint
+      - name: Run helm template
+        run: make helm-unit

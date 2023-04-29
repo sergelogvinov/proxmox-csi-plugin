@@ -51,6 +51,7 @@ var volumeCaps = []csi.VolumeCapability_AccessMode{
 	},
 }
 
+// NodeService is the node service for the CSI driver
 type NodeService struct {
 	nodeID  string
 	kclient *clientkubernetes.Clientset
@@ -58,6 +59,7 @@ type NodeService struct {
 	Mount mount.IMount
 }
 
+// NewNodeService returns a new NodeService
 func NewNodeService(nodeID string, client *clientkubernetes.Clientset) *NodeService {
 	return &NodeService{
 		nodeID:  nodeID,
@@ -67,7 +69,7 @@ func NewNodeService(nodeID string, client *clientkubernetes.Clientset) *NodeServ
 }
 
 // NodeStageVolume is called by the CO when a workload that wants to use the specified volume is placed (scheduled) on a node.
-func (n *NodeService) NodeStageVolume(ctx context.Context, request *csi.NodeStageVolumeRequest) (*csi.NodeStageVolumeResponse, error) {
+func (n *NodeService) NodeStageVolume(_ context.Context, request *csi.NodeStageVolumeRequest) (*csi.NodeStageVolumeResponse, error) {
 	klog.V(4).Infof("NodeStageVolume: called with args %+v", protosanitizer.StripSecrets(*request))
 
 	volumeID := request.GetVolumeId()
@@ -130,7 +132,7 @@ func (n *NodeService) NodeStageVolume(ctx context.Context, request *csi.NodeStag
 
 // NodeUnstageVolume is called by the CO when a workload that was using the specified volume is being moved to a different node.
 // nolint:dupl
-func (n *NodeService) NodeUnstageVolume(ctx context.Context, request *csi.NodeUnstageVolumeRequest) (*csi.NodeUnstageVolumeResponse, error) {
+func (n *NodeService) NodeUnstageVolume(_ context.Context, request *csi.NodeUnstageVolumeRequest) (*csi.NodeUnstageVolumeResponse, error) {
 	klog.V(4).Infof("NodeUnstageVolume: called with args %+v", protosanitizer.StripSecrets(*request))
 
 	stagingTargetPath := request.GetStagingTargetPath()
@@ -150,7 +152,7 @@ func (n *NodeService) NodeUnstageVolume(ctx context.Context, request *csi.NodeUn
 
 // NodePublishVolume mounts the volume on the node.
 // nolint:dupl
-func (n *NodeService) NodePublishVolume(ctx context.Context, request *csi.NodePublishVolumeRequest) (*csi.NodePublishVolumeResponse, error) {
+func (n *NodeService) NodePublishVolume(_ context.Context, request *csi.NodePublishVolumeRequest) (*csi.NodePublishVolumeResponse, error) {
 	klog.V(4).Infof("NodePublishVolume: called with args %+v", protosanitizer.StripSecrets(*request))
 
 	stagingTargetPath := request.GetStagingTargetPath()
@@ -221,7 +223,7 @@ func (n *NodeService) NodePublishVolume(ctx context.Context, request *csi.NodePu
 
 // NodeUnpublishVolume unmount the volume from the target path
 // nolint:dupl
-func (n *NodeService) NodeUnpublishVolume(ctx context.Context, request *csi.NodeUnpublishVolumeRequest) (*csi.NodeUnpublishVolumeResponse, error) {
+func (n *NodeService) NodeUnpublishVolume(_ context.Context, request *csi.NodeUnpublishVolumeRequest) (*csi.NodeUnpublishVolumeResponse, error) {
 	klog.V(4).Infof("NodeUnpublishVolume: called with args %+v", protosanitizer.StripSecrets(*request))
 
 	targetPath := request.GetTargetPath()
@@ -240,7 +242,7 @@ func (n *NodeService) NodeUnpublishVolume(ctx context.Context, request *csi.Node
 }
 
 // NodeGetVolumeStats get the volume stats
-func (n *NodeService) NodeGetVolumeStats(ctx context.Context, request *csi.NodeGetVolumeStatsRequest) (*csi.NodeGetVolumeStatsResponse, error) {
+func (n *NodeService) NodeGetVolumeStats(_ context.Context, request *csi.NodeGetVolumeStatsRequest) (*csi.NodeGetVolumeStatsResponse, error) {
 	klog.V(4).Infof("NodeGetVolumeStats: called with args %+v", protosanitizer.StripSecrets(*request))
 
 	volumePath := request.GetVolumePath()
@@ -284,7 +286,7 @@ func (n *NodeService) NodeGetVolumeStats(ctx context.Context, request *csi.NodeG
 }
 
 // NodeExpandVolume expand the volume
-func (n *NodeService) NodeExpandVolume(ctx context.Context, request *csi.NodeExpandVolumeRequest) (*csi.NodeExpandVolumeResponse, error) {
+func (n *NodeService) NodeExpandVolume(_ context.Context, request *csi.NodeExpandVolumeRequest) (*csi.NodeExpandVolumeResponse, error) {
 	klog.V(4).Infof("NodeExpandVolume: called with args %+v", protosanitizer.StripSecrets(*request))
 
 	volumeID := request.GetVolumeId()
@@ -322,7 +324,7 @@ func (n *NodeService) NodeExpandVolume(ctx context.Context, request *csi.NodeExp
 }
 
 // NodeGetCapabilities get the node capabilities
-func (n *NodeService) NodeGetCapabilities(ctx context.Context, request *csi.NodeGetCapabilitiesRequest) (*csi.NodeGetCapabilitiesResponse, error) {
+func (n *NodeService) NodeGetCapabilities(_ context.Context, request *csi.NodeGetCapabilitiesRequest) (*csi.NodeGetCapabilitiesResponse, error) {
 	klog.V(4).Infof("NodeGetCapabilities: called with args %+v", protosanitizer.StripSecrets(*request))
 
 	caps := []*csi.NodeServiceCapability{}

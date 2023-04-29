@@ -49,6 +49,7 @@ var controllerCaps = []csi.ControllerServiceCapability_RPC_Type{
 	csi.ControllerServiceCapability_RPC_GET_VOLUME,
 }
 
+// ControllerService is the controller service for the CSI driver
 type ControllerService struct {
 	cluster     proxmox.Client
 	volumeLocks sync.Mutex
@@ -146,7 +147,7 @@ func (d *ControllerService) CreateVolume(_ context.Context, request *csi.CreateV
 }
 
 // DeleteVolume deletes a volume.
-func (d *ControllerService) DeleteVolume(ctx context.Context, request *csi.DeleteVolumeRequest) (*csi.DeleteVolumeResponse, error) {
+func (d *ControllerService) DeleteVolume(_ context.Context, request *csi.DeleteVolumeRequest) (*csi.DeleteVolumeResponse, error) {
 	klog.V(4).Infof("DeleteVolume: called with args %+v", protosanitizer.StripSecrets(*request))
 
 	volumeID := request.GetVolumeId()
@@ -196,7 +197,7 @@ func (d *ControllerService) DeleteVolume(ctx context.Context, request *csi.Delet
 }
 
 // ControllerGetCapabilities get controller capabilities.
-func (d *ControllerService) ControllerGetCapabilities(ctx context.Context, request *csi.ControllerGetCapabilitiesRequest) (*csi.ControllerGetCapabilitiesResponse, error) {
+func (d *ControllerService) ControllerGetCapabilities(_ context.Context, request *csi.ControllerGetCapabilitiesRequest) (*csi.ControllerGetCapabilitiesResponse, error) {
 	klog.V(4).Infof("ControllerGetCapabilities: called with args %+v", protosanitizer.StripSecrets(*request))
 
 	caps := []*csi.ControllerServiceCapability{}
@@ -216,7 +217,7 @@ func (d *ControllerService) ControllerGetCapabilities(ctx context.Context, reque
 }
 
 // ControllerPublishVolume publish a volume
-func (d *ControllerService) ControllerPublishVolume(ctx context.Context, request *csi.ControllerPublishVolumeRequest) (*csi.ControllerPublishVolumeResponse, error) {
+func (d *ControllerService) ControllerPublishVolume(_ context.Context, request *csi.ControllerPublishVolumeRequest) (*csi.ControllerPublishVolumeResponse, error) {
 	klog.V(4).Infof("ControllerPublishVolume: called with args %+v", protosanitizer.StripSecrets(*request))
 
 	volumeID := request.GetVolumeId()
@@ -289,7 +290,7 @@ func (d *ControllerService) ControllerPublishVolume(ctx context.Context, request
 }
 
 // ControllerUnpublishVolume unpublish a volume
-func (d *ControllerService) ControllerUnpublishVolume(ctx context.Context, request *csi.ControllerUnpublishVolumeRequest) (*csi.ControllerUnpublishVolumeResponse, error) {
+func (d *ControllerService) ControllerUnpublishVolume(_ context.Context, request *csi.ControllerUnpublishVolumeRequest) (*csi.ControllerUnpublishVolumeResponse, error) {
 	klog.V(4).Infof("ControllerUnpublishVolume: called with args %+v", protosanitizer.StripSecrets(*request))
 
 	volumeID := request.GetVolumeId()
@@ -331,21 +332,21 @@ func (d *ControllerService) ControllerUnpublishVolume(ctx context.Context, reque
 }
 
 // ValidateVolumeCapabilities validate volume capabilities
-func (d *ControllerService) ValidateVolumeCapabilities(ctx context.Context, request *csi.ValidateVolumeCapabilitiesRequest) (*csi.ValidateVolumeCapabilitiesResponse, error) {
+func (d *ControllerService) ValidateVolumeCapabilities(_ context.Context, request *csi.ValidateVolumeCapabilitiesRequest) (*csi.ValidateVolumeCapabilitiesResponse, error) {
 	klog.V(4).Infof("ValidateVolumeCapabilities: called with args %+v", protosanitizer.StripSecrets(*request))
 
 	return nil, status.Error(codes.Unimplemented, "")
 }
 
 // ListVolumes list volumes
-func (d *ControllerService) ListVolumes(ctx context.Context, request *csi.ListVolumesRequest) (*csi.ListVolumesResponse, error) {
+func (d *ControllerService) ListVolumes(_ context.Context, request *csi.ListVolumesRequest) (*csi.ListVolumesResponse, error) {
 	klog.V(4).Infof("ListVolumes: called with args %+v", protosanitizer.StripSecrets(*request))
 
 	return nil, status.Error(codes.Unimplemented, "")
 }
 
 // GetCapacity get capacity
-func (d *ControllerService) GetCapacity(ctx context.Context, request *csi.GetCapacityRequest) (*csi.GetCapacityResponse, error) {
+func (d *ControllerService) GetCapacity(_ context.Context, request *csi.GetCapacityRequest) (*csi.GetCapacityResponse, error) {
 	klog.V(4).Infof("GetCapacity: called with args %+v", protosanitizer.StripSecrets(*request))
 
 	topology := request.GetAccessibleTopology()
@@ -394,28 +395,28 @@ func (d *ControllerService) GetCapacity(ctx context.Context, request *csi.GetCap
 }
 
 // CreateSnapshot create a snapshot
-func (d *ControllerService) CreateSnapshot(ctx context.Context, request *csi.CreateSnapshotRequest) (*csi.CreateSnapshotResponse, error) {
+func (d *ControllerService) CreateSnapshot(_ context.Context, request *csi.CreateSnapshotRequest) (*csi.CreateSnapshotResponse, error) {
 	klog.V(4).Infof("CreateSnapshot: called with args %+v", protosanitizer.StripSecrets(*request))
 
 	return nil, status.Error(codes.Unimplemented, "")
 }
 
 // DeleteSnapshot delete a snapshot
-func (d *ControllerService) DeleteSnapshot(ctx context.Context, request *csi.DeleteSnapshotRequest) (*csi.DeleteSnapshotResponse, error) {
+func (d *ControllerService) DeleteSnapshot(_ context.Context, request *csi.DeleteSnapshotRequest) (*csi.DeleteSnapshotResponse, error) {
 	klog.V(4).Infof("DeleteSnapshot: called with args %+v", protosanitizer.StripSecrets(*request))
 
 	return nil, status.Error(codes.Unimplemented, "")
 }
 
 // ListSnapshots list snapshots
-func (d *ControllerService) ListSnapshots(ctx context.Context, request *csi.ListSnapshotsRequest) (*csi.ListSnapshotsResponse, error) {
+func (d *ControllerService) ListSnapshots(_ context.Context, request *csi.ListSnapshotsRequest) (*csi.ListSnapshotsResponse, error) {
 	klog.V(4).Infof("ListSnapshots: called with args %+v", protosanitizer.StripSecrets(*request))
 
 	return nil, status.Error(codes.Unimplemented, "")
 }
 
 // ControllerExpandVolume expand a volume
-func (d *ControllerService) ControllerExpandVolume(ctx context.Context, request *csi.ControllerExpandVolumeRequest) (*csi.ControllerExpandVolumeResponse, error) {
+func (d *ControllerService) ControllerExpandVolume(_ context.Context, request *csi.ControllerExpandVolumeRequest) (*csi.ControllerExpandVolumeResponse, error) {
 	klog.V(4).Infof("ControllerExpandVolume: called with args %+v", protosanitizer.StripSecrets(*request))
 
 	volumeID := request.GetVolumeId()
@@ -524,7 +525,7 @@ func (d *ControllerService) ControllerExpandVolume(ctx context.Context, request 
 }
 
 // ControllerGetVolume get a volume
-func (d *ControllerService) ControllerGetVolume(ctx context.Context, request *csi.ControllerGetVolumeRequest) (*csi.ControllerGetVolumeResponse, error) {
+func (d *ControllerService) ControllerGetVolume(_ context.Context, request *csi.ControllerGetVolumeRequest) (*csi.ControllerGetVolumeResponse, error) {
 	klog.V(4).Infof("ControllerGetVolume: called with args %+v", protosanitizer.StripSecrets(*request))
 
 	return nil, status.Error(codes.Unimplemented, "")
