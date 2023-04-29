@@ -1,0 +1,34 @@
+name: Release check
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build-publish:
+    name: "Check release docs"
+    runs-on: ubuntu-22.04
+    if:  startsWith(github.head_ref, 'release-')
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Unshallow
+        run: git fetch --prune --unshallow
+
+      - name: Release version
+        shell: bash
+        id: release
+        run: |
+          echo "TAG=${GITHUB_HEAD_REF:8}" >> "$GITHUB_ENV"
+
+      - name: Helm docs
+        uses: gabe565/setup-helm-docs-action@v1
+
+      - name: Generate
+        run: make docs
+      - name: Check
+        run: git diff --exit-code

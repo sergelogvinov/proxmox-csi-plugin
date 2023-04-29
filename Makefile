@@ -91,6 +91,9 @@ docs:
 		charts/proxmox-csi-plugin > docs/deploy/proxmox-csi-plugin-talos.yml
 	helm-docs charts/proxmox-csi-plugin
 
+release-update:
+	git-chglog --config hack/chglog-config.yml -o CHANGELOG.md
+
 ############
 #
 # Docker Abstractions
