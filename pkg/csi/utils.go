@@ -1,3 +1,19 @@
+/*
+Copyright 2023 The Kubernetes Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package csi
 
 import (
@@ -114,6 +130,23 @@ func waitForVolumeAttach(cl *pxapi.Client, vmr *pxapi.VmRef, lun int) error {
 }
 
 func waitForVolumeDetach(cl *pxapi.Client, vmr *pxapi.VmRef, lun int) error {
+	return nil
+}
+
+func createVolume(cl *pxapi.Client, vol *volume.Volume, sizeGB int) error {
+	diskParams := map[string]interface{}{
+		"vmid":     vmID,
+		"filename": vol.Disk(),
+		"size":     fmt.Sprintf("%dG", sizeGB),
+	}
+
+	err := cl.CreateVMDisk(vol.Node(), vol.Storage(), fmt.Sprintf("%s:%s", vol.Storage(), vol.Disk()), diskParams)
+	if err != nil {
+		klog.Errorf("failed to create vm disk: %v", err)
+
+		return fmt.Errorf("failed to create vm disk: %v", err)
+	}
+
 	return nil
 }
 

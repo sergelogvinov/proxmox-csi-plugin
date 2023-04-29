@@ -231,8 +231,7 @@ parameters:
   csi.storage.k8s.io/fstype: xfs|ext4
   storageID: data
   cache: directsync|none|writeback|writethrough
-  ssd: true|false
-  discard: ignore|on
+  ssd: "true|false"
 provisioner: csi.proxmox.sinextra.dev
 allowVolumeExpansion: true
 reclaimPolicy: Delete
@@ -243,7 +242,6 @@ Storage parameters:
 * storageID - proxmox storage ID
 * cache - qemu cache param: `directsync`, `none`, `writeback`, `writethrough` see [official documentation](https://pve.proxmox.com/wiki/Performance_Tweaks)
 * ssd - true if SSD/NVME disk
-* discard - accept SSD/NVME discard commands
 
 ## In Scope
 

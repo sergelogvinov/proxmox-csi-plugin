@@ -46,7 +46,6 @@ storageClass: []
   #   # https://pve.proxmox.com/wiki/Performance_Tweaks
   #   cache: directsync|none|writeback|writethrough
   #   ssd: true
-  #   discard: ignore|on
 
 controller:
   plugin:

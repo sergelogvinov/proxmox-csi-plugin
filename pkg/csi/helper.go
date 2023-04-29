@@ -14,22 +14,29 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package csi contains the CSI driver implementation
 package csi
 
-const (
-	// DriverName is the name of the CSI driver
-	DriverName = "csi.proxmox.sinextra.dev"
-	// DriverVersion is the version of the CSI driver
-	DriverVersion = "0.0.1"
+import (
+	proto "github.com/container-storage-interface/spec/lib/go/csi"
 
-	// StorageIDKey is the ID of the Proxmox storage
-	StorageIDKey = "storageID"
-
-	// MaxVolumesPerNode is the maximum number of volumes that can be attached to a node
-	MaxVolumesPerNode = 16
-	// MinVolumeSize is the minimum size of a volume
-	MinVolumeSize = 1 // GB
-	// DefaultVolumeSize is the default size of a volume
-	DefaultVolumeSize = 10 // GB
+	corev1 "k8s.io/api/core/v1"
 )
+
+func locationFromTopologyRequirement(tr *proto.TopologyRequirement) (region, zone string) {
+	if tr == nil {
+		return "", ""
+	}
+
+	for _, top := range tr.Preferred {
+		segment := top.GetSegments()
+
+		tsr := segment[corev1.LabelTopologyRegion]
+		tsz := segment[corev1.LabelTopologyZone]
+
+		if tsr != "" && tsz != "" {
+			return tsr, tsz
+		}
+	}
+
+	return "", ""
+}

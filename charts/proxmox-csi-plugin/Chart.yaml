@@ -2,9 +2,10 @@ apiVersion: v2
 name: proxmox-csi-plugin
 description: A CSI plugin for Proxmox
 type: application
-home: https://github.com/sergelogvinov/proxmox-csi
+home: https://github.com/sergelogvinov/proxmox-csi-plugin
+icon: https://proxmox.com/templates/yoo_nano2/favicon.ico
 sources:
-- https://github.com/sergelogvinov/proxmox-csi
+- https://github.com/sergelogvinov/proxmox-csi-plugin
 keywords:
 - storage
 - block-storage

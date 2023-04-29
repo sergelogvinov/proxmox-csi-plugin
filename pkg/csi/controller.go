@@ -1,5 +1,5 @@
 /*
-Copyright 2023 sergelogvinov.
+Copyright 2023 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -79,12 +79,21 @@ func (d *ControllerService) CreateVolume(_ context.Context, request *csi.CreateV
 
 	pvc := request.GetName()
 	if len(pvc) == 0 {
-		return nil, status.Error(codes.InvalidArgument, "Volume Name cannot be empty")
+		return nil, status.Error(codes.InvalidArgument, "VolumeName must be provided")
 	}
 
 	volCapabilities := request.GetVolumeCapabilities()
 	if volCapabilities == nil {
-		return nil, status.Error(codes.InvalidArgument, "Volume Capabilities cannot be empty")
+		return nil, status.Error(codes.InvalidArgument, "VolumeCapabilities must be provided")
+	}
+
+	params := request.GetParameters()
+	if params == nil {
+		return nil, status.Error(codes.InvalidArgument, "Parameters must be provided")
+	}
+
+	if params[StorageIDKey] == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "Parameters %s must be provided", StorageIDKey)
 	}
 
 	// Volume Size - Default is 10 GiB
@@ -95,43 +104,13 @@ func (d *ControllerService) CreateVolume(_ context.Context, request *csi.CreateV
 
 	volSizeGB := int(util.RoundUpSize(volSizeBytes, 1024*1024*1024))
 
-	volCtx := make(map[string]string)
-	for k, v := range request.GetParameters() {
-		volCtx[k] = v
-	}
+	accessibleTopology := request.GetAccessibilityRequirements()
 
-	accessibleTopology := request.GetAccessibilityRequirements().GetPreferred()
-
-	var (
-		region string
-		zone   string
-		node   string
-	)
-
-	if len(accessibleTopology) != 0 {
-		for _, t := range accessibleTopology {
-			if t.GetSegments()[corev1.LabelTopologyRegion] != "" {
-				region = t.GetSegments()[corev1.LabelTopologyRegion]
-			}
-
-			if t.GetSegments()[corev1.LabelTopologyZone] != "" {
-				zone = t.GetSegments()[corev1.LabelTopologyZone]
-			}
-
-			if t.GetSegments()[corev1.LabelHostname] != "" {
-				node = t.GetSegments()[corev1.LabelHostname]
-			}
-
-			if region != "" && (zone != "" || node != "") {
-				break
-			}
-		}
-	}
-
+	region, zone := locationFromTopologyRequirement(accessibleTopology)
 	if region == "" || zone == "" {
 		klog.Errorf("CreateVolume: region or zone is empty: accessibleTopology=%+v", accessibleTopology)
 
-		return nil, status.Error(codes.InvalidArgument, "region or zone is empty")
+		return nil, status.Error(codes.InvalidArgument, "cannot find best region and zone")
 	}
 
 	cl, err := d.cluster.GetProxmoxCluster(region)
@@ -141,25 +120,16 @@ func (d *ControllerService) CreateVolume(_ context.Context, request *csi.CreateV
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
-	volumeName := fmt.Sprintf("vm-%d-%s", vmID, pvc)
-	vol := volume.NewVolume(region, zone, volCtx[StorageIDKey], volumeName)
+	vol := volume.NewVolume(region, zone, params[StorageIDKey], fmt.Sprintf("vm-%d-%s", vmID, pvc))
 
-	diskParams := map[string]interface{}{
-		"vmid":     vmID,
-		"filename": volumeName,
-		"size":     fmt.Sprintf("%dG", volSizeGB),
-	}
-
-	err = cl.CreateVMDisk(vol.Node(), vol.Storage(), fmt.Sprintf("%s:%s", volCtx[StorageIDKey], volumeName), diskParams)
+	err = createVolume(cl, vol, volSizeGB)
 	if err != nil {
-		klog.Errorf("failed to create vm disk: %v", err)
-
-		return nil, status.Error(codes.InvalidArgument, err.Error())
+		return nil, status.Error(codes.Internal, err.Error())
 	}
 
 	volume := csi.Volume{
 		VolumeId:      vol.VolumeID(),
-		VolumeContext: volCtx,
+		VolumeContext: params,
 		ContentSource: request.GetVolumeContentSource(),
 		CapacityBytes: int64(volSizeGB * 1024 * 1024 * 1024),
 		AccessibleTopology: []*csi.Topology{
@@ -263,6 +233,11 @@ func (d *ControllerService) ControllerPublishVolume(ctx context.Context, request
 		return nil, status.Error(codes.InvalidArgument, "VolumeCapability must be provided")
 	}
 
+	volCtx := request.GetVolumeContext()
+	if volCtx == nil {
+		return nil, status.Error(codes.InvalidArgument, "VolumeContext must be provided")
+	}
+
 	vol, err := volume.NewVolumeFromVolumeID(volumeID)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
@@ -289,6 +264,15 @@ func (d *ControllerService) ControllerPublishVolume(ctx context.Context, request
 
 	if request.Readonly {
 		options["ro"] = "1"
+	}
+
+	if volCtx["ssd"] == "true" {
+		options["ssd"] = "1"
+		options["discard"] = "on"
+	}
+
+	if volCtx["cache"] != "" {
+		options["cache"] = volCtx["cache"]
 	}
 
 	d.volumeLocks.Lock()
@@ -449,7 +433,7 @@ func (d *ControllerService) ControllerExpandVolume(ctx context.Context, request 
 	maxVolSize := capacityRange.GetLimitBytes()
 
 	if maxVolSize > 0 && maxVolSize < volSizeBytes {
-		return nil, status.Error(codes.OutOfRange, "After round-up, volume size exceeds the limit specified")
+		return nil, status.Error(codes.OutOfRange, "after round-up, volume size exceeds the limit specified")
 	}
 
 	klog.V(4).Infof("ControllerExpandVolume resized volume %v to size %vG", volumeID, volSizeGB)

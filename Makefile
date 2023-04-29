@@ -73,11 +73,17 @@ lint: ## Lint Code
 unit: ## Unit Tests
 	go test -tags=unit $(shell go list ./...) $(TESTARGS)
 
+############
+
+.PHONY: helm-unit
+helm-unit: ## Helm Unit Tests
+	@helm lint charts/proxmox-csi-plugin
+	@helm template -f charts/proxmox-csi-plugin/ci/values.yaml proxmox-csi-plugin charts/proxmox-csi-plugin >/dev/null
+
 .PHONY: docs
 docs:
 	helm template -n kube-system proxmox-csi-plugin \
-		-f charts/proxmox-csi-plugin/values.dev.yaml \
-		--set-string image.tag=$(TAG) \
+		-f charts/proxmox-csi-plugin/values.edge.yaml \
 		-n csi-proxmox \
 		charts/proxmox-csi-plugin > docs/deploy/proxmox-csi-plugin.yml
 	helm template -n kube-system proxmox-csi-plugin \

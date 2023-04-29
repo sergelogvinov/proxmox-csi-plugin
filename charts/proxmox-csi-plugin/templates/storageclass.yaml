@@ -13,5 +13,8 @@ parameters:
   {{- if $storage.cache }}
   cache: {{  $storage.cache }}
   {{- end }}
+  {{- if $storage.ssd }}
+  ssd: "true"
+  {{- end }}
 ---
 {{- end }}
