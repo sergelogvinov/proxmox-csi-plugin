@@ -1,4 +1,22 @@
 
+<a name="v0.0.2"></a>
+## [v0.0.2](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.01...v0.0.2) (2023-04-29)
+
+Welcome to the v0.0.2 release of Proxmox CSI Plugin!
+
+### Changelog
+
+* 2611530 chore: release v0.0.2
+
+<a name="v0.01"></a>
+## [v0.01](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.0.1...v0.01) (2023-04-29)
+
+Welcome to the v0.01 release of Proxmox CSI Plugin!
+
+### Changelog
+
+* 56b4297 chore: release v0.0.1
+
 <a name="v0.0.1"></a>
 ## v0.0.1 (2023-04-29)
 
