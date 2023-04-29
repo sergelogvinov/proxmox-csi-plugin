@@ -1,0 +1,9 @@
+helm-extra-args: --timeout 300s
+check-version-increment: true
+debug: true
+chart-dirs:
+  - charts
+validate-maintainers: true
+namespace: default
+release-label: test
+target-branch: main

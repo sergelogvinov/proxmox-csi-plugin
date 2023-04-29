@@ -25,6 +25,7 @@ import (
 	"k8s.io/klog/v2"
 )
 
+// IdentityService is the identity service for the CSI driver
 type IdentityService struct{}
 
 // NewIdentityService returns a new identity service
@@ -83,7 +84,7 @@ func (d *IdentityService) GetPluginCapabilities(context.Context, *csi.GetPluginC
 }
 
 // Probe returns the health and readiness of the plugin
-func (d *IdentityService) Probe(ctx context.Context, request *csi.ProbeRequest) (*csi.ProbeResponse, error) {
+func (d *IdentityService) Probe(_ context.Context, _ *csi.ProbeRequest) (*csi.ProbeResponse, error) {
 	klog.V(5).Infof("Probe: called")
 
 	return &csi.ProbeResponse{

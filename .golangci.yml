@@ -170,9 +170,6 @@ linters:
     - maligned
     - scopelint
 
-    # temp
-    - revive
-
   disable-all: false
   fast: false
 

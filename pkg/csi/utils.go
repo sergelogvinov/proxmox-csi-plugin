@@ -35,10 +35,13 @@ import (
 )
 
 const (
+	// TaskStatusCheckInterval is the interval in seconds to check the status of a task
 	TaskStatusCheckInterval = 5
-	TaskTimeout             = 30
+	// TaskTimeout is the timeout in seconds for all task
+	TaskTimeout = 30
 )
 
+// ParseEndpoint parses the endpoint string and returns the scheme and address
 func ParseEndpoint(endpoint string) (string, string, error) {
 	u, err := url.Parse(endpoint)
 	if err != nil {
@@ -129,7 +132,7 @@ func waitForVolumeAttach(cl *pxapi.Client, vmr *pxapi.VmRef, lun int) error {
 	return fmt.Errorf("timeout waiting for disk to attach")
 }
 
-func waitForVolumeDetach(cl *pxapi.Client, vmr *pxapi.VmRef, lun int) error {
+func waitForVolumeDetach(_ *pxapi.Client, _ *pxapi.VmRef, _ int) error {
 	return nil
 }
 

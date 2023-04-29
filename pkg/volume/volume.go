@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package volume
+// Package volume implements the volume ID type and functions.
 package volume
 
 import (
@@ -22,6 +22,7 @@ import (
 	"strings"
 )
 
+// Volume is the volume ID type.
 type Volume struct {
 	region  string
 	zone    string
@@ -39,6 +40,7 @@ func NewVolume(region, zone, storage, disk string) *Volume {
 	}
 }
 
+// NewVolumeFromVolumeID creates a new volume ID from a volume magic string.
 func NewVolumeFromVolumeID(volume string) (*Volume, error) {
 	return parseVolumeID(volume)
 }

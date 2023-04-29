@@ -82,15 +82,14 @@ helm-unit: ## Helm Unit Tests
 
 .PHONY: docs
 docs:
-	helm template -n kube-system proxmox-csi-plugin \
+	helm template -n csi-proxmox proxmox-csi-plugin \
 		-f charts/proxmox-csi-plugin/values.edge.yaml \
-		-n csi-proxmox \
 		charts/proxmox-csi-plugin > docs/deploy/proxmox-csi-plugin.yml
-	helm template -n kube-system proxmox-csi-plugin \
+	helm template -n csi-proxmox proxmox-csi-plugin \
 		-f charts/proxmox-csi-plugin/values.talos.yaml \
 		--set-string image.tag=$(TAG) \
-		-n csi-proxmox \
 		charts/proxmox-csi-plugin > docs/deploy/proxmox-csi-plugin-talos.yml
+	helm-docs charts/proxmox-csi-plugin
 
 ############
 #

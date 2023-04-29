@@ -1,0 +1,38 @@
+name: Build edge
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'go.mod'
+      - 'go.sum'
+      - 'cmd/**'
+      - 'pkg/**'
+
+jobs:
+  build-publish:
+    name: "Build image and publish"
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Set up docker buildx
+        run: make docker-init
+      - name: Github registry login
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        run: make images
+        env:
+          USERNAME: ${{ github.repository_owner }}
+          PUSH: "true"
+          TAG: "edge"
