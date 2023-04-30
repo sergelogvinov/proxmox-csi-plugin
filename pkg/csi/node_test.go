@@ -25,6 +25,11 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/csi"
+
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/kubernetes/fake"
 )
 
 var _ proto.NodeServer = (*csi.NodeService)(nil)
@@ -342,6 +347,14 @@ func TestNodeGetVolumeStatsErrors(t *testing.T) {
 			},
 			expectedError: fmt.Errorf("VolumePath must be provided"),
 		},
+		{
+			msg: "VolumePath",
+			request: &proto.NodeGetVolumeStatsRequest{
+				VolumeId:   "pvc-1",
+				VolumePath: "/some-test-path",
+			},
+			expectedError: fmt.Errorf("target: /some-test-path not found"),
+		},
 	}
 
 	for _, testCase := range tests {
@@ -416,13 +429,112 @@ func TestNodeServiceNodeGetCapabilities(t *testing.T) {
 	}
 }
 
-// func TestNodeServiceNodeGetInfo(t *testing.T) {
-// 	env := newNodeServerTestEnv()
+func TestNodeServiceNodeGetInfo(t *testing.T) {
+	t.Parallel()
 
-// 	resp, err := env.service.NodeGetInfo(context.Background(), &proto.NodeGetInfoRequest{})
-// 	assert.Nil(t, err)
-// 	assert.NotNil(t, resp)
+	nodes := &corev1.NodeList{
+		Items: []corev1.Node{
+			{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "Node",
+					APIVersion: "v1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "node-region",
+					Labels: map[string]string{
+						corev1.LabelTopologyRegion: "region",
+					},
+				},
+			},
+			{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "Node",
+					APIVersion: "v1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "node-zone",
+					Labels: map[string]string{
+						corev1.LabelTopologyZone: "zone",
+					},
+				},
+			},
+			{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "Node",
+					APIVersion: "v1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "node-1",
+					Labels: map[string]string{
+						corev1.LabelTopologyRegion: "region",
+						corev1.LabelTopologyZone:   "zone",
+					},
+				},
+			},
+		},
+	}
 
-// 	assert.Equal(t, resp.NodeId, "fake-proxmox-node")
-// 	assert.Equal(t, resp.MaxVolumesPerNode, csi.MaxVolumesPerNode)
-// }
+	tests := []struct {
+		msg              string
+		kclient          kubernetes.Interface
+		nodeName         string
+		expectedError    error
+		expectedResponse *proto.NodeGetInfoResponse
+	}{
+		{
+			msg:           "NodeDesntExist",
+			kclient:       fake.NewSimpleClientset(nodes),
+			nodeName:      "nonexist-node",
+			expectedError: fmt.Errorf("failed to get node nonexist-node: nodes \"%s\" not found", "nonexist-node"),
+		},
+		{
+			msg:           "RegionNode",
+			kclient:       fake.NewSimpleClientset(nodes),
+			nodeName:      "node-zone",
+			expectedError: fmt.Errorf("failed to get region for node node-zone"),
+		},
+		{
+			msg:           "ZoneNode",
+			kclient:       fake.NewSimpleClientset(nodes),
+			nodeName:      "node-region",
+			expectedError: fmt.Errorf("failed to get zone for node node-region"),
+		},
+		{
+			msg:      "GoodNode",
+			kclient:  fake.NewSimpleClientset(nodes),
+			nodeName: "node-1",
+			expectedResponse: &proto.NodeGetInfoResponse{
+				NodeId:            "node-1",
+				MaxVolumesPerNode: csi.MaxVolumesPerNode,
+				AccessibleTopology: &proto.Topology{
+					Segments: map[string]string{
+						corev1.LabelTopologyRegion: "region",
+						corev1.LabelTopologyZone:   "zone",
+					},
+				},
+			},
+		},
+	}
+
+	for _, testCase := range tests {
+		testCase := testCase
+
+		t.Run(fmt.Sprint(testCase.msg), func(t *testing.T) {
+			t.Parallel()
+
+			svc := csi.NewNodeService(testCase.nodeName, testCase.kclient)
+			assert.NotNil(t, svc)
+
+			res, err := svc.NodeGetInfo(context.Background(), &proto.NodeGetInfoRequest{})
+
+			if testCase.expectedError == nil {
+				assert.Nil(t, err)
+				assert.NotNil(t, res)
+				assert.Equal(t, testCase.expectedResponse, res)
+			} else {
+				assert.NotNil(t, err)
+				assert.Equal(t, err.Error(), testCase.expectedError.Error())
+			}
+		})
+	}
+}

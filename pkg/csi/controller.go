@@ -51,7 +51,7 @@ var controllerCaps = []csi.ControllerServiceCapability_RPC_Type{
 
 // ControllerService is the controller service for the CSI driver
 type ControllerService struct {
-	cluster     proxmox.Client
+	cluster     proxmox.Cluster
 	volumeLocks sync.Mutex
 }
 
@@ -62,9 +62,9 @@ func NewControllerService(cloudConfig string) (*ControllerService, error) {
 		return nil, fmt.Errorf("failed to read config: %v", err)
 	}
 
-	cluster, err := proxmox.NewClient(&cfg)
+	cluster, err := proxmox.NewCluster(&cfg, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create proxmox client: %v", err)
+		return nil, fmt.Errorf("failed to create proxmox cluster client: %v", err)
 	}
 
 	return &ControllerService{

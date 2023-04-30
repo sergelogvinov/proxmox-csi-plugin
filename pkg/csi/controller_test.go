@@ -45,10 +45,13 @@ func newControllerServerTestEnv() controllerServiceTestEnv {
 
 func TestNewControllerService(t *testing.T) {
 	service, err := csi.NewControllerService("fake-file")
-
 	assert.NotNil(t, err)
 	assert.Nil(t, service)
 	assert.Equal(t, "failed to read config: error reading fake-file: open fake-file: no such file or directory", err.Error())
+
+	service, err = csi.NewControllerService("../../hack/testdata/cloud-config.yaml")
+	assert.Nil(t, err)
+	assert.NotNil(t, service)
 }
 
 func TestCreateVolume(t *testing.T) {
@@ -441,11 +444,96 @@ func TestListVolumes(t *testing.T) {
 }
 
 func TestGetCapacity(t *testing.T) {
+	t.Parallel()
+
 	env := newControllerServerTestEnv()
 
-	_, err := env.service.GetCapacity(context.Background(), &proto.GetCapacityRequest{})
-	assert.NotNil(t, err)
-	assert.Equal(t, status.Error(codes.InvalidArgument, "no topology specified"), err)
+	tests := []struct {
+		msg           string
+		request       *proto.GetCapacityRequest
+		expectedError error
+	}{
+		{
+			msg:           "NoTopology",
+			request:       &proto.GetCapacityRequest{},
+			expectedError: fmt.Errorf("no topology specified"),
+		},
+		{
+			msg: "NoTopology",
+			request: &proto.GetCapacityRequest{
+				AccessibleTopology: &proto.Topology{},
+			},
+			expectedError: fmt.Errorf("region, zone and storageName must be provided"),
+		},
+		{
+			msg: "TopologyRegion",
+			request: &proto.GetCapacityRequest{
+				AccessibleTopology: &proto.Topology{
+					Segments: map[string]string{
+						corev1.LabelTopologyRegion: "region",
+					},
+				},
+				Parameters: map[string]string{
+					csi.StorageIDKey: "storage",
+				},
+			},
+			expectedError: fmt.Errorf("region, zone and storageName must be provided"),
+		},
+		{
+			msg: "TopologyZone",
+			request: &proto.GetCapacityRequest{
+				AccessibleTopology: &proto.Topology{
+					Segments: map[string]string{
+						corev1.LabelTopologyZone: "zone",
+					},
+				},
+				Parameters: map[string]string{
+					csi.StorageIDKey: "storage",
+				},
+			},
+			expectedError: fmt.Errorf("region, zone and storageName must be provided"),
+		},
+		{
+			msg: "TopologyStorageName",
+			request: &proto.GetCapacityRequest{
+				AccessibleTopology: &proto.Topology{
+					Segments: map[string]string{
+						corev1.LabelTopologyRegion: "region",
+						corev1.LabelTopologyZone:   "zone",
+					},
+				},
+			},
+			expectedError: fmt.Errorf("region, zone and storageName must be provided"),
+		},
+		{
+			msg: "Topology",
+			request: &proto.GetCapacityRequest{
+				AccessibleTopology: &proto.Topology{
+					Segments: map[string]string{
+						corev1.LabelTopologyRegion: "region",
+						corev1.LabelTopologyZone:   "zone",
+					},
+				},
+				Parameters: map[string]string{
+					csi.StorageIDKey: "storage",
+				},
+			},
+			expectedError: fmt.Errorf("proxmox cluster region not found"),
+		},
+	}
+
+	for _, testCase := range tests {
+		testCase := testCase
+
+		t.Run(fmt.Sprint(testCase.msg), func(t *testing.T) {
+			t.Parallel()
+
+			_, err := env.service.GetCapacity(context.Background(), testCase.request)
+
+			assert.NotNil(t, err)
+			assert.Contains(t, err.Error(), testCase.expectedError.Error())
+		})
+	}
 }
 
 func TestCreateSnapshot(t *testing.T) {
