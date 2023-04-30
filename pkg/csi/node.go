@@ -28,7 +28,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	clientkubernetes "k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/cloud-provider-openstack/pkg/util/blockdevice"
 	"k8s.io/cloud-provider-openstack/pkg/util/mount"
 	"k8s.io/klog/v2"
@@ -54,16 +54,16 @@ var volumeCaps = []csi.VolumeCapability_AccessMode{
 // NodeService is the node service for the CSI driver
 type NodeService struct {
 	nodeID  string
-	kclient *clientkubernetes.Clientset
+	kclient kubernetes.Interface
 
 	Mount mount.IMount
 }
 
 // NewNodeService returns a new NodeService
-func NewNodeService(nodeID string, client *clientkubernetes.Clientset) *NodeService {
+func NewNodeService(nodeID string, clientSet kubernetes.Interface) *NodeService {
 	return &NodeService{
 		nodeID:  nodeID,
-		kclient: client,
+		kclient: clientSet,
 		Mount:   mount.GetMountProvider(),
 	}
 }
