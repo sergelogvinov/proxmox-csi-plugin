@@ -42,23 +42,39 @@ I recommend using the CCM (Cloud Controller Manager).
 
 ## Install CSI Driver
 
+Create CSI role in Proxmox:
+
+```shell
+pveum role add CSI -privs "VM.Audit VM.Config.Disk Datastore.Allocate Datastore.AllocateSpace Datastore.Audit"
+```
+
+Create user and grant permissions:
+
+```shell
+pveum user add kubernetes-csi@pve
+pveum aclmod / -user kubernetes-csi@pve -role CSI
+pveum user token add kubernetes-csi@pve csi -privsep 0
+```
+
 Proxmox cloud config (the same as Proxmox CCM uses):
 
 ```yaml
 clusters:
   - url: https://cluster-api-1.exmple.com:8006/api2/json
     insecure: false
-    token_id: "login!name"
+    token_id: "kubernetes-csi@pve!csi"
     token_secret: "secret"
     region: Region-1
   - url: https://cluster-api-2.exmple.com:8006/api2/json
     insecure: false
-    token_id: "login!name"
+    token_id: "kubernetes-csi@pve!csi"
     token_secret: "secret"
     region: Region-2
 ```
 
 ### Method 1: By Kubectl
+
+Latest stable version (edge)
 
 ```shell
 kubectl -f https://raw.githubusercontent.com/sergelogvinov/proxmox-csi-plugin/main/docs/deploy/proxmox-csi-plugin.yml
@@ -221,6 +237,8 @@ spec:
 ```
 
 ## Definition
+
+Storage Class resource:
 
 ```yaml
 apiVersion: storage.k8s.io/v1
