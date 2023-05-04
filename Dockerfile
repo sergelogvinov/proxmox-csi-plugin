@@ -24,13 +24,14 @@ RUN make build-all-archs
 
 ########################################
 
-FROM --platform=${TARGETARCH} gcr.io/distroless/static-debian11:nonroot AS controller
+FROM --platform=${TARGETARCH} scratch AS controller
 LABEL org.opencontainers.image.source = "https://github.com/sergelogvinov/proxmox-csi-plugin"
 
+COPY --from=gcr.io/distroless/static-debian11:nonroot . .
 ARG TARGETARCH
-COPY --from=builder /src/bin/proxmox-csi-controller-${TARGETARCH} /proxmox-csi-controller
+COPY --from=builder /src/bin/proxmox-csi-controller-${TARGETARCH} /bin/proxmox-csi-controller
 
-ENTRYPOINT ["/proxmox-csi-controller"]
+ENTRYPOINT ["/bin/proxmox-csi-controller"]
 
 ########################################
 

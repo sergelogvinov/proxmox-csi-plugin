@@ -25,6 +25,10 @@ const (
 
 	// StorageIDKey is the ID of the Proxmox storage
 	StorageIDKey = "storageID"
+	// StorageCacheKey is the cache type, can be one of "directsync", "none", "writeback", "writethrough"
+	StorageCacheKey = "cache"
+	// StorageSSDKey is it ssd disk
+	StorageSSDKey = "ssd"
 
 	// MaxVolumesPerNode is the maximum number of volumes that can be attached to a node
 	MaxVolumesPerNode = 16

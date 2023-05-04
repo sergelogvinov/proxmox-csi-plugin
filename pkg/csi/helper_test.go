@@ -26,6 +26,49 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
+func TestParseEndpoint(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		msg            string
+		endpoint       string
+		expectedScheme string
+		expectedAddr   string
+		expectedError  error
+	}{
+		{
+			msg:            "unix socket",
+			endpoint:       "unix://tmp/csi.sock",
+			expectedScheme: "unix",
+			expectedAddr:   "/tmp/csi.sock",
+		},
+		{
+			msg:           "http",
+			endpoint:      "http://tmp/csi.sock",
+			expectedError: fmt.Errorf("unsupported protocol: http"),
+		},
+	}
+
+	for _, testCase := range tests {
+		testCase := testCase
+
+		t.Run(fmt.Sprint(testCase.msg), func(t *testing.T) {
+			t.Parallel()
+
+			scheme, addr, err := ParseEndpoint(testCase.endpoint)
+
+			if testCase.expectedError != nil {
+				assert.NotNil(t, err)
+				assert.Equal(t, err.Error(), testCase.expectedError.Error())
+			} else {
+				assert.Nil(t, err)
+				assert.NotNil(t, scheme, testCase.expectedScheme)
+				assert.Equal(t, addr, testCase.expectedAddr)
+			}
+		})
+	}
+}
+
 func TestLocationFromTopologyRequirement(t *testing.T) {
 	t.Parallel()
 

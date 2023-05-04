@@ -19,13 +19,18 @@ package csi_test
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"strings"
 	"testing"
 
 	proto "github.com/container-storage-interface/spec/lib/go/csi"
+	"github.com/jarcoal/httpmock"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/suite"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	proxmox "github.com/sergelogvinov/proxmox-cloud-controller-manager/pkg/cluster"
 	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/csi"
 
 	corev1 "k8s.io/api/core/v1"
@@ -33,14 +38,183 @@ import (
 
 var _ proto.ControllerServer = (*csi.ControllerService)(nil)
 
-type controllerServiceTestEnv struct {
-	service *csi.ControllerService
+type csiTestSuite struct {
+	suite.Suite
+
+	s *csi.ControllerService
 }
 
-func newControllerServerTestEnv() controllerServiceTestEnv {
-	return controllerServiceTestEnv{
-		service: &csi.ControllerService{},
+func (ts *csiTestSuite) SetupTest() {
+	cfg, err := proxmox.ReadCloudConfig(strings.NewReader(`
+clusters:
+- url: https://127.0.0.1:8006/api2/json
+  insecure: false
+  token_id: "user!token-id"
+  token_secret: "secret"
+  region: cluster-1
+- url: https://127.0.0.2:8006/api2/json
+  insecure: false
+  token_id: "user!token-id"
+  token_secret: "secret"
+  region: cluster-2
+`))
+	if err != nil {
+		ts.T().Fatalf("failed to read config: %v", err)
 	}
+
+	httpmock.RegisterResponder("GET", "https://127.0.0.1:8006/api2/json/cluster/resources",
+		func(req *http.Request) (*http.Response, error) {
+			return httpmock.NewJsonResponse(200, map[string]interface{}{
+				"data": []interface{}{
+					map[string]interface{}{
+						"node":   "pve-1",
+						"type":   "qemu",
+						"vmid":   100,
+						"name":   "cluster-1-node-1",
+						"maxcpu": 4,
+						"maxmem": 10 * 1024 * 1024 * 1024,
+					},
+					map[string]interface{}{
+						"node":   "pve-2",
+						"type":   "qemu",
+						"vmid":   101,
+						"name":   "cluster-1-node-2",
+						"maxcpu": 2,
+						"maxmem": 5 * 1024 * 1024 * 1024,
+					},
+				},
+			})
+		},
+	)
+
+	httpmock.RegisterResponder("GET", "https://127.0.0.2:8006/api2/json/cluster/resources",
+		func(req *http.Request) (*http.Response, error) {
+			return httpmock.NewJsonResponse(200, map[string]interface{}{
+				"data": []interface{}{
+					map[string]interface{}{
+						"node":   "pve-3",
+						"type":   "qemu",
+						"vmid":   100,
+						"name":   "cluster-2-node-1",
+						"maxcpu": 1,
+						"maxmem": 2 * 1024 * 1024 * 1024,
+					},
+				},
+			})
+		},
+	)
+
+	httpmock.RegisterResponder("GET", "https://127.0.0.1:8006/api2/json/nodes/pve-1/qemu/100/config",
+		func(req *http.Request) (*http.Response, error) {
+			return httpmock.NewJsonResponse(200, map[string]interface{}{
+				"data": map[string]interface{}{
+					"vmid":  100,
+					"scsi0": "local-lvm:vm-100-disk-0,size=10G",
+					"scsi1": "local-lvm:vm-9999-pvc-123,backup=0,iothread=1,wwn=0x5056432d49443031",
+				},
+			})
+		},
+	)
+
+	httpmock.RegisterResponder("GET", "https://127.0.0.1:8006/api2/json/nodes/pve-2/qemu/101/config",
+		func(req *http.Request) (*http.Response, error) {
+			return httpmock.NewJsonResponse(200, map[string]interface{}{
+				"data": map[string]interface{}{
+					"vmid":  101,
+					"scsi0": "local-lvm:vm-101-disk-0,size=10G",
+					"scsi1": "local-lvm:vm-101-disk-1,size=1G",
+					"scsi3": "local-lvm:vm-101-disk-2,size=1G",
+				},
+			})
+		},
+	)
+
+	httpmock.RegisterResponder("PUT", "https://127.0.0.1:8006/api2/json/nodes/pve-1/qemu/100/resize",
+		func(req *http.Request) (*http.Response, error) {
+			return httpmock.NewJsonResponse(200, map[string]interface{}{})
+		},
+	)
+
+	httpmock.RegisterResponder("GET", "https://127.0.0.1:8006/api2/json/nodes/pve-1/storage/storage/status",
+		func(req *http.Request) (*http.Response, error) {
+			return httpmock.NewJsonResponse(200, map[string]interface{}{})
+		},
+	)
+
+	httpmock.RegisterResponder("GET", "https://127.0.0.1:8006/api2/json/nodes/pve-1/storage/local-lvm/status",
+		func(req *http.Request) (*http.Response, error) {
+			return httpmock.NewJsonResponse(200, map[string]interface{}{
+				"data": map[string]interface{}{
+					"type":  "lvmthin",
+					"total": 100 * 1024 * 1024 * 1024,
+					"used":  50 * 1024 * 1024 * 1024,
+					"avail": 50 * 1024 * 1024 * 1024,
+				},
+			})
+		},
+	)
+
+	httpmock.RegisterResponder("GET", "https://127.0.0.1:8006/api2/json/nodes/pve-1/storage/wrong-volume/content",
+		func(req *http.Request) (*http.Response, error) {
+			return httpmock.NewJsonResponse(200, map[string]interface{}{
+				"data": []interface{}{},
+			})
+		},
+	)
+
+	httpmock.RegisterResponder("GET", "https://127.0.0.1:8006/api2/json/nodes/pve-1/storage/local-lvm/content",
+		func(req *http.Request) (*http.Response, error) {
+			return httpmock.NewJsonResponse(200, map[string]interface{}{
+				"data": []interface{}{
+					map[string]interface{}{
+						"format": "raw",
+						"size":   1024 * 1024 * 1024,
+						"volid":  "local-lvm:vm-9999-pvc-123",
+					},
+					map[string]interface{}{
+						"format": "raw",
+						"size":   1024 * 1024 * 1024,
+						"volid":  "local-lvm:vm-9999-pvc-error",
+					},
+				},
+			})
+		},
+	)
+
+	httpmock.RegisterResponder("POST", "https://127.0.0.1:8006/api2/json/nodes/pve-1/storage/local-lvm/content",
+		func(req *http.Request) (*http.Response, error) {
+			return httpmock.NewJsonResponse(200, map[string]interface{}{
+				"data": "local-lvm:vm-9999-pvc-123",
+			})
+		},
+	)
+
+	httpmock.RegisterResponder("DELETE", "https://127.0.0.1:8006/api2/json/nodes/pve-1/storage/local-lvm/content/vm-9999-pvc-123",
+		func(req *http.Request) (*http.Response, error) {
+			return httpmock.NewJsonResponse(200, map[string]interface{}{})
+		},
+	)
+
+	httpmock.RegisterResponder("DELETE", "https://127.0.0.1:8006/api2/json/nodes/pve-1/storage/local-lvm/content/vm-9999-pvc-error",
+		func(req *http.Request) (*http.Response, error) {
+			return httpmock.NewJsonResponse(200, map[string]interface{}{
+				"errors": "fake error delete disk",
+			})
+		},
+	)
+
+	cluster, err := proxmox.NewCluster(&cfg, &http.Client{})
+	if err != nil {
+		ts.T().Fatalf("failed to create proxmox cluster client: %v", err)
+	}
+
+	ts.s = &csi.ControllerService{
+		Cluster: cluster,
+	}
+}
+
+func TestSuiteCCM(t *testing.T) {
+	suite.Run(t, new(csiTestSuite))
 }
 
 func TestNewControllerService(t *testing.T) {
@@ -54,10 +228,10 @@ func TestNewControllerService(t *testing.T) {
 	assert.NotNil(t, service)
 }
 
-func TestCreateVolume(t *testing.T) {
-	t.Parallel()
+func (ts *csiTestSuite) TestCreateVolume() {
+	httpmock.Activate()
+	defer httpmock.DeactivateAndReset()
 
-	env := newControllerServerTestEnv()
 	volcap := &proto.VolumeCapability{
 		AccessMode: &proto.VolumeCapability_AccessMode{
 			Mode: proto.VolumeCapability_AccessMode_SINGLE_NODE_WRITER,
@@ -73,7 +247,7 @@ func TestCreateVolume(t *testing.T) {
 	}
 	volsize := &proto.CapacityRange{
 		RequiredBytes: 1,
-		LimitBytes:    1,
+		LimitBytes:    100 * 1024 * 1024 * 1024,
 	}
 	topology := &proto.TopologyRequirement{
 		Preferred: []*proto.Topology{
@@ -89,6 +263,7 @@ func TestCreateVolume(t *testing.T) {
 	tests := []struct {
 		msg           string
 		request       *proto.CreateVolumeRequest
+		expected      *proto.CreateVolumeResponse
 		expectedError error
 	}{
 		{
@@ -100,7 +275,7 @@ func TestCreateVolume(t *testing.T) {
 				CapacityRange:             volsize,
 				AccessibilityRequirements: topology,
 			},
-			expectedError: fmt.Errorf("VolumeName must be provided"),
+			expectedError: status.Error(codes.InvalidArgument, "VolumeName must be provided"),
 		},
 		{
 			msg: "VolumeCapabilities",
@@ -110,7 +285,7 @@ func TestCreateVolume(t *testing.T) {
 				CapacityRange:             volsize,
 				AccessibilityRequirements: topology,
 			},
-			expectedError: fmt.Errorf("VolumeCapabilities must be provided"),
+			expectedError: status.Error(codes.InvalidArgument, "VolumeCapabilities must be provided"),
 		},
 		{
 			msg: "VolumeParameters",
@@ -120,7 +295,7 @@ func TestCreateVolume(t *testing.T) {
 				CapacityRange:             volsize,
 				AccessibilityRequirements: topology,
 			},
-			expectedError: fmt.Errorf("Parameters must be provided"),
+			expectedError: status.Error(codes.InvalidArgument, "Parameters must be provided"),
 		},
 		{
 			msg: "VolumeParametersStorege",
@@ -131,7 +306,7 @@ func TestCreateVolume(t *testing.T) {
 				CapacityRange:             volsize,
 				AccessibilityRequirements: topology,
 			},
-			expectedError: fmt.Errorf("Parameters storageID must be provided"),
+			expectedError: status.Error(codes.InvalidArgument, "Parameters storageID must be provided"),
 		},
 		{
 			msg: "RegionZone",
@@ -141,7 +316,7 @@ func TestCreateVolume(t *testing.T) {
 				VolumeCapabilities: []*proto.VolumeCapability{volcap},
 				CapacityRange:      volsize,
 			},
-			expectedError: fmt.Errorf("cannot find best region and zone"),
+			expectedError: status.Error(codes.InvalidArgument, "cannot find best region and zone"),
 		},
 		{
 			msg: "EmptyZone",
@@ -160,7 +335,7 @@ func TestCreateVolume(t *testing.T) {
 					},
 				},
 			},
-			expectedError: fmt.Errorf("cannot find best region and zone"),
+			expectedError: status.Error(codes.InvalidArgument, "cannot find best region and zone"),
 		},
 		{
 			msg: "EmptyRegion",
@@ -179,10 +354,10 @@ func TestCreateVolume(t *testing.T) {
 					},
 				},
 			},
-			expectedError: fmt.Errorf("cannot find best region and zone"),
+			expectedError: status.Error(codes.InvalidArgument, "cannot find best region and zone"),
 		},
 		{
-			msg: "WrongCluster",
+			msg: "WrongClusterNotFound",
 			request: &proto.CreateVolumeRequest{
 				Name:               "volume-id",
 				Parameters:         volParam,
@@ -199,88 +374,173 @@ func TestCreateVolume(t *testing.T) {
 					},
 				},
 			},
-			expectedError: fmt.Errorf("proxmox cluster fake-region not found"),
+			expectedError: status.Error(codes.Internal, "proxmox cluster fake-region not found"),
+		},
+		{
+			msg: "WrongCluster",
+			request: &proto.CreateVolumeRequest{
+				Name:               "volume-id",
+				Parameters:         volParam,
+				VolumeCapabilities: []*proto.VolumeCapability{volcap},
+				CapacityRange:      volsize,
+				AccessibilityRequirements: &proto.TopologyRequirement{
+					Preferred: []*proto.Topology{
+						{
+							Segments: map[string]string{
+								corev1.LabelTopologyRegion: "Region-1",
+								corev1.LabelTopologyZone:   "pve-1",
+							},
+						},
+					},
+				},
+			},
+			expectedError: status.Error(codes.Internal, "proxmox cluster Region-1 not found"),
+		},
+		{
+			msg: "CreateVolume",
+			request: &proto.CreateVolumeRequest{
+				Name:               "pvc-123",
+				Parameters:         volParam,
+				VolumeCapabilities: []*proto.VolumeCapability{volcap},
+				CapacityRange:      volsize,
+				AccessibilityRequirements: &proto.TopologyRequirement{
+					Preferred: []*proto.Topology{
+						{
+							Segments: map[string]string{
+								corev1.LabelTopologyRegion: "cluster-1",
+								corev1.LabelTopologyZone:   "pve-1",
+							},
+						},
+					},
+				},
+			},
+			expected: &proto.CreateVolumeResponse{
+				Volume: &proto.Volume{
+					VolumeId:      "cluster-1/pve-1/local-lvm/vm-9999-pvc-123",
+					VolumeContext: volParam,
+					CapacityBytes: int64(1024 * 1024 * 1024),
+					AccessibleTopology: []*proto.Topology{
+						{
+							Segments: map[string]string{
+								corev1.LabelTopologyRegion: "cluster-1",
+								corev1.LabelTopologyZone:   "pve-1",
+							},
+						},
+					},
+				},
+			},
 		},
 	}
 
 	for _, testCase := range tests {
 		testCase := testCase
 
-		t.Run(fmt.Sprint(testCase.msg), func(t *testing.T) {
-			t.Parallel()
+		ts.Run(fmt.Sprint(testCase.msg), func() {
+			resp, err := ts.s.CreateVolume(context.Background(), testCase.request)
 
-			_, err := env.service.CreateVolume(context.Background(), testCase.request)
-
-			assert.NotNil(t, err)
-			assert.Contains(t, err.Error(), testCase.expectedError.Error())
+			if testCase.expectedError == nil {
+				ts.Require().NoError(err)
+				ts.Require().Equal(resp, testCase.expected)
+			} else {
+				ts.Require().Error(err)
+				ts.Require().Equal(err, testCase.expectedError)
+			}
 		})
 	}
 }
 
-// nolint:dupl
-func TestDeleteVolume(t *testing.T) {
-	t.Parallel()
-
-	env := newControllerServerTestEnv()
+//nolint:dupl
+func (ts *csiTestSuite) TestDeleteVolume() {
+	httpmock.Activate()
+	defer httpmock.DeactivateAndReset()
 
 	tests := []struct {
 		msg           string
 		request       *proto.DeleteVolumeRequest
+		expected      *proto.DeleteVolumeResponse
 		expectedError error
 	}{
 		{
 			msg:           "VolumeID",
 			request:       &proto.DeleteVolumeRequest{},
-			expectedError: fmt.Errorf("VolumeID must be provided"),
+			expectedError: status.Error(codes.InvalidArgument, "VolumeID must be provided"),
 		},
 		{
 			msg: "VolumeID",
 			request: &proto.DeleteVolumeRequest{
 				VolumeId: "volume-id",
 			},
-			expectedError: fmt.Errorf("VolumeID must be in the format of region/zone/storageName/diskName"),
+			expectedError: status.Error(codes.InvalidArgument, "VolumeID must be in the format of region/zone/storageName/diskName"),
 		},
 		{
 			msg: "WrongCluster",
 			request: &proto.DeleteVolumeRequest{
 				VolumeId: "fake-region/node/data/volume-id",
 			},
-			expectedError: fmt.Errorf("proxmox cluster fake-region not found"),
+			expectedError: status.Error(codes.Internal, "proxmox cluster fake-region not found"),
+		},
+		{
+			msg: "VolumeIDNonExist",
+			request: &proto.DeleteVolumeRequest{
+				VolumeId: "cluster-1/pve-1/wrong-volume/vm-9999-pvc-non-exist",
+			},
+			expected: &proto.DeleteVolumeResponse{},
+		},
+		{
+			msg: "PVCNonExist",
+			request: &proto.DeleteVolumeRequest{
+				VolumeId: "cluster-1/pve-1/local-lvm/vm-9999-pvc-non-exist",
+			},
+			expected: &proto.DeleteVolumeResponse{},
+		},
+		{
+			msg: "DeleteVolume",
+			request: &proto.DeleteVolumeRequest{
+				VolumeId: "cluster-1/pve-1/local-lvm/vm-9999-pvc-123",
+			},
+			expected: &proto.DeleteVolumeResponse{},
+		},
+		{
+			msg: "DeleteVolumeError",
+			request: &proto.DeleteVolumeRequest{
+				VolumeId: "cluster-1/pve-1/local-lvm/vm-9999-pvc-error",
+			},
+			expectedError: status.Error(codes.Internal, "failed to delete volume: vm-9999-pvc-error"),
 		},
 	}
 
 	for _, testCase := range tests {
 		testCase := testCase
 
-		t.Run(fmt.Sprint(testCase.msg), func(t *testing.T) {
-			t.Parallel()
+		ts.Run(fmt.Sprint(testCase.msg), func() {
+			resp, err := ts.s.DeleteVolume(context.Background(), testCase.request)
 
-			_, err := env.service.DeleteVolume(context.Background(), testCase.request)
-
-			assert.NotNil(t, err)
-			assert.Contains(t, err.Error(), testCase.expectedError.Error())
+			if testCase.expectedError == nil {
+				ts.Require().NoError(err)
+				ts.Require().Equal(resp, testCase.expected)
+			} else {
+				ts.Require().Error(err)
+				ts.Require().Equal(testCase.expectedError, err)
+			}
 		})
 	}
 }
 
-func TestControllerServiceControllerGetCapabilities(t *testing.T) {
-	env := newControllerServerTestEnv()
-
-	resp, err := env.service.ControllerGetCapabilities(context.Background(), &proto.ControllerGetCapabilitiesRequest{})
-	assert.Nil(t, err)
-	assert.NotNil(t, resp)
-	assert.NotNil(t, resp.GetCapabilities())
+func (ts *csiTestSuite) TestControllerServiceControllerGetCapabilities() {
+	resp, err := ts.s.ControllerGetCapabilities(context.Background(), &proto.ControllerGetCapabilitiesRequest{})
+	ts.Require().NoError(err)
+	ts.Require().NotNil(resp)
 
 	if len(resp.Capabilities) != 5 {
-		t.Fatalf("unexpected number of capabilities: %d", len(resp.Capabilities))
+		ts.T().Fatalf("unexpected number of capabilities: %d", len(resp.Capabilities))
 	}
 }
 
 // nolint:dupl
-func TestControllerPublishVolumeError(t *testing.T) {
-	t.Parallel()
+func (ts *csiTestSuite) TestControllerPublishVolumeError() {
+	httpmock.Activate()
+	defer httpmock.DeactivateAndReset()
 
-	env := newControllerServerTestEnv()
 	volcap := &proto.VolumeCapability{
 		AccessMode: &proto.VolumeCapability_AccessMode{
 			Mode: proto.VolumeCapability_AccessMode_SINGLE_NODE_WRITER,
@@ -296,6 +556,7 @@ func TestControllerPublishVolumeError(t *testing.T) {
 	tests := []struct {
 		msg           string
 		request       *proto.ControllerPublishVolumeRequest
+		expected      *proto.ControllerPublishVolumeResponse
 		expectedError error
 	}{
 		{
@@ -305,7 +566,7 @@ func TestControllerPublishVolumeError(t *testing.T) {
 				VolumeCapability: volcap,
 				VolumeContext:    volCtx,
 			},
-			expectedError: fmt.Errorf("VolumeID must be provided"),
+			expectedError: status.Error(codes.InvalidArgument, "VolumeID must be provided"),
 		},
 		{
 			msg: "NodeID",
@@ -314,7 +575,7 @@ func TestControllerPublishVolumeError(t *testing.T) {
 				VolumeCapability: volcap,
 				VolumeContext:    volCtx,
 			},
-			expectedError: fmt.Errorf("NodeID must be provided"),
+			expectedError: status.Error(codes.InvalidArgument, "NodeID must be provided"),
 		},
 		{
 			msg: "VolumeCapability",
@@ -323,7 +584,7 @@ func TestControllerPublishVolumeError(t *testing.T) {
 				VolumeId:      "volume-id",
 				VolumeContext: volCtx,
 			},
-			expectedError: fmt.Errorf("VolumeCapability must be provided"),
+			expectedError: status.Error(codes.InvalidArgument, "VolumeCapability must be provided"),
 		},
 		{
 			msg: "VolumeContext",
@@ -332,7 +593,7 @@ func TestControllerPublishVolumeError(t *testing.T) {
 				VolumeId:         "volume-id",
 				VolumeCapability: volcap,
 			},
-			expectedError: fmt.Errorf("VolumeContext must be provided"),
+			expectedError: status.Error(codes.InvalidArgument, "VolumeContext must be provided"),
 		},
 		{
 			msg: "WrongVolumeID",
@@ -342,39 +603,67 @@ func TestControllerPublishVolumeError(t *testing.T) {
 				VolumeCapability: volcap,
 				VolumeContext:    volCtx,
 			},
-			expectedError: fmt.Errorf("VolumeID must be in the format of region/zone/storageName/diskName"),
+			expectedError: status.Error(codes.InvalidArgument, "VolumeID must be in the format of region/zone/storageName/diskName"),
 		},
 		{
 			msg: "WrongCluster",
 			request: &proto.ControllerPublishVolumeRequest{
 				NodeId:           "node-id",
-				VolumeId:         "fake-region/node/data/volume-id",
+				VolumeId:         "fake-region/node-id/data/volume-id",
 				VolumeCapability: volcap,
 				VolumeContext:    volCtx,
 			},
-			expectedError: fmt.Errorf("proxmox cluster fake-region not found"),
+			expectedError: status.Error(codes.Internal, "proxmox cluster fake-region not found"),
+		},
+		{
+			msg: "WrongNode",
+			request: &proto.ControllerPublishVolumeRequest{
+				NodeId:           "cluster-1-node-2",
+				VolumeId:         "cluster-1/pve-1/local-lvm/vm-9999-pvc-123",
+				VolumeCapability: volcap,
+				VolumeContext:    volCtx,
+				Readonly:         true,
+			},
+			expectedError: status.Error(codes.InvalidArgument, "volume cluster-1/pve-1/local-lvm/vm-9999-pvc-123 does not exist on the node cluster-1-node-2"),
+		},
+		{
+			msg: "VolumeAlreadyAttached",
+			request: &proto.ControllerPublishVolumeRequest{
+				NodeId:           "cluster-1-node-1",
+				VolumeId:         "cluster-1/pve-1/local-lvm/vm-9999-pvc-123",
+				VolumeCapability: volcap,
+				VolumeContext:    volCtx,
+			},
+			expected: &proto.ControllerPublishVolumeResponse{
+				PublishContext: map[string]string{
+					"DevicePath": "/dev/disk/by-id/wwn-0x5056432d49443031",
+					"lun":        "1",
+				},
+			},
 		},
 	}
 
 	for _, testCase := range tests {
 		testCase := testCase
 
-		t.Run(fmt.Sprint(testCase.msg), func(t *testing.T) {
-			t.Parallel()
+		ts.Run(fmt.Sprint(testCase.msg), func() {
+			resp, err := ts.s.ControllerPublishVolume(context.Background(), testCase.request)
 
-			_, err := env.service.ControllerPublishVolume(context.Background(), testCase.request)
-
-			assert.NotNil(t, err)
-			assert.Contains(t, err.Error(), testCase.expectedError.Error())
+			if testCase.expectedError == nil {
+				ts.Require().NoError(err)
+				ts.Require().Equal(resp, testCase.expected)
+			} else {
+				ts.Require().Error(err)
+				ts.Require().Equal(testCase.expectedError, err)
+			}
 		})
 	}
 }
 
 // nolint:dupl
-func TestControllerUnpublishVolumeError(t *testing.T) {
-	t.Parallel()
-
-	env := newControllerServerTestEnv()
+func (ts *csiTestSuite) TestControllerUnpublishVolumeError() {
+	httpmock.Activate()
+	defer httpmock.DeactivateAndReset()
 
 	tests := []struct {
 		msg           string
@@ -386,14 +675,14 @@ func TestControllerUnpublishVolumeError(t *testing.T) {
 			request: &proto.ControllerUnpublishVolumeRequest{
 				NodeId: "node-id",
 			},
-			expectedError: fmt.Errorf("VolumeID must be provided"),
+			expectedError: status.Error(codes.InvalidArgument, "VolumeID must be provided"),
 		},
 		{
 			msg: "NodeID",
 			request: &proto.ControllerUnpublishVolumeRequest{
 				VolumeId: "volume-id",
 			},
-			expectedError: fmt.Errorf("NodeID must be provided"),
+			expectedError: status.Error(codes.InvalidArgument, "NodeID must be provided"),
 		},
 		{
 			msg: "WrongVolumeID",
@@ -401,7 +690,7 @@ func TestControllerUnpublishVolumeError(t *testing.T) {
 				NodeId:   "node-id",
 				VolumeId: "volume-id",
 			},
-			expectedError: fmt.Errorf("VolumeID must be in the format of region/zone/storageName/diskName"),
+			expectedError: status.Error(codes.InvalidArgument, "VolumeID must be in the format of region/zone/storageName/diskName"),
 		},
 		{
 			msg: "WrongCluster",
@@ -409,61 +698,74 @@ func TestControllerUnpublishVolumeError(t *testing.T) {
 				NodeId:   "node-id",
 				VolumeId: "fake-region/node/data/volume-id",
 			},
-			expectedError: fmt.Errorf("proxmox cluster fake-region not found"),
+			expectedError: status.Error(codes.Internal, "proxmox cluster fake-region not found"),
+		},
+		{
+			msg: "WrongNode",
+			request: &proto.ControllerUnpublishVolumeRequest{
+				NodeId:   "cluster-1-node-3",
+				VolumeId: "cluster-1/pve-1/local-lvm/vm-9999-pvc-123",
+			},
+			expectedError: status.Error(codes.Internal, "vm 'cluster-1-node-3' not found"),
+		},
+		{
+			msg: "AlreadyDetached",
+			request: &proto.ControllerUnpublishVolumeRequest{
+				NodeId:   "cluster-1-node-2",
+				VolumeId: "cluster-1/pve-1/local-lvm/vm-9999-pvc-123",
+			},
 		},
 	}
 
 	for _, testCase := range tests {
 		testCase := testCase
 
-		t.Run(fmt.Sprint(testCase.msg), func(t *testing.T) {
-			t.Parallel()
+		ts.Run(fmt.Sprint(testCase.msg), func() {
+			_, err := ts.s.ControllerUnpublishVolume(context.Background(), testCase.request)
 
-			_, err := env.service.ControllerUnpublishVolume(context.Background(), testCase.request)
-
-			assert.NotNil(t, err)
-			assert.Contains(t, err.Error(), testCase.expectedError.Error())
+			if testCase.expectedError == nil {
+				ts.Require().NoError(err)
+			} else {
+				ts.Require().Error(err)
+				ts.Require().Equal(testCase.expectedError.Error(), err.Error())
+			}
 		})
 	}
 }
 
-func TestValidateVolumeCapabilities(t *testing.T) {
-	env := newControllerServerTestEnv()
-
-	_, err := env.service.ValidateVolumeCapabilities(context.Background(), &proto.ValidateVolumeCapabilitiesRequest{})
-	assert.NotNil(t, err)
-	assert.Equal(t, status.Error(codes.Unimplemented, ""), err)
+func (ts *csiTestSuite) TestValidateVolumeCapabilities() {
+	_, err := ts.s.ValidateVolumeCapabilities(context.Background(), &proto.ValidateVolumeCapabilitiesRequest{})
+	ts.Require().Error(err)
+	ts.Require().Equal(status.Error(codes.Unimplemented, ""), err)
 }
 
-func TestListVolumes(t *testing.T) {
-	env := newControllerServerTestEnv()
-
-	_, err := env.service.ListVolumes(context.Background(), &proto.ListVolumesRequest{})
-	assert.NotNil(t, err)
-	assert.Equal(t, status.Error(codes.Unimplemented, ""), err)
+func (ts *csiTestSuite) TestListVolumes() {
+	_, err := ts.s.ListVolumes(context.Background(), &proto.ListVolumesRequest{})
+	ts.Require().Error(err)
+	ts.Require().Equal(status.Error(codes.Unimplemented, ""), err)
 }
 
-func TestGetCapacity(t *testing.T) {
-	t.Parallel()
-
-	env := newControllerServerTestEnv()
+func (ts *csiTestSuite) TestGetCapacity() {
+	httpmock.Activate()
+	defer httpmock.DeactivateAndReset()
 
 	tests := []struct {
 		msg           string
 		request       *proto.GetCapacityRequest
+		expected      *proto.GetCapacityResponse
 		expectedError error
 	}{
 		{
 			msg:           "NoTopology",
 			request:       &proto.GetCapacityRequest{},
-			expectedError: fmt.Errorf("no topology specified"),
+			expectedError: status.Error(codes.InvalidArgument, "no topology specified"),
 		},
 		{
 			msg: "NoTopology",
 			request: &proto.GetCapacityRequest{
 				AccessibleTopology: &proto.Topology{},
 			},
-			expectedError: fmt.Errorf("region, zone and storageName must be provided"),
+			expectedError: status.Error(codes.InvalidArgument, "region, zone and storageName must be provided"),
 		},
 		{
 			msg: "TopologyRegion",
@@ -477,7 +779,7 @@ func TestGetCapacity(t *testing.T) {
 					csi.StorageIDKey: "storage",
 				},
 			},
-			expectedError: fmt.Errorf("region, zone and storageName must be provided"),
+			expectedError: status.Error(codes.InvalidArgument, "region, zone and storageName must be provided"),
 		},
 		{
 			msg: "TopologyZone",
@@ -491,7 +793,7 @@ func TestGetCapacity(t *testing.T) {
 					csi.StorageIDKey: "storage",
 				},
 			},
-			expectedError: fmt.Errorf("region, zone and storageName must be provided"),
+			expectedError: status.Error(codes.InvalidArgument, "region, zone and storageName must be provided"),
 		},
 		{
 			msg: "TopologyStorageName",
@@ -503,7 +805,7 @@ func TestGetCapacity(t *testing.T) {
 					},
 				},
 			},
-			expectedError: fmt.Errorf("region, zone and storageName must be provided"),
+			expectedError: status.Error(codes.InvalidArgument, "region, zone and storageName must be provided"),
 		},
 		{
 			msg: "Topology",
@@ -518,52 +820,80 @@ func TestGetCapacity(t *testing.T) {
 					csi.StorageIDKey: "storage",
 				},
 			},
-			expectedError: fmt.Errorf("proxmox cluster region not found"),
+			expectedError: status.Error(codes.Internal, "proxmox cluster region not found"),
+		},
+		{
+			msg: "StorageNotExists",
+			request: &proto.GetCapacityRequest{
+				AccessibleTopology: &proto.Topology{
+					Segments: map[string]string{
+						corev1.LabelTopologyRegion: "cluster-1",
+						corev1.LabelTopologyZone:   "pve-1",
+					},
+				},
+				Parameters: map[string]string{
+					csi.StorageIDKey: "storage",
+				},
+			},
+			expectedError: status.Error(codes.Internal, "storage STATUS not readable"),
+		},
+		{
+			msg: "Storage",
+			request: &proto.GetCapacityRequest{
+				AccessibleTopology: &proto.Topology{
+					Segments: map[string]string{
+						corev1.LabelTopologyRegion: "cluster-1",
+						corev1.LabelTopologyZone:   "pve-1",
+					},
+				},
+				Parameters: map[string]string{
+					csi.StorageIDKey: "local-lvm",
+				},
+			},
+			expected: &proto.GetCapacityResponse{
+				AvailableCapacity: 50 * 1024 * 1024 * 1024,
+			},
 		},
 	}
 
 	for _, testCase := range tests {
 		testCase := testCase
 
-		t.Run(fmt.Sprint(testCase.msg), func(t *testing.T) {
-			t.Parallel()
+		ts.Run(fmt.Sprint(testCase.msg), func() {
+			resp, err := ts.s.GetCapacity(context.Background(), testCase.request)
 
-			_, err := env.service.GetCapacity(context.Background(), testCase.request)
-
-			assert.NotNil(t, err)
-			assert.Contains(t, err.Error(), testCase.expectedError.Error())
+			if testCase.expectedError == nil {
+				ts.Require().NoError(err)
+				ts.Require().Equal(testCase.expected, resp)
+			} else {
+				ts.Require().Error(err)
+				ts.Require().Equal(testCase.expectedError, err)
+			}
 		})
 	}
 }
 
-func TestCreateSnapshot(t *testing.T) {
-	env := newControllerServerTestEnv()
-
-	_, err := env.service.CreateSnapshot(context.Background(), &proto.CreateSnapshotRequest{})
-	assert.NotNil(t, err)
-	assert.Equal(t, status.Error(codes.Unimplemented, ""), err)
+func (ts *csiTestSuite) TestCreateSnapshot() {
+	_, err := ts.s.CreateSnapshot(context.Background(), &proto.CreateSnapshotRequest{})
+	ts.Require().Error(err)
+	ts.Require().Equal(status.Error(codes.Unimplemented, ""), err)
 }
 
-func TestDeleteSnapshot(t *testing.T) {
-	env := newControllerServerTestEnv()
-
-	_, err := env.service.DeleteSnapshot(context.Background(), &proto.DeleteSnapshotRequest{})
-	assert.NotNil(t, err)
-	assert.Equal(t, status.Error(codes.Unimplemented, ""), err)
+func (ts *csiTestSuite) TestDeleteSnapshot() {
+	_, err := ts.s.DeleteSnapshot(context.Background(), &proto.DeleteSnapshotRequest{})
+	ts.Require().Error(err)
+	ts.Require().Equal(status.Error(codes.Unimplemented, ""), err)
 }
 
-func TestListSnapshots(t *testing.T) {
-	env := newControllerServerTestEnv()
-
-	_, err := env.service.ListSnapshots(context.Background(), &proto.ListSnapshotsRequest{})
-	assert.NotNil(t, err)
-	assert.Equal(t, status.Error(codes.Unimplemented, ""), err)
+func (ts *csiTestSuite) TestListSnapshots() {
+	_, err := ts.s.ListSnapshots(context.Background(), &proto.ListSnapshotsRequest{})
+	ts.Require().Error(err)
+	ts.Require().Equal(status.Error(codes.Unimplemented, ""), err)
 }
 
-func TestControllerExpandVolumeError(t *testing.T) {
-	t.Parallel()
-
-	env := newControllerServerTestEnv()
+func (ts *csiTestSuite) TestControllerExpandVolumeError() {
+	httpmock.Activate()
+	defer httpmock.DeactivateAndReset()
 
 	capRange := &proto.CapacityRange{
 		RequiredBytes: 100,
@@ -573,6 +903,7 @@ func TestControllerExpandVolumeError(t *testing.T) {
 	tests := []struct {
 		msg           string
 		request       *proto.ControllerExpandVolumeRequest
+		expected      *proto.ControllerExpandVolumeResponse
 		expectedError error
 	}{
 		{
@@ -580,14 +911,14 @@ func TestControllerExpandVolumeError(t *testing.T) {
 			request: &proto.ControllerExpandVolumeRequest{
 				CapacityRange: capRange,
 			},
-			expectedError: fmt.Errorf("VolumeID must be provided"),
+			expectedError: status.Error(codes.InvalidArgument, "VolumeID must be provided"),
 		},
 		{
 			msg: "CapacityRange",
 			request: &proto.ControllerExpandVolumeRequest{
 				VolumeId: "volume-id",
 			},
-			expectedError: fmt.Errorf("CapacityRange must be provided"),
+			expectedError: status.Error(codes.InvalidArgument, "CapacityRange must be provided"),
 		},
 		{
 			msg: "CapacityRangeLimit",
@@ -598,7 +929,7 @@ func TestControllerExpandVolumeError(t *testing.T) {
 					LimitBytes:    100,
 				},
 			},
-			expectedError: fmt.Errorf("after round-up, volume size exceeds the limit specified"),
+			expectedError: status.Error(codes.OutOfRange, "after round-up, volume size exceeds the limit specified"),
 		},
 		{
 			msg: "WrongVolumeID",
@@ -606,7 +937,7 @@ func TestControllerExpandVolumeError(t *testing.T) {
 				VolumeId:      "volume-id",
 				CapacityRange: capRange,
 			},
-			expectedError: fmt.Errorf("VolumeID must be in the format of region/zone/storageName/diskName"),
+			expectedError: status.Error(codes.InvalidArgument, "VolumeID must be in the format of region/zone/storageName/diskName"),
 		},
 		{
 			msg: "WrongCluster",
@@ -614,28 +945,56 @@ func TestControllerExpandVolumeError(t *testing.T) {
 				VolumeId:      "fake-region/node/data/volume-id",
 				CapacityRange: capRange,
 			},
-			expectedError: fmt.Errorf("proxmox cluster fake-region not found"),
+			expectedError: status.Error(codes.Internal, "proxmox cluster fake-region not found"),
+		},
+		{
+			msg: "WrongPVC",
+			request: &proto.ControllerExpandVolumeRequest{
+				VolumeId:      "cluster-1/pve-1/local-lvm/vm-9999-pvc-none",
+				CapacityRange: capRange,
+			},
+			expected: &proto.ControllerExpandVolumeResponse{},
+		},
+		{
+			msg: "UpublishedVolume",
+			request: &proto.ControllerExpandVolumeRequest{
+				VolumeId:      "cluster-1/pve-1/local-lvm/vm-9999-pvc-error",
+				CapacityRange: capRange,
+			},
+			expected: &proto.ControllerExpandVolumeResponse{},
+		},
+		{
+			msg: "ExpandVolume",
+			request: &proto.ControllerExpandVolumeRequest{
+				VolumeId:      "cluster-1/pve-1/local-lvm/vm-9999-pvc-123",
+				CapacityRange: capRange,
+			},
+			expected: &proto.ControllerExpandVolumeResponse{
+				CapacityBytes:         100,
+				NodeExpansionRequired: true,
+			},
 		},
 	}
 
 	for _, testCase := range tests {
 		testCase := testCase
 
-		t.Run(fmt.Sprint(testCase.msg), func(t *testing.T) {
-			t.Parallel()
+		ts.Run(fmt.Sprint(testCase.msg), func() {
+			resp, err := ts.s.ControllerExpandVolume(context.Background(), testCase.request)
 
-			_, err := env.service.ControllerExpandVolume(context.Background(), testCase.request)
-
-			assert.NotNil(t, err)
-			assert.Contains(t, err.Error(), testCase.expectedError.Error())
+			if testCase.expectedError == nil {
+				ts.Require().NoError(err)
+				ts.Require().Equal(testCase.expected, resp)
+			} else {
+				ts.Require().Error(err)
+				ts.Require().Equal(testCase.expectedError, err)
+			}
 		})
 	}
 }
 
-func TestControllerGetVolume(t *testing.T) {
-	env := newControllerServerTestEnv()
-
-	_, err := env.service.ControllerGetVolume(context.Background(), &proto.ControllerGetVolumeRequest{})
-	assert.NotNil(t, err)
-	assert.Equal(t, status.Error(codes.Unimplemented, ""), err)
+func (ts *csiTestSuite) TestControllerGetVolume() {
+	_, err := ts.s.ControllerGetVolume(context.Background(), &proto.ControllerGetVolumeRequest{})
+	ts.Require().Error(err)
+	ts.Require().Equal(status.Error(codes.Unimplemented, ""), err)
 }
