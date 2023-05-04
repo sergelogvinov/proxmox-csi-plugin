@@ -143,7 +143,7 @@ Source:
     ReadOnly:          false
     VolumeAttributes:      cache=writethrough
                            storage.kubernetes.io/csiProvisionerIdentity=1682607985217-8081-csi.proxmox.sinextra.dev
-                           storageID=data
+                           storage=data
 ```
 
 ### Statefulset with persistent storage
@@ -195,7 +195,7 @@ Source:
     ReadOnly:          false
     VolumeAttributes:      cache=writethrough
                            storage.kubernetes.io/csiProvisionerIdentity=1682607985217-8081-csi.proxmox.sinextra.dev
-                           storageID=data
+                           storage=data
 ```
 
 ### Usage
@@ -247,7 +247,7 @@ metadata:
   name: proxmox-data-xfs
 parameters:
   csi.storage.k8s.io/fstype: xfs|ext4
-  storageID: data
+  storage: data
   cache: directsync|none|writeback|writethrough
   ssd: "true|false"
 provisioner: csi.proxmox.sinextra.dev
@@ -257,7 +257,7 @@ volumeBindingMode: WaitForFirstConsumer
 ```
 
 Storage parameters:
-* storageID - proxmox storage ID
+* storage - proxmox storage ID
 * cache - qemu cache param: `directsync`, `none`, `writeback`, `writethrough` see [official documentation](https://pve.proxmox.com/wiki/Performance_Tweaks)
 * ssd - true if SSD/NVME disk
 

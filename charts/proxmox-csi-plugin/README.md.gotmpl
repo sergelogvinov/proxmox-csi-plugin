@@ -46,11 +46,11 @@ tolerations:
 # See https://pve.proxmox.com/wiki/Storage
 storageClass:
   - name: proxmox-data-xfs
-    storageID: data
+    storage: data
     reclaimPolicy: Delete
     fstype: xfs
   - name: proxmox-data
-    storageID: data
+    storage: data
     reclaimPolicy: Delete
     fstype: ext4
     cache: writethrough

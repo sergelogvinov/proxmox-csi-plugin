@@ -13,10 +13,10 @@ tolerations:
 
 storageClass:
   - name: proxmox-data-xfs
-    storageID: data
+    storage: data
     reclaimPolicy: Delete
     fstype: xfs
   - name: proxmox-data
-    storageID: data
+    storage: data
     reclaimPolicy: Delete
     ssd: true
