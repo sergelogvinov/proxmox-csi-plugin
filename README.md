@@ -29,6 +29,14 @@ It enables the use of a single storage class to deploy one or many deployments/s
 - The Pods can easyly migrade inside the Proxmox node with PV. PV will reattache to anothe VM by CSI Plugin.
 - The Pod `cannot` migrate to another zone (another Proxmox node)
 
+### Proxmox VM config:
+
+![VM](/docs/vm-disks.png)
+
+`scsi2` disk on VM - is kubernetes PVC.
+
+It is very important to use disk controller `VirtIO SCSI single` with `iothread`.
+
 CSI Plugin uses the well-known node labels/spec to define the location
 * topology.kubernetes.io/region
 * topology.kubernetes.io/zone

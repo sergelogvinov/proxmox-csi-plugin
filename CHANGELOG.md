@@ -1,4 +1,21 @@
 
+<a name="v0.1.0"></a>
+## [v0.1.0](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.0.2...v0.1.0) (2023-05-04)
+
+Welcome to the v0.1.0 release of Proxmox CSI Plugin!
+
+### Bug Fixes
+
+- release check
+
+### Changelog
+
+* 303f430 refactor: rename storageID to storage
+* 8ed6376 test: proxmox-api
+* bc135db test: mock kubernetes-api
+* ffa684f docs: helm readme
+* c3bd4e7 fix: release check
+
 <a name="v0.0.2"></a>
 ## [v0.0.2](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.01...v0.0.2) (2023-04-29)
 
