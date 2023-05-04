@@ -19,10 +19,6 @@ package csi
 import (
 	"encoding/hex"
 	"fmt"
-	"net/url"
-	"os"
-	"path"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -30,8 +26,6 @@ import (
 	pxapi "github.com/Telmate/proxmox-api-go/proxmox"
 
 	volume "github.com/sergelogvinov/proxmox-csi-plugin/pkg/volume"
-
-	"k8s.io/klog/v2"
 )
 
 const (
@@ -40,30 +34,6 @@ const (
 	// TaskTimeout is the timeout in seconds for all task
 	TaskTimeout = 30
 )
-
-// ParseEndpoint parses the endpoint string and returns the scheme and address
-func ParseEndpoint(endpoint string) (string, string, error) {
-	u, err := url.Parse(endpoint)
-	if err != nil {
-		return "", "", fmt.Errorf("could not parse endpoint: %v", err)
-	}
-
-	addr := path.Join(u.Host, filepath.FromSlash(u.Path))
-
-	scheme := strings.ToLower(u.Scheme)
-	switch scheme {
-	case "tcp":
-	case "unix":
-		addr = path.Join("/", addr)
-		if err := os.Remove(addr); err != nil && !os.IsNotExist(err) {
-			return "", "", fmt.Errorf("could not remove unix domain socket %q: %v", addr, err)
-		}
-	default:
-		return "", "", fmt.Errorf("unsupported protocol: %s", scheme)
-	}
-
-	return scheme, addr, nil
-}
 
 func isPvcExists(cl *pxapi.Client, vol *volume.Volume) (bool, error) {
 	vmr := pxapi.NewVmRef(vmID)
@@ -145,8 +115,6 @@ func createVolume(cl *pxapi.Client, vol *volume.Volume, sizeGB int) error {
 
 	err := cl.CreateVMDisk(vol.Node(), vol.Storage(), fmt.Sprintf("%s:%s", vol.Storage(), vol.Disk()), diskParams)
 	if err != nil {
-		klog.Errorf("failed to create vm disk: %v", err)
-
 		return fmt.Errorf("failed to create vm disk: %v", err)
 	}
 
@@ -156,17 +124,13 @@ func createVolume(cl *pxapi.Client, vol *volume.Volume, sizeGB int) error {
 func attachVolume(cl *pxapi.Client, vmr *pxapi.VmRef, storageName string, pvc string, options map[string]string) (map[string]string, error) {
 	config, err := cl.GetVmConfig(vmr)
 	if err != nil {
-		klog.Errorf("failed to get vm config: %v", err)
-
-		return nil, err
+		return nil, fmt.Errorf("failed to get vm config: %v", err)
 	}
 
 	wwm := ""
 
 	lun, exist := isVolumeAttached(config, pvc)
 	if exist {
-		klog.V(3).Infof("volume %s already attached", pvc)
-
 		wwm = hex.EncodeToString([]byte(fmt.Sprintf("PVC-ID%02d", lun)))
 	} else {
 		for lun = 1; lun < 30; lun++ {
@@ -184,19 +148,13 @@ func attachVolume(cl *pxapi.Client, vmr *pxapi.VmRef, storageName string, pvc st
 					"scsi" + strconv.Itoa(lun): fmt.Sprintf("%s:%s,%s", storageName, pvc, strings.Join(opt, ",")),
 				}
 
-				klog.Infof("attaching disk: %+v", vmParams)
-
 				_, err = cl.SetVmConfig(vmr, vmParams)
 				if err != nil {
-					klog.Errorf("failed to attach disk: %v, vmParams=%+v", err, vmParams)
-
-					return nil, err
+					return nil, fmt.Errorf("failed to attach disk: %v, vmParams=%+v", err, vmParams)
 				}
 
 				if err := waitForVolumeAttach(cl, vmr, lun); err != nil {
-					klog.Errorf("failed to wait for disk attach: %v", err)
-
-					return nil, err
+					return nil, fmt.Errorf("failed to wait for disk attach: %v", err)
 				}
 
 				break
@@ -231,15 +189,11 @@ func detachVolume(cl *pxapi.Client, vmr *pxapi.VmRef, pvc string) error {
 
 	err = cl.Put(vmParams, "/nodes/"+vmr.Node()+"/qemu/"+strconv.Itoa(vmr.VmId())+"/unlink")
 	if err != nil {
-		klog.Errorf("failed to set vm config: %v, vmParams=%+v", err, vmParams)
-
-		return err
+		return fmt.Errorf("failed to set vm config: %v, vmParams=%+v", err, vmParams)
 	}
 
 	if err := waitForVolumeDetach(cl, vmr, lun); err != nil {
-		klog.Errorf("failed to wait for disk detach: %v", err)
-
-		return err
+		return fmt.Errorf("failed to wait for disk detach: %v", err)
 	}
 
 	return nil

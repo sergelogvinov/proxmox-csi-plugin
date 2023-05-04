@@ -14,37 +14,55 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package csi_test
+package csi
 
 import (
 	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-
-	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/csi"
 )
 
-func TestParseEndpoint(t *testing.T) {
+func TestIsVolumeAttached(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		msg            string
-		endpoint       string
-		expectedScheme string
-		expectedAddr   string
-		expectedError  error
+		msg           string
+		vmConfig      map[string]interface{}
+		pvc           string
+		expectedLun   int
+		expectedExist bool
 	}{
 		{
-			msg:            "unix socket",
-			endpoint:       "unix://tmp/csi.sock",
-			expectedScheme: "unix",
-			expectedAddr:   "/tmp/csi.sock",
+			msg:           "Empty VM config",
+			vmConfig:      map[string]interface{}{},
+			pvc:           "",
+			expectedLun:   0,
+			expectedExist: false,
 		},
 		{
-			msg:           "http",
-			endpoint:      "http://tmp/csi.sock",
-			expectedError: fmt.Errorf("unsupported protocol: http"),
+			msg: "Empty PVC",
+			vmConfig: map[string]interface{}{
+				"ide2":   "local:iso/ubuntu-20.04.1-live-server-amd64.iso,media=cdrom",
+				"scsihw": "virtio-scsi-single",
+				"scsi0":  "local-lvm:vm-100-disk-0,size=8G",
+				"scsi5":  "local-lvm:vm-100-pvc-123,size=8G",
+			},
+			pvc:           "",
+			expectedLun:   0,
+			expectedExist: false,
+		},
+		{
+			msg: "LUN 5",
+			vmConfig: map[string]interface{}{
+				"ide2":   "local:iso/ubuntu-20.04.1-live-server-amd64.iso,media=cdrom",
+				"scsihw": "virtio-scsi-single",
+				"scsi0":  "local-lvm:vm-100-disk-0,size=8G",
+				"scsi5":  "local-lvm:vm-100-pvc-123,size=8G",
+			},
+			pvc:           "pvc-123",
+			expectedLun:   5,
+			expectedExist: true,
 		},
 	}
 
@@ -54,15 +72,14 @@ func TestParseEndpoint(t *testing.T) {
 		t.Run(fmt.Sprint(testCase.msg), func(t *testing.T) {
 			t.Parallel()
 
-			scheme, addr, err := csi.ParseEndpoint(testCase.endpoint)
+			lun, exist := isVolumeAttached(testCase.vmConfig, testCase.pvc)
 
-			if testCase.expectedError != nil {
-				assert.NotNil(t, err)
-				assert.Equal(t, err.Error(), testCase.expectedError.Error())
+			if testCase.expectedExist {
+				assert.True(t, exist)
+				assert.Equal(t, testCase.expectedLun, lun)
 			} else {
-				assert.Nil(t, err)
-				assert.NotNil(t, scheme, testCase.expectedScheme)
-				assert.Equal(t, addr, testCase.expectedAddr)
+				assert.False(t, exist)
+				assert.Equal(t, 0, lun)
 			}
 		})
 	}

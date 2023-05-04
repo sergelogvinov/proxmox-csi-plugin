@@ -51,7 +51,8 @@ var controllerCaps = []csi.ControllerServiceCapability_RPC_Type{
 
 // ControllerService is the controller service for the CSI driver
 type ControllerService struct {
-	cluster     proxmox.Cluster
+	Cluster *proxmox.Cluster
+
 	volumeLocks sync.Mutex
 }
 
@@ -68,7 +69,7 @@ func NewControllerService(cloudConfig string) (*ControllerService, error) {
 	}
 
 	return &ControllerService{
-		cluster: *cluster,
+		Cluster: cluster,
 	}, nil
 }
 
@@ -114,11 +115,11 @@ func (d *ControllerService) CreateVolume(_ context.Context, request *csi.CreateV
 		return nil, status.Error(codes.InvalidArgument, "cannot find best region and zone")
 	}
 
-	cl, err := d.cluster.GetProxmoxCluster(region)
+	cl, err := d.Cluster.GetProxmoxCluster(region)
 	if err != nil {
 		klog.Errorf("failed to get proxmox cluster: %v", err)
 
-		return nil, status.Error(codes.InvalidArgument, err.Error())
+		return nil, status.Error(codes.Internal, err.Error())
 	}
 
 	vol := volume.NewVolume(region, zone, params[StorageIDKey], fmt.Sprintf("vm-%d-%s", vmID, pvc))
@@ -160,7 +161,7 @@ func (d *ControllerService) DeleteVolume(_ context.Context, request *csi.DeleteV
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
-	cl, err := d.cluster.GetProxmoxCluster(vol.Cluster())
+	cl, err := d.Cluster.GetProxmoxCluster(vol.Cluster())
 	if err != nil {
 		klog.Errorf("failed to get proxmox cluster: %v", err)
 
@@ -184,11 +185,10 @@ func (d *ControllerService) DeleteVolume(_ context.Context, request *csi.DeleteV
 	vmr.SetNode(vol.Node())
 	vmr.SetVmType("qemu")
 
-	_, err = cl.DeleteVolume(vmr, vol.Storage(), vol.Disk())
-	if err != nil {
-		klog.Errorf("failed to delete volume: %v", err)
+	if _, err := cl.DeleteVolume(vmr, vol.Storage(), vol.Disk()); err != nil {
+		klog.Errorf("failed to delete volume: %s", vol.Disk())
 
-		return nil, status.Error(codes.Internal, err.Error())
+		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to delete volume: %s", vol.Disk()))
 	}
 
 	klog.V(4).Infof("DeleteVolume: successfully deleted volume %s", vol.Disk())
@@ -244,7 +244,7 @@ func (d *ControllerService) ControllerPublishVolume(_ context.Context, request *
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
-	cl, err := d.cluster.GetProxmoxCluster(vol.Cluster())
+	cl, err := d.Cluster.GetProxmoxCluster(vol.Cluster())
 	if err != nil {
 		klog.Errorf("failed to get proxmox cluster: %v", err)
 
@@ -258,6 +258,10 @@ func (d *ControllerService) ControllerPublishVolume(_ context.Context, request *
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
+	if vm.Node() != vol.Node() {
+		return nil, status.Error(codes.InvalidArgument, fmt.Sprintf("volume %s does not exist on the node %s", volumeID, nodeID))
+	}
+
 	options := map[string]string{
 		"backup":   "0",
 		"iothread": "1",
@@ -267,13 +271,13 @@ func (d *ControllerService) ControllerPublishVolume(_ context.Context, request *
 		options["ro"] = "1"
 	}
 
-	if volCtx["ssd"] == "true" {
+	if volCtx[StorageSSDKey] == "true" {
 		options["ssd"] = "1"
 		options["discard"] = "on"
 	}
 
-	if volCtx["cache"] != "" {
-		options["cache"] = volCtx["cache"]
+	if volCtx[StorageCacheKey] != "" {
+		options["cache"] = volCtx[StorageCacheKey]
 	}
 
 	d.volumeLocks.Lock()
@@ -308,7 +312,7 @@ func (d *ControllerService) ControllerUnpublishVolume(_ context.Context, request
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
-	cl, err := d.cluster.GetProxmoxCluster(vol.Cluster())
+	cl, err := d.Cluster.GetProxmoxCluster(vol.Cluster())
 	if err != nil {
 		klog.Errorf("failed to get proxmox cluster: %v", err)
 
@@ -361,7 +365,7 @@ func (d *ControllerService) GetCapacity(_ context.Context, request *csi.GetCapac
 
 		klog.V(4).Infof("GetCapacity: region=%s, zone=%s, storageName=%s", region, zone, storageName)
 
-		cl, err := d.cluster.GetProxmoxCluster(region)
+		cl, err := d.Cluster.GetProxmoxCluster(region)
 		if err != nil {
 			klog.Errorf("failed to get proxmox cluster: %v", err)
 
@@ -379,7 +383,7 @@ func (d *ControllerService) GetCapacity(_ context.Context, request *csi.GetCapac
 			klog.Errorf("GetCapacity: failed to get storage status: %v", err)
 
 			if !strings.Contains(err.Error(), "Parameter verification failed") {
-				return nil, status.Error(codes.InvalidArgument, err.Error())
+				return nil, status.Error(codes.Internal, err.Error())
 			}
 		} else {
 			availableCapacity = int64(storage["avail"].(float64))
@@ -444,7 +448,7 @@ func (d *ControllerService) ControllerExpandVolume(_ context.Context, request *c
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
-	cl, err := d.cluster.GetProxmoxCluster(vol.Cluster())
+	cl, err := d.Cluster.GetProxmoxCluster(vol.Cluster())
 	if err != nil {
 		klog.Errorf("failed to get proxmox cluster: %v", err)
 
@@ -455,7 +459,7 @@ func (d *ControllerService) ControllerExpandVolume(_ context.Context, request *c
 	if err != nil {
 		klog.Errorf("failed to check if pvc exists: %v", err)
 
-		return nil, status.Error(codes.Internal, err.Error())
+		return nil, status.Error(codes.NotFound, err.Error())
 	}
 
 	if !exist {
@@ -505,8 +509,7 @@ func (d *ControllerService) ControllerExpandVolume(_ context.Context, request *c
 
 			device := "scsi" + strconv.Itoa(lun)
 
-			_, err = cl.ResizeQemuDiskRaw(vmr, device, fmt.Sprintf("%dG", volSizeGB))
-			if err != nil {
+			if _, err := cl.ResizeQemuDiskRaw(vmr, device, fmt.Sprintf("%dG", volSizeGB)); err != nil {
 				klog.Errorf("failed to resize vm disk: %s, %v", vol.Disk(), err)
 
 				return nil, status.Error(codes.Internal, err.Error())

@@ -6,6 +6,7 @@ require (
 	github.com/Telmate/proxmox-api-go v0.0.0-20230418175406-5c7733d8993f
 	github.com/container-storage-interface/spec v1.8.0
 	github.com/golang/protobuf v1.5.3
+	github.com/jarcoal/httpmock v1.3.0
 	github.com/kubernetes-csi/csi-lib-utils v0.13.0
 	github.com/sergelogvinov/proxmox-cloud-controller-manager v0.0.2-0.20230501134902-b776e54e4f32
 	github.com/stretchr/testify v1.8.2
