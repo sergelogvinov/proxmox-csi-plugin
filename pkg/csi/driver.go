@@ -24,7 +24,7 @@ const (
 	DriverVersion = "0.0.1"
 
 	// StorageIDKey is the ID of the Proxmox storage
-	StorageIDKey = "storageID"
+	StorageIDKey = "storage"
 	// StorageCacheKey is the cache type, can be one of "directsync", "none", "writeback", "writethrough"
 	StorageCacheKey = "cache"
 	// StorageSSDKey is it ssd disk

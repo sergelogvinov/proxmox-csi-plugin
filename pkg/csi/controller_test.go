@@ -243,7 +243,7 @@ func (ts *csiTestSuite) TestCreateVolume() {
 		},
 	}
 	volParam := map[string]string{
-		"storageID": "local-lvm",
+		"storage": "local-lvm",
 	}
 	volsize := &proto.CapacityRange{
 		RequiredBytes: 1,
@@ -306,7 +306,7 @@ func (ts *csiTestSuite) TestCreateVolume() {
 				CapacityRange:             volsize,
 				AccessibilityRequirements: topology,
 			},
-			expectedError: status.Error(codes.InvalidArgument, "Parameters storageID must be provided"),
+			expectedError: status.Error(codes.InvalidArgument, "Parameters storage must be provided"),
 		},
 		{
 			msg: "RegionZone",
