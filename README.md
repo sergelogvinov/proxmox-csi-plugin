@@ -67,6 +67,7 @@ pveum user token add kubernetes-csi@pve csi -privsep 0
 Proxmox cloud config (the same as Proxmox CCM uses):
 
 ```yaml
+# config.yaml
 clusters:
   - url: https://cluster-api-1.exmple.com:8006/api2/json
     insecure: false
@@ -80,6 +81,12 @@ clusters:
     region: Region-2
 ```
 
+Upload it to the kubernetes:
+
+```shell
+kubectl -n csi-proxmox create secret generic proxmox-csi-plugin --from-file=config.yaml
+```
+
 ### Method 1: By Kubectl
 
 Latest stable version (edge)
@@ -90,8 +97,32 @@ kubectl -f https://raw.githubusercontent.com/sergelogvinov/proxmox-csi-plugin/ma
 
 ### Method 2: By Helm
 
+Create the config file:
+
+```yaml
+# proxmox-csi.yaml
+config:
+  clusters:
+    - url: https://cluster-api-1.exmple.com:8006/api2/json
+      insecure: false
+      token_id: "kubernetes-csi@pve!csi"
+      token_secret: "secret"
+      region: Region-1
+    - url: https://cluster-api-2.exmple.com:8006/api2/json
+      insecure: false
+      token_id: "kubernetes-csi@pve!csi"
+      token_secret: "secret"
+      region: Region-2
+
+storageClass:
+  - name: proxmox-data-xfs
+    storage: data
+    reclaimPolicy: Delete
+    fstype: xfs
+```
+
 ```shell
-helm upgrade -i -n csi-proxmox proxmox-csi-plugin charts/proxmox-csi-plugin
+helm upgrade -i -n csi-proxmox -f proxmox-csi.yaml proxmox-csi-plugin charts/proxmox-csi-plugin
 ```
 
 ### Method 3: Talos machine config

@@ -21,7 +21,7 @@ const (
 	// DriverName is the name of the CSI driver
 	DriverName = "csi.proxmox.sinextra.dev"
 	// DriverVersion is the version of the CSI driver
-	DriverVersion = "0.0.1"
+	DriverVersion = "0.1.0"
 
 	// StorageIDKey is the ID of the Proxmox storage
 	StorageIDKey = "storage"
