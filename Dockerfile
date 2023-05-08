@@ -25,7 +25,9 @@ RUN make build-all-archs
 ########################################
 
 FROM --platform=${TARGETARCH} scratch AS controller
-LABEL org.opencontainers.image.source = "https://github.com/sergelogvinov/proxmox-csi-plugin"
+LABEL org.opencontainers.image.source="https://github.com/sergelogvinov/proxmox-csi-plugin" \
+      org.opencontainers.image.licenses="Apache-2.0" \
+      org.opencontainers.image.description="Proxmox VE CSI plugin"
 
 COPY --from=gcr.io/distroless/static-debian11:nonroot . .
 ARG TARGETARCH
@@ -35,16 +37,30 @@ ENTRYPOINT ["/bin/proxmox-csi-controller"]
 
 ########################################
 
-FROM --platform=${TARGETARCH} registry.k8s.io/build-image/debian-base:bullseye-v1.4.3 AS node
-LABEL org.opencontainers.image.source = "https://github.com/sergelogvinov/proxmox-csi-plugin"
+FROM --platform=${TARGETARCH} registry.k8s.io/build-image/debian-base:bullseye-v1.4.3 AS tools
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN clean-install \
+    bash \
     mount \
+    udev \
     e2fsprogs \
     xfsprogs \
-    && rm -rf /var/lib/apt/lists/*
+    rsync
+
+COPY tools /tools
+RUN sh /tools/deps.sh
+
+########################################
+
+FROM --platform=${TARGETARCH} scratch AS node
+LABEL org.opencontainers.image.source="https://github.com/sergelogvinov/proxmox-csi-plugin" \
+      org.opencontainers.image.licenses="Apache-2.0" \
+      org.opencontainers.image.description="Proxmox VE CSI plugin"
+
+COPY --from=registry.k8s.io/build-image/debian-base:bullseye-v1.4.3 . .
+COPY --from=tools /dest /
 
 ARG TARGETARCH
-COPY --from=builder /src/bin/proxmox-csi-node-${TARGETARCH} /proxmox-csi-node
+COPY --from=builder /src/bin/proxmox-csi-node-${TARGETARCH} /bin/proxmox-csi-node
 
-ENTRYPOINT ["/proxmox-csi-node"]
+ENTRYPOINT ["/bin/proxmox-csi-node"]
