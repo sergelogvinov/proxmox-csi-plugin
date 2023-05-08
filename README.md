@@ -44,7 +44,7 @@ CSI Plugin uses the well-known node labels/spec to define the location
 
 **Caution**: set the labels `topology.kubernetes.io/region` and `topology.kubernetes.io/zone` are very important.
 You can set it by `kubectl` or use [Proxmox CCM](https://github.com/sergelogvinov/proxmox-cloud-controller-manager).
-It uses the case Proxmox Cloud config.
+It uses the same Proxmox Cloud config.
 And it labels the node properly.
 I recommend using the CCM (Cloud Controller Manager).
 
@@ -64,7 +64,7 @@ pveum aclmod / -user kubernetes-csi@pve -role CSI
 pveum user token add kubernetes-csi@pve csi -privsep 0
 ```
 
-Proxmox cloud config (the same as Proxmox CCM uses):
+Proxmox cloud config (the same as Proxmox CCM config):
 
 ```yaml
 # config.yaml
