@@ -8,16 +8,16 @@ require (
 	github.com/golang/protobuf v1.5.3
 	github.com/jarcoal/httpmock v1.3.0
 	github.com/kubernetes-csi/csi-lib-utils v0.13.0
-	github.com/sergelogvinov/proxmox-cloud-controller-manager v0.0.2-0.20230501134902-b776e54e4f32
+	github.com/sergelogvinov/proxmox-cloud-controller-manager v0.1.1-0.20230508115221-f8c32e1e8ee6
 	github.com/stretchr/testify v1.8.2
-	google.golang.org/grpc v1.54.0
+	google.golang.org/grpc v1.55.0
 	k8s.io/api v0.27.1
 	k8s.io/apimachinery v0.27.1
 	k8s.io/client-go v0.27.1
 	k8s.io/cloud-provider-openstack v1.27.1
 	k8s.io/klog/v2 v2.100.1
 	k8s.io/mount-utils v0.27.1
-	k8s.io/utils v0.0.0-20230406110748-d93618cff8a2
+	k8s.io/utils v0.0.0-20230505201702-9f6742963106
 )
 
 require (
