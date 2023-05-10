@@ -52,10 +52,13 @@ RUN /tools/deps.sh
 
 ########################################
 
-FROM --platform=${TARGETARCH} registry.k8s.io/build-image/debian-base:bullseye-v1.4.3 AS tools-check
+FROM --platform=${TARGETARCH} gcr.io/distroless/base-debian11 AS tools-check
 
+COPY --from=tools /bin/sh /bin/sh
 COPY --from=tools /tools /tools
 COPY --from=tools /dest /
+
+SHELL ["/bin/sh"]
 RUN /tools/deps-check.sh
 
 ########################################
@@ -65,7 +68,7 @@ LABEL org.opencontainers.image.source="https://github.com/sergelogvinov/proxmox-
       org.opencontainers.image.licenses="Apache-2.0" \
       org.opencontainers.image.description="Proxmox VE CSI plugin"
 
-COPY --from=registry.k8s.io/build-image/debian-base:bullseye-v1.4.3 . .
+COPY --from=gcr.io/distroless/base-debian11 . .
 COPY --from=tools /dest /
 
 ARG TARGETARCH
