@@ -58,6 +58,7 @@ cp /sbin/mkfs* ${DEST}/sbin/
 copy_deps /sbin/mkfs.xfs
 copy_deps /sbin/xfs_repair
 copy_deps /usr/sbin/xfs_growfs
+copy_deps /usr/sbin/xfs_io
 cp /usr/sbin/xfs* ${DEST}/usr/sbin/
 
 # k8s.io/cloud-provider-openstack/pkg/util/mount

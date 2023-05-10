@@ -9,6 +9,7 @@ on:
       - 'go.sum'
       - 'cmd/**'
       - 'pkg/**'
+      - 'Dockerfile'
 
 jobs:
   build-publish:

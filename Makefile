@@ -116,5 +116,10 @@ image-%:
 		--target $* \
 		-f Dockerfile .
 
+.PHONY: images-checks
+images-checks: images image-tools-check
+	trivy image --exit-code 1 --ignore-unfixed --severity HIGH,CRITICAL --no-progress $(IMAGE)-controller:$(TAG)
+	trivy image --exit-code 1 --ignore-unfixed --severity HIGH,CRITICAL --no-progress $(IMAGE)-node:$(TAG)
+
 .PHONY: images
 images: image-controller image-node ## Build images

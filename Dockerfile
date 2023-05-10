@@ -48,7 +48,15 @@ RUN clean-install \
     rsync
 
 COPY tools /tools
-RUN sh /tools/deps.sh
+RUN /tools/deps.sh
+
+########################################
+
+FROM --platform=${TARGETARCH} registry.k8s.io/build-image/debian-base:bullseye-v1.4.3 AS tools-check
+
+COPY --from=tools /tools /tools
+COPY --from=tools /dest /
+RUN /tools/deps-check.sh
 
 ########################################
 

@@ -9,6 +9,7 @@ on:
       - 'go.sum'
       - 'cmd/**'
       - 'pkg/**'
+      - 'Dockerfile'
 
 jobs:
   build:
@@ -34,3 +35,7 @@ jobs:
         run: make unit
       - name: Build
         run: make build
+      - name: Check node tools
+        run: make image-tools-check
+        env:
+          PLATFORM: linux/amd64
