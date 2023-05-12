@@ -1,4 +1,23 @@
 
+<a name="v0.1.1"></a>
+## [v0.1.1](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.1.0...v0.1.1) (2023-05-12)
+
+Welcome to the v0.1.1 release of Proxmox CSI Plugin!
+
+### Features
+
+- switch to distroless
+- decrease node image
+
+### Changelog
+
+* 4e80caf chore: bump deps
+* ff1c9bf feat: switch to distroless
+* c437146 ci: test images
+* be954c9 chore: bump deps
+* 93a04b6 feat: decrease node image
+* 4fe1ee4 doc: update readme
+
 <a name="v0.1.0"></a>
 ## [v0.1.0](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.0.2...v0.1.0) (2023-05-04)
 
@@ -10,6 +29,7 @@ Welcome to the v0.1.0 release of Proxmox CSI Plugin!
 
 ### Changelog
 
+* 449bddf chore: release v0.1.0
 * 303f430 refactor: rename storageID to storage
 * 8ed6376 test: proxmox-api
 * bc135db test: mock kubernetes-api
@@ -26,18 +46,9 @@ Welcome to the v0.0.2 release of Proxmox CSI Plugin!
 * 8390a9f chore: release v0.0.2
 
 <a name="v0.01"></a>
-## [v0.01](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.0.1...v0.01) (2023-04-29)
+## v0.01 (2023-04-29)
 
 Welcome to the v0.01 release of Proxmox CSI Plugin!
-
-### Changelog
-
-* 56b4297 chore: release v0.0.1
-
-<a name="v0.0.1"></a>
-## v0.0.1 (2023-04-29)
-
-Welcome to the v0.0.1 release of Proxmox CSI Plugin!
 
 ### Bug Fixes
 
@@ -53,6 +64,7 @@ Welcome to the v0.0.1 release of Proxmox CSI Plugin!
 
 ### Changelog
 
+* 56b4297 chore: release v0.0.1
 * 82ee8e1 ci: check release
 * da3bcc5 ci: github actions
 * 27bf714 test: add more tests
