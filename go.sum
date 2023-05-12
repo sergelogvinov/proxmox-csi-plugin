@@ -119,8 +119,8 @@ github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZN
 github.com/prometheus/client_model v0.0.0-20190812154241-14fe0d1b01d4/go.mod h1:xMI15A0UPsDsEKsMN9yxemIoYk6Tm2C1GtYGdfGttqA=
 github.com/rogpeppe/fastuuid v1.2.0/go.mod h1:jVj6XXZzXRy/MSR5jhDC/2q6DgLz+nrA6LYCDYWNEvQ=
 github.com/rogpeppe/go-internal v1.10.0 h1:TMyTOH3F/DB16zRVcYyreMH6GnZZrwQVAoYjRBZyWFQ=
-github.com/sergelogvinov/proxmox-cloud-controller-manager v0.1.1-0.20230508115221-f8c32e1e8ee6 h1:pYyqebE7+78ov9eTN4oYMkG1yWFwqQcx9Bml0+3DsUY=
-github.com/sergelogvinov/proxmox-cloud-controller-manager v0.1.1-0.20230508115221-f8c32e1e8ee6/go.mod h1:adHkdUKd6bSAZk6ffn5k/nooUJK0ZwE0zQA7+KVbpb4=
+github.com/sergelogvinov/proxmox-cloud-controller-manager v0.1.1 h1:chBF44/7mS9EU0od5asTW7boLJ+b7IIhtsX0QWzi09w=
+github.com/sergelogvinov/proxmox-cloud-controller-manager v0.1.1/go.mod h1:adHkdUKd6bSAZk6ffn5k/nooUJK0ZwE0zQA7+KVbpb4=
 github.com/spaolacci/murmur3 v0.0.0-20180118202830-f09979ecbc72/go.mod h1:JwIasOWyU6f++ZhiEuf87xNszmSA2myDM2Kzu9HwQUA=
 github.com/spf13/pflag v1.0.5 h1:iy+VFUOCP1a+8yFto/drg2CJ5u0yRoB7fZw3DKv/JXA=
 github.com/spf13/pflag v1.0.5/go.mod h1:McXfInJRrz4CZXVZOBLb0bTZqETkiAhM9Iw0y3An2Bg=
