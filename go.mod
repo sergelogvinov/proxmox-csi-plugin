@@ -9,7 +9,7 @@ require (
 	github.com/jarcoal/httpmock v1.3.0
 	github.com/kubernetes-csi/csi-lib-utils v0.13.0
 	github.com/sergelogvinov/proxmox-cloud-controller-manager v0.1.1
-	github.com/stretchr/testify v1.8.2
+	github.com/stretchr/testify v1.8.3
 	google.golang.org/grpc v1.55.0
 	k8s.io/api v0.27.1
 	k8s.io/apimachinery v0.27.1
