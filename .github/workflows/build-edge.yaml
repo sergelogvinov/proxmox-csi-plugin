@@ -21,6 +21,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v3
+      - name: Unshallow
+        run: git fetch --prune --unshallow
 
       - name: Set up docker buildx
         run: make docker-init
