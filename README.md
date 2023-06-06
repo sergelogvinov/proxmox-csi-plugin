@@ -92,7 +92,7 @@ kubectl -n csi-proxmox create secret generic proxmox-csi-plugin --from-file=conf
 Latest stable version (edge)
 
 ```shell
-kubectl -f https://raw.githubusercontent.com/sergelogvinov/proxmox-csi-plugin/main/docs/deploy/proxmox-csi-plugin.yml
+kubectl apply -f https://raw.githubusercontent.com/sergelogvinov/proxmox-csi-plugin/main/docs/deploy/proxmox-csi-plugin.yml
 ```
 
 ### Method 2: By Helm
@@ -142,7 +142,7 @@ cluster:
 Deploy the pod
 
 ```shell
-kubectl -f https://raw.githubusercontent.com/sergelogvinov/proxmox-csi-plugin/main/docs/deploy/test-pod-ephemeral.yaml
+kubectl apply -f https://raw.githubusercontent.com/sergelogvinov/proxmox-csi-plugin/main/docs/deploy/test-pod-ephemeral.yaml
 ```
 
 Check status of PV,PVC
@@ -188,7 +188,7 @@ Source:
 ### Statefulset with persistent storage
 
 ```shell
-kubectl -f https://raw.githubusercontent.com/sergelogvinov/proxmox-csi-plugin/main/docs/deploy/test-statefulset.yaml
+kubectl apply -f https://raw.githubusercontent.com/sergelogvinov/proxmox-csi-plugin/main/docs/deploy/test-statefulset.yaml
 ```
 
 Check status of PV,PVC
