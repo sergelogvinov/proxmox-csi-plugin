@@ -326,8 +326,8 @@ func (d *ControllerService) ControllerUnpublishVolume(_ context.Context, request
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
-	if detachVolume(cl, vm, vol.Disk()) != nil {
-		klog.Errorf("failed to detachVolume vm config: %v, vmr=%+v", err, vm)
+	if err := detachVolume(cl, vm, vol.Disk()); err != nil {
+		klog.Errorf("failed to detachVolume: %v", err)
 
 		return nil, status.Error(codes.Internal, err.Error())
 	}
