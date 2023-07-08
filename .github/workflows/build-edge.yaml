@@ -14,6 +14,7 @@ on:
 jobs:
   build-publish:
     name: "Build image and publish"
+    timeout-minutes: 15
     runs-on: ubuntu-22.04
     permissions:
       contents: read
@@ -34,6 +35,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push
+        timeout-minutes: 10
         run: make images
         env:
           USERNAME: ${{ github.repository_owner }}
