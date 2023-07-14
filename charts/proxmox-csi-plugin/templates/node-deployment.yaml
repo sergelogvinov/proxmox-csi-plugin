@@ -59,6 +59,7 @@ spec:
               mountPath: /sys
         - name: csi-node-driver-registrar
           securityContext:
+            allowPrivilegeEscalation: false
             capabilities:
               drop:
               - ALL
@@ -79,6 +80,7 @@ spec:
           resources: {{ toYaml .Values.node.driverRegistrar.resources | nindent 12 }}
         - name: liveness-probe
           securityContext:
+            allowPrivilegeEscalation: false
             capabilities:
               drop:
               - ALL

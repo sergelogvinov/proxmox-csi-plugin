@@ -16,7 +16,7 @@ metadata:
   name: proxmox-csi-plugin-controller
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.1.2
+    helm.sh/chart: proxmox-csi-plugin-0.1.3
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
     app.kubernetes.io/version: "v0.1.1"
@@ -29,7 +29,7 @@ metadata:
   name: proxmox-csi-plugin-node
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.1.2
+    helm.sh/chart: proxmox-csi-plugin-0.1.3
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
     app.kubernetes.io/version: "v0.1.1"
@@ -69,7 +69,7 @@ metadata:
   name: proxmox-csi-plugin-controller
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.1.2
+    helm.sh/chart: proxmox-csi-plugin-0.1.3
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
     app.kubernetes.io/version: "v0.1.1"
@@ -112,7 +112,7 @@ metadata:
   name: proxmox-csi-plugin-node
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.1.2
+    helm.sh/chart: proxmox-csi-plugin-0.1.3
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
     app.kubernetes.io/version: "v0.1.1"
@@ -160,7 +160,7 @@ metadata:
   name: proxmox-csi-plugin-controller
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.1.2
+    helm.sh/chart: proxmox-csi-plugin-0.1.3
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
     app.kubernetes.io/version: "v0.1.1"
@@ -202,7 +202,7 @@ metadata:
   name: proxmox-csi-plugin-node
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.1.2
+    helm.sh/chart: proxmox-csi-plugin-0.1.3
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
     app.kubernetes.io/version: "v0.1.1"
@@ -257,6 +257,7 @@ spec:
               mountPath: /sys
         - name: csi-node-driver-registrar
           securityContext:
+            allowPrivilegeEscalation: false
             capabilities:
               drop:
               - ALL
@@ -280,6 +281,7 @@ spec:
               memory: 16Mi
         - name: liveness-probe
           securityContext:
+            allowPrivilegeEscalation: false
             capabilities:
               drop:
               - ALL
@@ -336,7 +338,7 @@ metadata:
   name: proxmox-csi-plugin-controller
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.1.2
+    helm.sh/chart: proxmox-csi-plugin-0.1.3
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
     app.kubernetes.io/version: "v0.1.1"
@@ -354,6 +356,8 @@ spec:
       app.kubernetes.io/component: controller
   template:
     metadata:
+      annotations:
+        checksum/config: c69436cb1e16c36ff708b1003d3ca4c6ee6484d2524e2ba7d9b68f473acaa1ca
       labels:
         app.kubernetes.io/name: proxmox-csi-plugin
         app.kubernetes.io/instance: proxmox-csi-plugin
@@ -478,6 +482,14 @@ spec:
               cpu: 10m
               memory: 16Mi
         - name: liveness-probe
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            readOnlyRootFilesystem: true
+            seccompProfile:
+              type: RuntimeDefault
           image: "registry.k8s.io/sig-storage/livenessprobe:v2.10.0"
           imagePullPolicy: IfNotPresent
           args:

@@ -16,8 +16,9 @@ spec:
       {{- include "proxmox-csi-plugin.selectorLabels" . | nindent 6 }}
   template:
     metadata:
-      {{- with .Values.podAnnotations }}
       annotations:
+        checksum/config: {{ toJson .Values.config | sha256sum }}
+      {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
       {{- end }}
       labels:
@@ -109,6 +110,8 @@ spec:
               mountPath: /csi
           resources: {{ toYaml .Values.controller.resizer.resources | nindent 12 }}
         - name: liveness-probe
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
           image: "{{ .Values.livenessprobe.image.repository }}:{{ .Values.livenessprobe.image.tag }}"
           imagePullPolicy: {{ .Values.livenessprobe.image.pullPolicy }}
           args:
