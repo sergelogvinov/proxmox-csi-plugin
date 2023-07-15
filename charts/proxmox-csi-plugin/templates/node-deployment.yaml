@@ -27,13 +27,22 @@ spec:
       {{- end }}
       enableServiceLinks: false
       serviceAccountName: {{ include "proxmox-csi-plugin.serviceAccountName" . }}-node
-      securityContext: {}
+      securityContext:
+        runAsUser: 0
+        runAsGroup: 0
       containers:
         - name: {{ include "proxmox-csi-plugin.fullname" . }}-node
           securityContext:
-            runAsUser: 0
-            runAsGroup: 0
             privileged: true
+            capabilities:
+              drop:
+              - ALL
+              add:
+              - SYS_ADMIN
+              - CHOWN
+              - DAC_OVERRIDE
+            seccompProfile:
+              type: RuntimeDefault
           image: "{{ .Values.node.plugin.image.repository }}:{{ .Values.node.plugin.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.node.plugin.image.pullPolicy }}
           args:
