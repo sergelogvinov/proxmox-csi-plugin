@@ -31,6 +31,9 @@ set -o errexit
 /sbin/xfs_repair -V
 /usr/sbin/xfs_growfs -V
 
+# pkg/csi/node.go
+/sbin/fstrim -V
+
 # k8s.io/cloud-provider-openstack/pkg/util/mount
 /bin/udevadm --version
 /bin/findmnt -V

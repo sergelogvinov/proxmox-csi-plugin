@@ -33,6 +33,7 @@ import (
 	"k8s.io/cloud-provider-openstack/pkg/util/mount"
 	"k8s.io/klog/v2"
 	mountutil "k8s.io/mount-utils"
+	"k8s.io/utils/exec"
 	utilpath "k8s.io/utils/path"
 )
 
@@ -138,6 +139,13 @@ func (n *NodeService) NodeUnstageVolume(_ context.Context, request *csi.NodeUnst
 	stagingTargetPath := request.GetStagingTargetPath()
 	if len(stagingTargetPath) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "StagingTargetPath must be provided")
+	}
+
+	cmd := exec.New().Command("fstrim", "-v", stagingTargetPath)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		klog.Errorf("NodeUnstageVolume: failed to trim filesystem %s: %v\n", stagingTargetPath, err)
+	} else {
+		klog.V(4).Infof("NodeUnstageVolume: fstrim: %s\n", string(out))
 	}
 
 	err := n.Mount.UnmountPath(stagingTargetPath)
