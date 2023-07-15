@@ -61,6 +61,9 @@ copy_deps /usr/sbin/xfs_growfs
 copy_deps /usr/sbin/xfs_io
 cp /usr/sbin/xfs* ${DEST}/usr/sbin/
 
+# pkg/csi/node.go
+copy_deps /sbin/fstrim
+
 # k8s.io/cloud-provider-openstack/pkg/util/mount
 copy_deps /bin/udevadm
 copy_deps /lib/udev/rules.d

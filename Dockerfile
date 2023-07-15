@@ -45,6 +45,7 @@ RUN clean-install \
     udev \
     e2fsprogs \
     xfsprogs \
+    util-linux \
     rsync
 
 COPY tools /tools
