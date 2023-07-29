@@ -1,0 +1,41 @@
+name: HelmChart Release
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'charts/**'
+
+jobs:
+  build-publish:
+    name: "Publish helm chart"
+    timeout-minutes: 10
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Install Helm
+        uses: azure/setup-helm@v3
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3.1.1
+
+      - name: Github registry login
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Helm release
+        timeout-minutes: 5
+        run: make helm-login helm-release
+        env:
+          HELM_TOKEN: ${{ secrets.GITHUB_TOKEN }}
