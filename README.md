@@ -122,7 +122,7 @@ storageClass:
 ```
 
 ```shell
-helm upgrade -i -n csi-proxmox -f proxmox-csi.yaml proxmox-csi-plugin charts/proxmox-csi-plugin
+helm upgrade -i -n csi-proxmox -f proxmox-csi.yaml proxmox-csi-plugin oci://ghcr.io/sergelogvinov/charts/proxmox-csi-plugin
 ```
 
 ### Method 3: Talos machine config

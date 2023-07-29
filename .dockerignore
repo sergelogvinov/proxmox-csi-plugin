@@ -6,6 +6,7 @@
 bin/
 charts/
 docs/
+dist/
 hack/
 docker-compose.yml
 Dockerfile
