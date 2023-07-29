@@ -11,13 +11,13 @@ require (
 	github.com/sergelogvinov/proxmox-cloud-controller-manager v0.1.1
 	github.com/stretchr/testify v1.8.4
 	google.golang.org/grpc v1.56.2
-	k8s.io/api v0.27.3
-	k8s.io/apimachinery v0.27.3
-	k8s.io/client-go v0.27.3
+	k8s.io/api v0.27.4
+	k8s.io/apimachinery v0.27.4
+	k8s.io/client-go v0.27.4
 	k8s.io/cloud-provider-openstack v1.27.1
 	k8s.io/klog/v2 v2.100.1
-	k8s.io/mount-utils v0.27.3
-	k8s.io/utils v0.0.0-20230505201702-9f6742963106
+	k8s.io/mount-utils v0.27.4
+	k8s.io/utils v0.0.0-20230726121419-3b25d923346b
 )
 
 require (
