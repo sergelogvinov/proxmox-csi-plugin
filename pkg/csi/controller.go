@@ -488,6 +488,12 @@ func (d *ControllerService) ControllerExpandVolume(_ context.Context, request *c
 			return nil, status.Errorf(codes.Internal, "failed to cast response to map, vm: %v", vm)
 		}
 
+		if vm["type"].(string) != "qemu" {
+			klog.V(4).Infof("skipping non-qemu VM %s", vm["name"].(string))
+
+			continue
+		}
+
 		if vm["node"].(string) == vol.Node() {
 			vmID := int(vm["vmid"].(float64))
 
