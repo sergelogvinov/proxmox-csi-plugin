@@ -29,3 +29,7 @@ go.work
 kubeconfig
 .cache/
 /log
+
+# cosign
+/cosign.key
+/cosign.pub

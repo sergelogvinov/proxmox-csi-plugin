@@ -10,9 +10,13 @@ dist/
 hack/
 docker-compose.yml
 Dockerfile
-#
+
 # other
 *.md
 *.yml
 *.zip
 *.sql
+
+# cosign
+/cosign.key
+/cosign.pub
