@@ -88,6 +88,11 @@ func (n *NodeService) NodeStageVolume(_ context.Context, request *csi.NodeStageV
 		return nil, status.Error(codes.InvalidArgument, "VolumeCapability must be provided")
 	}
 
+	volumeContext := request.GetVolumeContext()
+	if volumeContext == nil {
+		volumeContext = map[string]string{}
+	}
+
 	devicePath := request.GetPublishContext()["DevicePath"]
 	if len(devicePath) == 0 {
 		klog.Errorf("NodePublishVolume: DevicePath must be provided")
@@ -114,6 +119,10 @@ func (n *NodeService) NodeStageVolume(_ context.Context, request *csi.NodeStageV
 		if mnt := volumeCapability.GetMount(); mnt != nil {
 			if mnt.FsType != "" {
 				fsType = mnt.FsType
+			}
+
+			if volumeContext["ssd"] == "true" {
+				options = append(options, "noatime")
 			}
 
 			mountFlags := mnt.GetMountFlags()
