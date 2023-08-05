@@ -8,6 +8,7 @@ on:
 jobs:
   build-publish:
     name: "Check release docs"
+    timeout-minutes: 15
     runs-on: ubuntu-22.04
     if:  startsWith(github.head_ref, 'release-')
     permissions:

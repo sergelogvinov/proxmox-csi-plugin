@@ -14,7 +14,7 @@ on:
 jobs:
   build:
     name: Build
-    timeout-minutes: 10
+    timeout-minutes: 15
     runs-on: ubuntu-22.04
     permissions:
       contents: read
@@ -37,8 +37,10 @@ jobs:
       - name: Unit
         run: make unit
       - name: Build
+        timeout-minutes: 10
         run: make build
       - name: Check node tools
+        timeout-minutes: 5
         run: make image-tools-check
         env:
           PLATFORM: linux/amd64
