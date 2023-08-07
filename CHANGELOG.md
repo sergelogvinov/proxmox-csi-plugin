@@ -1,4 +1,44 @@
 
+<a name="v0.2.0"></a>
+## [v0.2.0](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.1.1...v0.2.0) (2023-08-04)
+
+Welcome to the v0.2.0 release of Proxmox CSI Plugin!
+
+### Bug Fixes
+
+- skip lxc containers on resize process
+- helm liveness context
+- detach volume error
+- kubectl apply in readme
+
+### Features
+
+- noatime flag for ssd
+- cosign images
+- pin version
+- helm oci release
+- drop node capabilities
+- trim filesystem
+
+### Changelog
+
+* a24d24e fix: skip lxc containers on resize process
+* cd4f3f7 feat: noatime flag for ssd
+* b477132 chore: bump actions versions
+* 5e13f3f feat: cosign images
+* e81d8e3 feat: pin version
+* f6d726c chore: bump deps
+* c438712 feat: helm oci release
+* 927f664 feat: drop node capabilities
+* dc7dbbd feat: trim filesystem
+* e1ed889 fix: helm liveness context
+* d7e0bec ci: build timeout
+* ecea2ad chore: bump deps
+* 28f0a72 chore: bump deps
+* dc128d1 fix: detach volume error
+* bc2f88b fix: kubectl apply in readme
+* f00f057 chore: bump deps
+
 <a name="v0.1.1"></a>
 ## [v0.1.1](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.1.0...v0.1.1) (2023-05-12)
 
@@ -11,6 +51,7 @@ Welcome to the v0.1.1 release of Proxmox CSI Plugin!
 
 ### Changelog
 
+* 429a420 chore: release v0.1.1
 * 4e80caf chore: bump deps
 * ff1c9bf feat: switch to distroless
 * c437146 ci: test images
