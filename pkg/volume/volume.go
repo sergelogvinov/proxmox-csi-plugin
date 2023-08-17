@@ -46,7 +46,7 @@ func NewVolumeFromVolumeID(volume string) (*Volume, error) {
 }
 
 func parseVolumeID(vol string) (*Volume, error) {
-	parts := strings.Split(vol, "/")
+	parts := strings.SplitN(vol, "/", 4)
 	if len(parts) != 4 {
 		return nil, fmt.Errorf("VolumeID must be in the format of region/zone/storageName/diskName")
 	}

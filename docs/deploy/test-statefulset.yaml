@@ -8,7 +8,7 @@ metadata:
 spec:
   podManagementPolicy: Parallel  # default is OrderedReady
   serviceName: test
-  replicas: 4
+  replicas: 1
   template:
     metadata:
       labels:
@@ -18,8 +18,9 @@ spec:
       tolerations:
         - effect: NoSchedule
           key: node-role.kubernetes.io/control-plane
-      # nodeSelector:
-      #   topology.kubernetes.io/zone: worker-metal-1
+      nodeSelector:
+        # kubernetes.io/hostname: kube-21
+        # topology.kubernetes.io/zone: hvm-1
       containers:
         - name: alpine
           image: alpine
@@ -45,4 +46,4 @@ spec:
         resources:
           requests:
             storage: 1Gi
-        storageClassName: proxmox-data
+        storageClassName: proxmox-rbd
