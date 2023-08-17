@@ -122,11 +122,44 @@ func (d *ControllerService) CreateVolume(_ context.Context, request *csi.CreateV
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
+	storageConfig, err := cl.GetStorageConfig(params[StorageIDKey])
+	if err != nil {
+		klog.Errorf("failed to get proxmox storage config: %v", err)
+
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	klog.V(4).Infof("CreateVolume: storage config: %+v", storageConfig)
+
 	vol := volume.NewVolume(region, zone, params[StorageIDKey], fmt.Sprintf("vm-%d-%s", vmID, pvc))
+	if storageConfig["path"] != nil && storageConfig["path"].(string) != "" {
+		vol = volume.NewVolume(region, zone, params[StorageIDKey], fmt.Sprintf("%d/vm-%d-%s.raw", vmID, vmID, pvc))
+	}
 
 	err = createVolume(cl, vol, volSizeGB)
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	topology := &csi.Topology{
+		Segments: map[string]string{
+			corev1.LabelTopologyRegion: region,
+			corev1.LabelTopologyZone:   zone,
+		},
+	}
+
+	if storageConfig["shared"] != nil && int(storageConfig["shared"].(float64)) == 1 {
+		// https://pve.proxmox.com/wiki/Storage only block/local storage are supported
+		switch storageConfig["type"].(string) {
+		case "nfs", "cifs", "pbs":
+			return nil, status.Error(codes.InvalidArgument, "error: shared storage type nfs,cifs,pbs are not supported")
+		}
+
+		topology = &csi.Topology{
+			Segments: map[string]string{
+				corev1.LabelTopologyRegion: region,
+			},
+		}
 	}
 
 	volume := csi.Volume{
@@ -135,12 +168,7 @@ func (d *ControllerService) CreateVolume(_ context.Context, request *csi.CreateV
 		ContentSource: request.GetVolumeContentSource(),
 		CapacityBytes: int64(volSizeGB * 1024 * 1024 * 1024),
 		AccessibleTopology: []*csi.Topology{
-			{
-				Segments: map[string]string{
-					corev1.LabelTopologyRegion: region,
-					corev1.LabelTopologyZone:   zone,
-				},
-			},
+			topology,
 		},
 	}
 

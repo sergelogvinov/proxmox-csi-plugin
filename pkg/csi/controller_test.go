@@ -141,6 +141,35 @@ clusters:
 		},
 	)
 
+	httpmock.RegisterResponder("GET", "https://127.0.0.1:8006/api2/json/storage/local-lvm",
+		func(req *http.Request) (*http.Response, error) {
+			return httpmock.NewJsonResponse(200, map[string]interface{}{
+				"data": map[string]interface{}{
+					"shared": 0,
+				},
+			})
+		},
+	)
+
+	httpmock.RegisterResponder("GET", "https://127.0.0.1:8006/api2/json/storage/smb",
+		func(req *http.Request) (*http.Response, error) {
+			return httpmock.NewJsonResponse(200, map[string]interface{}{
+				"data": map[string]interface{}{
+					"shared": 1,
+					"type":   "cifs",
+				},
+			})
+		},
+	)
+
+	httpmock.RegisterResponder("POST", "https://127.0.0.1:8006/api2/json/nodes/pve-1/storage/smb/content",
+		func(req *http.Request) (*http.Response, error) {
+			return httpmock.NewJsonResponse(200, map[string]interface{}{
+				"data": "smb:vm-9999-volume-id",
+			})
+		},
+	)
+
 	httpmock.RegisterResponder("GET", "https://127.0.0.1:8006/api2/json/nodes/pve-1/storage/local-lvm/status",
 		func(req *http.Request) (*http.Response, error) {
 			return httpmock.NewJsonResponse(200, map[string]interface{}{
@@ -355,6 +384,28 @@ func (ts *csiTestSuite) TestCreateVolume() {
 				},
 			},
 			expectedError: status.Error(codes.InvalidArgument, "cannot find best region and zone"),
+		},
+		{
+			msg: "NonSupportZonalSMB",
+			request: &proto.CreateVolumeRequest{
+				Name: "volume-id",
+				Parameters: map[string]string{
+					"storage": "smb",
+				},
+				VolumeCapabilities: []*proto.VolumeCapability{volcap},
+				CapacityRange:      volsize,
+				AccessibilityRequirements: &proto.TopologyRequirement{
+					Preferred: []*proto.Topology{
+						{
+							Segments: map[string]string{
+								corev1.LabelTopologyRegion: "cluster-1",
+								corev1.LabelTopologyZone:   "pve-1",
+							},
+						},
+					},
+				},
+			},
+			expectedError: status.Error(codes.InvalidArgument, "error: shared storage type nfs,cifs,pbs are not supported"),
 		},
 		{
 			msg: "WrongClusterNotFound",

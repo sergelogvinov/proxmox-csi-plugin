@@ -107,9 +107,10 @@ func waitForVolumeDetach(_ *pxapi.Client, _ *pxapi.VmRef, _ int) error {
 }
 
 func createVolume(cl *pxapi.Client, vol *volume.Volume, sizeGB int) error {
+	filename := strings.Split(vol.Disk(), "/")
 	diskParams := map[string]interface{}{
 		"vmid":     vmID,
-		"filename": vol.Disk(),
+		"filename": filename[len(filename)-1],
 		"size":     fmt.Sprintf("%dG", sizeGB),
 	}
 
