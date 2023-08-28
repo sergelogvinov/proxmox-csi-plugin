@@ -10,7 +10,7 @@ require (
 	github.com/kubernetes-csi/csi-lib-utils v0.14.0
 	github.com/sergelogvinov/proxmox-cloud-controller-manager v0.1.1
 	github.com/stretchr/testify v1.8.4
-	google.golang.org/grpc v1.56.2
+	google.golang.org/grpc v1.57.0
 	k8s.io/api v0.28.0
 	k8s.io/apimachinery v0.28.0
 	k8s.io/client-go v0.28.0
@@ -52,7 +52,7 @@ require (
 	golang.org/x/text v0.11.0 // indirect
 	golang.org/x/time v0.3.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
-	google.golang.org/genproto v0.0.0-20230410155749-daa745c078e1 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20230525234030-28d5490b6b19 // indirect
 	google.golang.org/protobuf v1.30.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
