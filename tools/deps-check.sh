@@ -16,7 +16,11 @@
 
 set -o errexit
 
-# k8s.io/mount-utils
+# We will check all necessary utils in the image.
+# They all have to launch without errors.
+
+# This utils are using by
+# go mod k8s.io/mount-utils
 /bin/mount -V
 /bin/umount -V
 /sbin/blkid -V
@@ -31,9 +35,11 @@ set -o errexit
 /sbin/xfs_repair -V
 /usr/sbin/xfs_growfs -V
 
-# pkg/csi/node.go
+# This utils are using by
+# go mod pkg/csi/node.go
 /sbin/fstrim -V
 
-# k8s.io/cloud-provider-openstack/pkg/util/mount
+# This utils are using by
+# go mod k8s.io/cloud-provider-openstack/pkg/util/mount
 /bin/udevadm --version
 /bin/findmnt -V

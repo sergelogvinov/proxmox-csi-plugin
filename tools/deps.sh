@@ -17,6 +17,15 @@
 set -o errexit
 set -o nounset
 
+#
+# We will copy all dependencies for CSI Node driver to /dest directory
+# all utils are using by csi-plugin
+# to format/mount/unmount/resize the volumes.
+#
+# It is very important to have slim image,
+# because it runs as root (privileged mode) on the nodes
+#
+
 DEST=/dest
 
 copy_deps() {
@@ -40,7 +49,8 @@ copy_deps() {
     fi
 }
 
-# k8s.io/mount-utils
+# This utils are using by
+# go mod k8s.io/mount-utils
 copy_deps /etc/mke2fs.conf
 copy_deps /bin/mount
 copy_deps /bin/umount
@@ -51,6 +61,7 @@ copy_deps /sbin/fsck
 copy_deps /sbin/fsck.xfs
 cp /sbin/fsck* ${DEST}/sbin/
 copy_deps /sbin/e2fsck
+# from pkg e2fsprogs - e2image, e2label, e2scrub and etc.
 cp /sbin/e* ${DEST}/sbin/
 copy_deps /sbin/mke2fs
 copy_deps /sbin/resize2fs
@@ -61,10 +72,12 @@ copy_deps /usr/sbin/xfs_growfs
 copy_deps /usr/sbin/xfs_io
 cp /usr/sbin/xfs* ${DEST}/usr/sbin/
 
-# pkg/csi/node.go
+# This utils are using by
+# go mod pkg/csi/node.go
 copy_deps /sbin/fstrim
 
-# k8s.io/cloud-provider-openstack/pkg/util/mount
+# This utils are using by
+# go mod k8s.io/cloud-provider-openstack/pkg/util/mount
 copy_deps /bin/udevadm
 copy_deps /lib/udev/rules.d
 copy_deps /bin/findmnt
