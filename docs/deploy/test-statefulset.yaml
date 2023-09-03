@@ -24,7 +24,7 @@ spec:
       containers:
         - name: alpine
           image: alpine
-          command: ["sleep","6000"]
+          command: ["sleep","1d"]
           securityContext:
             seccompProfile:
               type: RuntimeDefault
@@ -45,5 +45,5 @@ spec:
         accessModes: ["ReadWriteOnce"]
         resources:
           requests:
-            storage: 1Gi
+            storage: 50Gi
         storageClassName: proxmox-rbd
