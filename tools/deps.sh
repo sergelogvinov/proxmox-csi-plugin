@@ -75,6 +75,9 @@ cp /usr/sbin/xfs* ${DEST}/usr/sbin/
 # This utils are using by
 # go mod pkg/csi/node.go
 copy_deps /sbin/fstrim
+copy_deps /sbin/cryptsetup
+ARCH=$(uname -m)
+mkdir -p ${DEST}/lib/${ARCH}-linux-gnu && cp /lib/${ARCH}-linux-gnu/libgcc_s.so.* ${DEST}/lib/${ARCH}-linux-gnu/
 
 # This utils are using by
 # go mod k8s.io/cloud-provider-openstack/pkg/util/mount

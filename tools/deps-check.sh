@@ -38,6 +38,7 @@ set -o errexit
 # This utils are using by
 # go mod pkg/csi/node.go
 /sbin/fstrim -V
+/sbin/cryptsetup -V
 
 # This utils are using by
 # go mod k8s.io/cloud-provider-openstack/pkg/util/mount
