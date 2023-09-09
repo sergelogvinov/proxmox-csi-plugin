@@ -46,6 +46,7 @@ RUN clean-install \
     e2fsprogs \
     xfsprogs \
     util-linux \
+    cryptsetup \
     rsync
 
 COPY tools /tools

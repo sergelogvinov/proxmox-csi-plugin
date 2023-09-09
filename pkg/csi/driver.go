@@ -21,7 +21,7 @@ const (
 	// DriverName is the name of the CSI driver
 	DriverName = "csi.proxmox.sinextra.dev"
 	// DriverVersion is the version of the CSI driver
-	DriverVersion = "0.1.0"
+	DriverVersion = "0.2.0"
 
 	// StorageIDKey is the ID of the Proxmox storage
 	StorageIDKey = "storage"
@@ -36,4 +36,7 @@ const (
 	MinVolumeSize = 1 // GB
 	// DefaultVolumeSize is the default size of a volume
 	DefaultVolumeSize = 10 // GB
+
+	// EncryptionPassphraseKey is the encryption passphrase secret key
+	EncryptionPassphraseKey = "encryption-passphrase"
 )

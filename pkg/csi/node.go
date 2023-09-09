@@ -22,7 +22,9 @@ import (
 	"strings"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
-	"github.com/kubernetes-csi/csi-lib-utils/protosanitizer"
+	"github.com/siderolabs/go-blockdevice/blockdevice/encryption"
+	luks "github.com/siderolabs/go-blockdevice/blockdevice/encryption/luks"
+	"github.com/siderolabs/go-blockdevice/blockdevice/filesystem"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -77,7 +79,7 @@ func NewNodeService(nodeID string, clientSet kubernetes.Interface) *NodeService 
 
 // NodeStageVolume is called by the CO when a workload that wants to use the specified volume is placed (scheduled) on a node.
 func (n *NodeService) NodeStageVolume(_ context.Context, request *csi.NodeStageVolumeRequest) (*csi.NodeStageVolumeResponse, error) {
-	klog.V(4).Infof("NodeStageVolume: called with args %+v", protosanitizer.StripSecrets(*request))
+	klog.V(4).Infof("NodeStageVolume: called with args %s", stripSecrets(*request))
 
 	volumeID := request.GetVolumeId()
 	if len(volumeID) == 0 {
@@ -135,6 +137,36 @@ func (n *NodeService) NodeStageVolume(_ context.Context, request *csi.NodeStageV
 			options = append(options, collectMountOptions(fsType, mountFlags)...)
 		}
 
+		passphraseKey, ok := request.GetSecrets()[EncryptionPassphraseKey]
+		if ok {
+			klog.V(4).Infof("NodeStageVolume: volume encrypted")
+
+			sb, err := filesystem.Probe(devicePath) //nolint:govet
+			if err != nil {
+				klog.Errorf("NodeStageVolume: failed to probe filesystem for device %s, error: %v", devicePath, err)
+			}
+
+			key := encryption.NewKey(encryption.AnyKeyslot, []byte(passphraseKey))
+			l := luks.New(luks.AESXTSPlain64Cipher)
+
+			if sb == nil {
+				if err = l.Encrypt(devicePath, key); err != nil {
+					klog.Errorf("NodeStageVolume: failed to encrypt device %s, error: %v", devicePath, err)
+
+					return nil, status.Error(codes.Internal, err.Error())
+				}
+			}
+
+			lukskDevicePath, err := l.Open(devicePath, key) //nolint:govet
+			if err != nil {
+				klog.Errorf("NodeStageVolume: failed to open encrypted device %s, error: %v", devicePath, err)
+
+				return nil, status.Error(codes.Internal, err.Error())
+			}
+
+			devicePath = lukskDevicePath
+		}
+
 		err = m.Mounter().FormatAndMount(devicePath, stagingTarget, fsType, options)
 		if err != nil {
 			klog.Errorf("NodeStageVolume: failed to mount device %s at %s (fstype: %s), error: %v", devicePath, stagingTarget, fsType, err)
@@ -149,7 +181,7 @@ func (n *NodeService) NodeStageVolume(_ context.Context, request *csi.NodeStageV
 // NodeUnstageVolume is called by the CO when a workload that was using the specified volume is being moved to a different node.
 // nolint:dupl
 func (n *NodeService) NodeUnstageVolume(_ context.Context, request *csi.NodeUnstageVolumeRequest) (*csi.NodeUnstageVolumeResponse, error) {
-	klog.V(4).Infof("NodeUnstageVolume: called with args %+v", protosanitizer.StripSecrets(*request))
+	klog.V(4).Infof("NodeUnstageVolume: called with args %s", stripSecrets(*request))
 
 	stagingTargetPath := request.GetStagingTargetPath()
 	if len(stagingTargetPath) == 0 {
@@ -163,11 +195,25 @@ func (n *NodeService) NodeUnstageVolume(_ context.Context, request *csi.NodeUnst
 		klog.V(4).Infof("NodeUnstageVolume: fstrim: %s\n", string(out))
 	}
 
-	err := n.Mount.UnmountPath(stagingTargetPath)
+	sourcePath, err := n.Mount.GetMountFs(stagingTargetPath)
 	if err != nil {
+		klog.Errorf("NodeUnstageVolume: failed to find mount file system %s: %v", stagingTargetPath, err)
+	}
+
+	if err := n.Mount.UnmountPath(stagingTargetPath); err != nil {
 		klog.Errorf("NodeUnstageVolume: failed to unmount targetPath %s, error: %v", stagingTargetPath, err)
 
 		return nil, status.Errorf(codes.Internal, "Unmount of targetPath %s failed with error %v", stagingTargetPath, err)
+	}
+
+	devicePath := strings.TrimSpace(string(sourcePath))
+	if strings.HasPrefix(devicePath, "/dev/mapper/") {
+		l := luks.New(luks.AESXTSPlain64Cipher)
+		if err := l.Close(devicePath); err != nil {
+			klog.Errorf("NodeUnstageVolume: failed to close encrypted device %s, error: %v", devicePath, err)
+
+			return nil, status.Errorf(codes.Internal, "Close encrypted device %s failed with error %v", devicePath, err)
+		}
 	}
 
 	return &csi.NodeUnstageVolumeResponse{}, nil
@@ -176,7 +222,7 @@ func (n *NodeService) NodeUnstageVolume(_ context.Context, request *csi.NodeUnst
 // NodePublishVolume mounts the volume on the node.
 // nolint:dupl
 func (n *NodeService) NodePublishVolume(_ context.Context, request *csi.NodePublishVolumeRequest) (*csi.NodePublishVolumeResponse, error) {
-	klog.V(4).Infof("NodePublishVolume: called with args %+v", protosanitizer.StripSecrets(*request))
+	klog.V(4).Infof("NodePublishVolume: called with args %s", stripSecrets(*request))
 
 	stagingTargetPath := request.GetStagingTargetPath()
 	if len(stagingTargetPath) == 0 {
@@ -219,6 +265,13 @@ func (n *NodeService) NodePublishVolume(_ context.Context, request *csi.NodePubl
 
 	m := n.Mount
 
+	_, err := m.GetMountFs(stagingTargetPath)
+	if err != nil {
+		klog.Errorf("NodePublishVolume: stage volume is not mounted %s: %v", stagingTargetPath, err)
+
+		return nil, status.Error(codes.NotFound, fmt.Sprintf("Failed to find mount file system %s: %v", stagingTargetPath, err))
+	}
+
 	notMnt, err := m.IsLikelyNotMountPointAttach(targetPath)
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
@@ -247,7 +300,7 @@ func (n *NodeService) NodePublishVolume(_ context.Context, request *csi.NodePubl
 // NodeUnpublishVolume unmount the volume from the target path
 // nolint:dupl
 func (n *NodeService) NodeUnpublishVolume(_ context.Context, request *csi.NodeUnpublishVolumeRequest) (*csi.NodeUnpublishVolumeResponse, error) {
-	klog.V(4).Infof("NodeUnpublishVolume: called with args %+v", protosanitizer.StripSecrets(*request))
+	klog.V(4).Infof("NodeUnpublishVolume: called with args %s", stripSecrets(*request))
 
 	targetPath := request.GetTargetPath()
 	if len(targetPath) == 0 {
@@ -266,7 +319,7 @@ func (n *NodeService) NodeUnpublishVolume(_ context.Context, request *csi.NodeUn
 
 // NodeGetVolumeStats get the volume stats
 func (n *NodeService) NodeGetVolumeStats(_ context.Context, request *csi.NodeGetVolumeStatsRequest) (*csi.NodeGetVolumeStatsResponse, error) {
-	klog.V(4).Infof("NodeGetVolumeStats: called with args %+v", protosanitizer.StripSecrets(*request))
+	klog.V(4).Infof("NodeGetVolumeStats: called with args %s", stripSecrets(*request))
 
 	volumePath := request.GetVolumePath()
 	if len(volumePath) == 0 {
@@ -310,7 +363,7 @@ func (n *NodeService) NodeGetVolumeStats(_ context.Context, request *csi.NodeGet
 
 // NodeExpandVolume expand the volume
 func (n *NodeService) NodeExpandVolume(_ context.Context, request *csi.NodeExpandVolumeRequest) (*csi.NodeExpandVolumeResponse, error) {
-	klog.V(4).Infof("NodeExpandVolume: called with args %+v", protosanitizer.StripSecrets(*request))
+	klog.V(4).Infof("NodeExpandVolume: called with args %s", stripSecrets(*request))
 
 	volumeID := request.GetVolumeId()
 	if len(volumeID) == 0 {
@@ -332,10 +385,28 @@ func (n *NodeService) NodeExpandVolume(_ context.Context, request *csi.NodeExpan
 		return nil, status.Error(codes.Internal, "Unable to find Device path for volume")
 	}
 
-	// comparing current volume size with the expected one
-	newSize := request.GetCapacityRange().GetRequiredBytes()
-	if err := blockdevice.RescanBlockDeviceGeometry(devicePath, volumePath, newSize); err != nil {
-		return nil, status.Errorf(codes.Internal, "Could not verify %q volume size: %v", volumeID, err)
+	if strings.HasPrefix(devicePath, "/dev/mapper/") {
+		passphraseKey, ok := request.GetSecrets()[EncryptionPassphraseKey]
+		if !ok {
+			klog.Errorf("NodeExpandVolume: failed to resize encrypted volume %s, ckeck feature gate CSINodeExpandSecret", devicePath)
+
+			return nil, status.Errorf(codes.InvalidArgument, "Could not resize encrypted volume %s passphrase key is empty", devicePath)
+		}
+
+		key := encryption.NewKey(encryption.AnyKeyslot, []byte(passphraseKey))
+		l := luks.New(luks.AESXTSPlain64Cipher)
+
+		if err := l.Resize(devicePath, key); err != nil {
+			klog.Errorf("NodeExpandVolume: failed to resize encrypted volume %s, error: %v", devicePath, err)
+
+			return nil, status.Errorf(codes.Internal, "Could not resize encrypted volume %s failed with error %v", devicePath, err)
+		}
+	} else {
+		// comparing current volume size with the expected one
+		newSize := request.GetCapacityRange().GetRequiredBytes()
+		if err := blockdevice.RescanBlockDeviceGeometry(devicePath, volumePath, newSize); err != nil {
+			return nil, status.Errorf(codes.Internal, "Could not verify %q volume size: %v", volumeID, err)
+		}
 	}
 
 	r := mountutil.NewResizeFs(n.Mount.Mounter().Exec)
@@ -348,7 +419,7 @@ func (n *NodeService) NodeExpandVolume(_ context.Context, request *csi.NodeExpan
 
 // NodeGetCapabilities get the node capabilities
 func (n *NodeService) NodeGetCapabilities(_ context.Context, request *csi.NodeGetCapabilitiesRequest) (*csi.NodeGetCapabilitiesResponse, error) {
-	klog.V(4).Infof("NodeGetCapabilities: called with args %+v", protosanitizer.StripSecrets(*request))
+	klog.V(4).Infof("NodeGetCapabilities: called with args %s", stripSecrets(*request))
 
 	caps := []*csi.NodeServiceCapability{}
 
@@ -368,7 +439,7 @@ func (n *NodeService) NodeGetCapabilities(_ context.Context, request *csi.NodeGe
 
 // NodeGetInfo get the node info
 func (n *NodeService) NodeGetInfo(ctx context.Context, request *csi.NodeGetInfoRequest) (*csi.NodeGetInfoResponse, error) {
-	klog.V(4).Infof("NodeGetInfo: called with args %+v", protosanitizer.StripSecrets(*request))
+	klog.V(4).Infof("NodeGetInfo: called with args %s", stripSecrets(*request))
 
 	node, err := n.kclient.CoreV1().Nodes().Get(ctx, n.nodeID, metav1.GetOptions{})
 	if err != nil {
