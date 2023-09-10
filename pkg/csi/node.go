@@ -50,6 +50,12 @@ var volumeCaps = []csi.VolumeCapability_AccessMode{
 	{
 		Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_READER_ONLY,
 	},
+	{
+		Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_SINGLE_WRITER,
+	},
+	{
+		Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_MULTI_WRITER,
+	},
 }
 
 // NodeService is the node service for the CSI driver

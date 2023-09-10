@@ -582,7 +582,7 @@ func (ts *csiTestSuite) TestControllerServiceControllerGetCapabilities() {
 	ts.Require().NoError(err)
 	ts.Require().NotNil(resp)
 
-	if len(resp.Capabilities) != 5 {
+	if len(resp.Capabilities) != 6 {
 		ts.T().Fatalf("unexpected number of capabilities: %d", len(resp.Capabilities))
 	}
 }
