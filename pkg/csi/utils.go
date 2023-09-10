@@ -199,3 +199,34 @@ func detachVolume(cl *pxapi.Client, vmr *pxapi.VmRef, pvc string) error {
 
 	return nil
 }
+
+func sizeVolume(cl *pxapi.Client, vol *volume.Volume) (int64, error) {
+	vmr := pxapi.NewVmRef(vmID)
+	vmr.SetNode(vol.Node())
+	vmr.SetVmType("qemu")
+
+	context, err := cl.GetStorageContent(vmr, vol.Storage())
+	if err != nil {
+		return 0, fmt.Errorf("failed to get storage list: %v", err)
+	}
+
+	images, ok := context["data"].([]interface{})
+	if !ok {
+		return 0, fmt.Errorf("failed to cast images to map: %v", err)
+	}
+
+	volid := fmt.Sprintf("%s:%s", vol.Storage(), vol.Disk())
+
+	for i := range images {
+		image, ok := images[i].(map[string]interface{})
+		if !ok {
+			return 0, fmt.Errorf("failed to cast image to map: %v", err)
+		}
+
+		if image["volid"].(string) == volid {
+			return int64(image["size"].(float64)), nil
+		}
+	}
+
+	return 0, nil
+}

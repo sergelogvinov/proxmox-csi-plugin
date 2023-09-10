@@ -110,7 +110,7 @@ clusters:
 				"data": map[string]interface{}{
 					"vmid":  100,
 					"scsi0": "local-lvm:vm-100-disk-0,size=10G",
-					"scsi1": "local-lvm:vm-9999-pvc-123,backup=0,iothread=1,wwn=0x5056432d49443031",
+					"scsi1": "local-lvm:vm-9999-pvc-123,size=10G,backup=0,iothread=1,wwn=0x5056432d49443031",
 				},
 			})
 		},
@@ -582,7 +582,7 @@ func (ts *csiTestSuite) TestControllerServiceControllerGetCapabilities() {
 	ts.Require().NoError(err)
 	ts.Require().NotNil(resp)
 
-	if len(resp.Capabilities) != 6 {
+	if len(resp.Capabilities) != 7 {
 		ts.T().Fatalf("unexpected number of capabilities: %d", len(resp.Capabilities))
 	}
 }
@@ -1045,7 +1045,71 @@ func (ts *csiTestSuite) TestControllerExpandVolumeError() {
 }
 
 func (ts *csiTestSuite) TestControllerGetVolume() {
-	_, err := ts.s.ControllerGetVolume(context.Background(), &proto.ControllerGetVolumeRequest{})
-	ts.Require().Error(err)
-	ts.Require().Equal(status.Error(codes.Unimplemented, ""), err)
+	httpmock.Activate()
+	defer httpmock.DeactivateAndReset()
+
+	tests := []struct {
+		msg           string
+		request       *proto.ControllerGetVolumeRequest
+		expected      *proto.ControllerGetVolumeResponse
+		expectedError error
+	}{
+		{
+			msg:           "VolumeID",
+			request:       &proto.ControllerGetVolumeRequest{},
+			expectedError: status.Error(codes.InvalidArgument, "VolumeID must be provided"),
+		},
+		{
+			msg: "WrongVolumeID",
+			request: &proto.ControllerGetVolumeRequest{
+				VolumeId: "volume-id",
+			},
+			expectedError: status.Error(codes.InvalidArgument, "VolumeID must be in the format of region/zone/storageName/diskName"),
+		},
+		{
+			msg: "WrongCluster",
+			request: &proto.ControllerGetVolumeRequest{
+				VolumeId: "fake-region/node/data/volume-id",
+			},
+			expectedError: status.Error(codes.Internal, "proxmox cluster fake-region not found"),
+		},
+		{
+			msg: "WrongPVC",
+			request: &proto.ControllerGetVolumeRequest{
+				VolumeId: "cluster-1/pve-1/local-lvm/vm-9999-pvc-none",
+			},
+			expectedError: status.Error(codes.NotFound, "volume cluster-1/pve-1/local-lvm/vm-9999-pvc-none not found"),
+		},
+		{
+			msg: "ExistPVC",
+			request: &proto.ControllerGetVolumeRequest{
+				VolumeId: "cluster-1/pve-1/local-lvm/vm-9999-pvc-123",
+			},
+			expected: &proto.ControllerGetVolumeResponse{
+				Volume: &proto.Volume{
+					VolumeId:      "cluster-1/pve-1/local-lvm/vm-9999-pvc-123",
+					CapacityBytes: int64(1024 * 1024 * 1024),
+				},
+				Status: &proto.ControllerGetVolumeResponse_VolumeStatus{
+					PublishedNodeIds: []string{},
+				},
+			},
+		},
+	}
+
+	for _, testCase := range tests {
+		testCase := testCase
+
+		ts.Run(fmt.Sprint(testCase.msg), func() {
+			resp, err := ts.s.ControllerGetVolume(context.Background(), testCase.request)
+
+			if testCase.expectedError == nil {
+				ts.Require().NoError(err)
+				ts.Require().Equal(testCase.expected, resp)
+			} else {
+				ts.Require().Error(err)
+				ts.Require().Equal(testCase.expectedError, err)
+			}
+		})
+	}
 }

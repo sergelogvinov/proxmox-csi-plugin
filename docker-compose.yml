@@ -80,6 +80,22 @@ services:
       - type: bind
         source: ./hack
         target: /etc/kubernetes
+  csi-external-health-monitor-controller:
+    image: gcr.io/k8s-staging-sig-storage/csi-external-health-monitor-controller:v0.4.0
+    network_mode: "service:base"
+    command:
+      - "--v=5"
+      - "--csi-address=unix:///csi/csi.sock"
+      - "--leader-election"
+      - "--http-endpoint=:8080"
+      - "--kubeconfig=/etc/kubernetes/kubeconfig"
+    volumes:
+      - type: volume
+        source: socket-dir
+        target: /csi
+      - type: bind
+        source: ./hack
+        target: /etc/kubernetes
   # csi-node-driver-registrar:
   #   image: registry.k8s.io/sig-storage/csi-node-driver-registrar:v2.7.0
   #   network_mode: "service:base"
