@@ -47,6 +47,7 @@ var controllerCaps = []csi.ControllerServiceCapability_RPC_Type{
 	csi.ControllerServiceCapability_RPC_GET_CAPACITY,
 	csi.ControllerServiceCapability_RPC_EXPAND_VOLUME,
 	csi.ControllerServiceCapability_RPC_GET_VOLUME,
+	csi.ControllerServiceCapability_RPC_SINGLE_NODE_MULTI_WRITER,
 }
 
 // ControllerService is the controller service for the CSI driver
@@ -469,7 +470,7 @@ func (d *ControllerService) ControllerExpandVolume(_ context.Context, request *c
 		return nil, status.Error(codes.OutOfRange, "after round-up, volume size exceeds the limit specified")
 	}
 
-	klog.V(4).Infof("ControllerExpandVolume resized volume %v to size %vG", volumeID, volSizeGB)
+	klog.V(4).Infof("ControllerExpandVolume: resized volume %v to size %vG", volumeID, volSizeGB)
 
 	vol, err := volume.NewVolumeFromVolumeID(volumeID)
 	if err != nil {
@@ -517,7 +518,7 @@ func (d *ControllerService) ControllerExpandVolume(_ context.Context, request *c
 		}
 
 		if vm["type"].(string) != "qemu" {
-			klog.V(4).Infof("skipping non-qemu VM %s", vm["name"].(string))
+			klog.V(4).Infof("ControllerExpandVolume: skipping non-qemu VM %s", vm["name"].(string))
 
 			continue
 		}
