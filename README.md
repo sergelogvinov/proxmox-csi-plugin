@@ -296,9 +296,11 @@ volumeBindingMode: WaitForFirstConsumer
 ```
 
 Storage parameters:
-* storage - proxmox storage ID
-* cache - qemu cache param: `directsync`, `none`, `writeback`, `writethrough` see [official documentation](https://pve.proxmox.com/wiki/Performance_Tweaks)
-* ssd - true if SSD/NVME disk
+* `storage` - proxmox storage ID
+* `cache` - qemu cache param: `directsync`, `none`, `writeback`, `writethrough` [Official documentation](https://pve.proxmox.com/wiki/Performance_Tweaks)
+* `ssd` - true if SSD/NVME disk
+
+For more detailed options and a comprehensive understanding, refer to the following link [StorageClass options](docs/options.md)
 
 ## In Scope
 

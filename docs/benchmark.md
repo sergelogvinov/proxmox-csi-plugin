@@ -267,3 +267,9 @@ Run status group 0 (all jobs):
 Disk stats (read/write):
   sdb: ios=26302626/8765212, merge=41/11, ticks=4481802/765988, in_queue=5247795, util=100.00%
 ```
+
+# Resources
+
+* https://pve.proxmox.com/wiki/Performance_Tweaks
+* https://kb.blockbridge.com/technote/proxmox-tuning-low-latency-storage/
+* https://documentation.suse.com/sles/15-SP3/single-html/SLES-virtualization-best-practices/index.html
