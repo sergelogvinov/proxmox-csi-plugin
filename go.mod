@@ -12,9 +12,9 @@ require (
 	github.com/siderolabs/go-blockdevice v0.4.7-0.20230911102818-8a2102a6ec14
 	github.com/stretchr/testify v1.8.4
 	google.golang.org/grpc v1.56.2
-	k8s.io/api v0.28.1
-	k8s.io/apimachinery v0.28.1
-	k8s.io/client-go v0.28.1
+	k8s.io/api v0.28.2
+	k8s.io/apimachinery v0.28.2
+	k8s.io/client-go v0.28.2
 	k8s.io/cloud-provider-openstack v1.28.0
 	k8s.io/klog/v2 v2.100.1
 	k8s.io/mount-utils v0.28.1
