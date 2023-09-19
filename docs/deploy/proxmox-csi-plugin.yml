@@ -16,10 +16,10 @@ metadata:
   name: proxmox-csi-plugin-controller
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.1.5
+    helm.sh/chart: proxmox-csi-plugin-0.1.6
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
-    app.kubernetes.io/version: "v0.2.0"
+    app.kubernetes.io/version: "v0.3.0"
     app.kubernetes.io/managed-by: Helm
 ---
 # Source: proxmox-csi-plugin/templates/serviceaccount.yaml
@@ -29,10 +29,10 @@ metadata:
   name: proxmox-csi-plugin-node
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.1.5
+    helm.sh/chart: proxmox-csi-plugin-0.1.6
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
-    app.kubernetes.io/version: "v0.2.0"
+    app.kubernetes.io/version: "v0.3.0"
     app.kubernetes.io/managed-by: Helm
 ---
 # Source: proxmox-csi-plugin/templates/storageclass.yaml
@@ -69,10 +69,10 @@ metadata:
   name: proxmox-csi-plugin-controller
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.1.5
+    helm.sh/chart: proxmox-csi-plugin-0.1.6
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
-    app.kubernetes.io/version: "v0.2.0"
+    app.kubernetes.io/version: "v0.3.0"
     app.kubernetes.io/managed-by: Helm
 rules:
   - apiGroups: [""]
@@ -112,10 +112,10 @@ metadata:
   name: proxmox-csi-plugin-node
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.1.5
+    helm.sh/chart: proxmox-csi-plugin-0.1.6
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
-    app.kubernetes.io/version: "v0.2.0"
+    app.kubernetes.io/version: "v0.3.0"
     app.kubernetes.io/managed-by: Helm
 rules:
   - apiGroups:
@@ -160,10 +160,10 @@ metadata:
   name: proxmox-csi-plugin-controller
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.1.5
+    helm.sh/chart: proxmox-csi-plugin-0.1.6
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
-    app.kubernetes.io/version: "v0.2.0"
+    app.kubernetes.io/version: "v0.3.0"
     app.kubernetes.io/managed-by: Helm
 rules:
   - apiGroups: ["coordination.k8s.io"]
@@ -202,10 +202,10 @@ metadata:
   name: proxmox-csi-plugin-node
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.1.5
+    helm.sh/chart: proxmox-csi-plugin-0.1.6
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
-    app.kubernetes.io/version: "v0.2.0"
+    app.kubernetes.io/version: "v0.3.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   updateStrategy:
@@ -284,7 +284,7 @@ spec:
               mountPath: /csi
             - name: registration
               mountPath: /registration
-          resources: 
+          resources:
             requests:
               cpu: 10m
               memory: 16Mi
@@ -305,7 +305,7 @@ spec:
           volumeMounts:
             - name: socket
               mountPath: /csi
-          resources: 
+          resources:
             requests:
               cpu: 10m
               memory: 16Mi
@@ -347,10 +347,10 @@ metadata:
   name: proxmox-csi-plugin-controller
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.1.5
+    helm.sh/chart: proxmox-csi-plugin-0.1.6
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
-    app.kubernetes.io/version: "v0.2.0"
+    app.kubernetes.io/version: "v0.3.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   replicas: 1
@@ -522,6 +522,15 @@ spec:
       tolerations:
         - effect: NoSchedule
           key: node-role.kubernetes.io/control-plane
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: proxmox-csi-plugin
+              app.kubernetes.io/instance: proxmox-csi-plugin
+              app.kubernetes.io/component: controller
 ---
 # Source: proxmox-csi-plugin/templates/csidriver.yaml
 apiVersion: storage.k8s.io/v1

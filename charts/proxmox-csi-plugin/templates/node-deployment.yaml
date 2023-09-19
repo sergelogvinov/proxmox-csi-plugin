@@ -54,8 +54,7 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
-          resources:
-            {{- toYaml .Values.node.plugin.resources | nindent 12 }}
+          resources: {{- toYaml .Values.node.plugin.resources | nindent 12 }}
           volumeMounts:
             - name: socket
               mountPath: /csi
@@ -86,7 +85,7 @@ spec:
               mountPath: /csi
             - name: registration
               mountPath: /registration
-          resources: {{ toYaml .Values.node.driverRegistrar.resources | nindent 12 }}
+          resources: {{- toYaml .Values.node.driverRegistrar.resources | nindent 12 }}
         - name: liveness-probe
           securityContext:
             allowPrivilegeEscalation: false
@@ -104,7 +103,7 @@ spec:
           volumeMounts:
             - name: socket
               mountPath: /csi
-          resources: {{ toYaml .Values.livenessprobe.resources | nindent 12 }}
+          resources: {{- toYaml .Values.livenessprobe.resources | nindent 12 }}
       volumes:
         - name: socket
           hostPath:
