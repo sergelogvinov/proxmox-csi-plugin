@@ -1,4 +1,28 @@
 
+<a name="v0.3.0"></a>
+## [v0.3.0](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.2.0...v0.3.0) (2023-09-18)
+
+Welcome to the v0.3.0 release of Proxmox CSI Plugin!
+
+### Features
+
+- storage encryption
+- volume capability
+- regional block devices
+
+### Changelog
+
+* 5f5d781 chore: bump deps
+* 5e57204 docs: storage class options
+* 26c1928 feat: storage encryption
+* f75bfff chore: bump actions/checkout from 3 to 4
+* 1088dbb feat: volume capability
+* 51419d3 chore: bump sigstore/cosign-installer from 3.1.1 to 3.1.2
+* ae63a06 chore: bump deps
+* c7d1541 feat: regional block devices
+* 4ceef77 chore: bump deps
+* 6a2d98a chore: release v0.2.0
+
 <a name="v0.2.0"></a>
 ## [v0.2.0](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.1.1...v0.2.0) (2023-08-04)
 
