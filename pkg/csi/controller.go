@@ -309,6 +309,28 @@ func (d *ControllerService) ControllerPublishVolume(_ context.Context, request *
 		options["cache"] = volCtx[StorageCacheKey]
 	}
 
+	if volCtx[StorageDiskIOPS] != "" {
+		iops, err := strconv.Atoi(volCtx[StorageDiskIOPS]) //nolint:govet
+		if err != nil {
+			klog.Errorf("failed %s must be a number: %v", StorageDiskIOPS, err)
+
+			return nil, status.Error(codes.InvalidArgument, fmt.Sprintf("failed %s must be a number: %v", StorageDiskIOPS, err))
+		}
+
+		options["iops"] = strconv.Itoa(iops)
+	}
+
+	if volCtx[StorageDiskMBps] != "" {
+		mbps, err := strconv.Atoi(volCtx[StorageDiskMBps]) //nolint:govet
+		if err != nil {
+			klog.Errorf("failed %s must be a number: %v", StorageDiskMBps, err)
+
+			return nil, status.Error(codes.InvalidArgument, fmt.Sprintf("failed %s must be a number: %v", StorageDiskMBps, err))
+		}
+
+		options["mbps"] = strconv.Itoa(mbps)
+	}
+
 	d.volumeLocks.Lock()
 	defer d.volumeLocks.Unlock()
 
