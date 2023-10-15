@@ -8,4 +8,4 @@ spec:
   storageCapacity: true
   volumeLifecycleModes:
   - Persistent
-  - Ephemeral
+  # - Ephemeral

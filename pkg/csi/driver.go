@@ -30,10 +30,16 @@ const (
 	// StorageSSDKey is it ssd disk
 	StorageSSDKey = "ssd"
 
-	// StorageDiskIOPS is maximum r/w I/O in operations per second
-	StorageDiskIOPS = "diskIOPS"
-	// StorageDiskMBps is maximum r/w throughput in MB/s
-	StorageDiskMBps = "diskMBps"
+	// StorageDiskIOPSKey is maximum r/w I/O in operations per second
+	StorageDiskIOPSKey = "diskIOPS"
+	// StorageDiskMBpsKey is maximum r/w throughput in MB/s
+	StorageDiskMBpsKey = "diskMBps"
+
+	// StorageBlockSizeKey the block size when formatting a volume
+	StorageBlockSizeKey = "blockSize"
+
+	// StorageInodeSizeKey the inode size when formatting a volume
+	StorageInodeSizeKey = "inodeSize"
 
 	// MaxVolumesPerNode is the maximum number of volumes that can be attached to a node
 	MaxVolumesPerNode = 16
@@ -44,4 +50,12 @@ const (
 
 	// EncryptionPassphraseKey is the encryption passphrase secret key
 	EncryptionPassphraseKey = "encryption-passphrase"
+)
+
+// constants for fstypes
+const (
+	// FSTypeExt4 represents the ext4 filesystem type
+	FSTypeExt4 = "ext4"
+	// FSTypeXfs represents the xfs filesystem type
+	FSTypeXfs = "xfs"
 )

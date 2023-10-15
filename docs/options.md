@@ -22,6 +22,10 @@ parameters:
   csi.storage.k8s.io/node-expand-secret-name: "proxmox-csi-secret"
   csi.storage.k8s.io/node-expand-secret-namespace: "kube-system"
 
+  ## Optional: File system format options
+  blockSize: "4096"
+  inodeSize: "256"
+
   # Proxmox csi options
   ## Proxmox storage ID
   storage: data
@@ -69,6 +73,9 @@ metadata:
   name: proxmox-csi-secret
   namespace: kube-system
 ```
+
+* `blockSize` - specify the size of blocks in bytes.
+* `inodeSize` - Specify the size of each inode in bytes.
 
 * `storage` - proxmox storage ID
 * `cache` - qemu cache param: `directsync`, `none`, `writeback`, `writethrough` [Official documentation](https://pve.proxmox.com/wiki/Performance_Tweaks)
