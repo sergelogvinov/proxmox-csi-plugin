@@ -8,26 +8,47 @@ Deploy examples you can find [here](deploy/).
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
-  name: proxmox-data-xfs
+  name: proxmox-storage-class-name
 
 parameters:
   # Pre defined options
-  csi.storage.k8s.io/fstype: xfs|ext4
-  ## If you want to encrypt the disk
+  ## File system format (default: ext4)
+  csi.storage.k8s.io/fstype: ext4|xfs
+
+  ## Optional: If you want to encrypt the disk
   csi.storage.k8s.io/node-stage-secret-name: "proxmox-csi-secret"
   csi.storage.k8s.io/node-stage-secret-namespace: "kube-system"
+  ## Have to be the same as node-stage-secret-* if you want to expand the volume
   csi.storage.k8s.io/node-expand-secret-name: "proxmox-csi-secret"
   csi.storage.k8s.io/node-expand-secret-namespace: "kube-system"
 
   # Proxmox csi options
+  ## Proxmox storage ID
   storage: data
+
+  ## Optional: Proxmox csi options
   cache: directsync|none|writeback|writethrough
   ssd: "true|false"
 
-# This field allows you to specify additional mount options to be applied when the volume is mounted on the node
+  ## Optional: Proxmox disk speed limit
+  diskIOPS: "4000"
+  diskMBps: "1000"
+
+# Optional: This field allows you to specify additional mount options to be applied when the volume is mounted on the node
 mountOptions:
   # Common for ssd
   - noatime
+
+# Optional: Allowed topologies restricts what nodes this StorageClass can be used on
+allowedTopologies:
+- matchLabelExpressions:
+  - key: topology.kubernetes.io/region
+    values:
+    - Region-1
+  - key: topology.kubernetes.io/zone
+    values:
+    - pve-1
+    - pve-3
 
 provisioner: csi.proxmox.sinextra.dev
 allowVolumeExpansion: true
@@ -51,7 +72,10 @@ metadata:
 
 * `storage` - proxmox storage ID
 * `cache` - qemu cache param: `directsync`, `none`, `writeback`, `writethrough` [Official documentation](https://pve.proxmox.com/wiki/Performance_Tweaks)
-* `ssd` - true if SSD/NVME disk
+* `ssd` - set true if SSD/NVME disk
+
+* `diskIOPS` - maximum r/w I/O in operations per second
+* `diskMBps` - maximum r/w throughput in megabytes per second
 
 ## AllowVolumeExpansion
 

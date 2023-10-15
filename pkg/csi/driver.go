@@ -30,6 +30,11 @@ const (
 	// StorageSSDKey is it ssd disk
 	StorageSSDKey = "ssd"
 
+	// StorageDiskIOPS is maximum r/w I/O in operations per second
+	StorageDiskIOPS = "diskIOPS"
+	// StorageDiskMBps is maximum r/w throughput in MB/s
+	StorageDiskMBps = "diskMBps"
+
 	// MaxVolumesPerNode is the maximum number of volumes that can be attached to a node
 	MaxVolumesPerNode = 16
 	// MinVolumeSize is the minimum size of a volume
