@@ -338,6 +338,34 @@ func (ts *csiTestSuite) TestCreateVolume() {
 			expectedError: status.Error(codes.InvalidArgument, "Parameters storage must be provided"),
 		},
 		{
+			msg: "VolumeParametersBlockSize",
+			request: &proto.CreateVolumeRequest{
+				Name: "volume-id",
+				Parameters: map[string]string{
+					"storage":   "local-lvm",
+					"blockSize": "abc",
+				},
+				VolumeCapabilities:        []*proto.VolumeCapability{volcap},
+				CapacityRange:             volsize,
+				AccessibilityRequirements: topology,
+			},
+			expectedError: status.Error(codes.InvalidArgument, "Parameters blockSize must be a number"),
+		},
+		{
+			msg: "VolumeParametersInodeSize",
+			request: &proto.CreateVolumeRequest{
+				Name: "volume-id",
+				Parameters: map[string]string{
+					"storage":   "local-lvm",
+					"inodeSize": "abc",
+				},
+				VolumeCapabilities:        []*proto.VolumeCapability{volcap},
+				CapacityRange:             volsize,
+				AccessibilityRequirements: topology,
+			},
+			expectedError: status.Error(codes.InvalidArgument, "Parameters inodeSize must be a number"),
+		},
+		{
 			msg: "RegionZone",
 			request: &proto.CreateVolumeRequest{
 				Name:               "volume-id",

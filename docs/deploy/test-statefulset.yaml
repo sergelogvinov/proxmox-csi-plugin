@@ -46,4 +46,4 @@ spec:
         resources:
           requests:
             storage: 50Gi
-        storageClassName: proxmox-rbd
+        storageClassName: proxmox-lvm

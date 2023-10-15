@@ -5,7 +5,12 @@ metadata:
   name: proxmox-lvm
 parameters:
   csi.storage.k8s.io/fstype: xfs
+  # blockSize: "1024"
+  # inodeSize: "512"
+  #
   storage: lvm
+  # diskIOPS: "400"
+  # diskMBps: "120"
 provisioner: csi.proxmox.sinextra.dev
 reclaimPolicy: Delete
 volumeBindingMode: WaitForFirstConsumer

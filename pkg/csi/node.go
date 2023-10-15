@@ -78,6 +78,8 @@ func NewNodeService(nodeID string, clientSet kubernetes.Interface) *NodeService 
 }
 
 // NodeStageVolume is called by the CO when a workload that wants to use the specified volume is placed (scheduled) on a node.
+//
+//nolint:cyclop,gocyclo
 func (n *NodeService) NodeStageVolume(_ context.Context, request *csi.NodeStageVolumeRequest) (*csi.NodeStageVolumeResponse, error) {
 	klog.V(4).Infof("NodeStageVolume: called with args %s", stripSecrets(*request))
 
@@ -120,9 +122,12 @@ func (n *NodeService) NodeStageVolume(_ context.Context, request *csi.NodeStageV
 	}
 
 	if notMnt {
-		var options []string
+		var (
+			options       []string
+			formatOptions []string
+		)
 
-		fsType := "ext4"
+		fsType := FSTypeExt4
 
 		if mnt := volumeCapability.GetMount(); mnt != nil {
 			if mnt.FsType != "" {
@@ -135,6 +140,25 @@ func (n *NodeService) NodeStageVolume(_ context.Context, request *csi.NodeStageV
 
 			mountFlags := mnt.GetMountFlags()
 			options = append(options, collectMountOptions(fsType, mountFlags)...)
+		}
+
+		blockSize := volumeContext[StorageBlockSizeKey]
+		if blockSize != "" {
+			if fsType == FSTypeXfs {
+				blockSize = "size=" + blockSize
+			}
+
+			formatOptions = append(formatOptions, "-b", blockSize)
+		}
+
+		inodeSize := volumeContext[StorageInodeSizeKey]
+		if inodeSize != "" {
+			option := "-I"
+			if fsType == FSTypeXfs {
+				option, inodeSize = "-i", "size="+inodeSize
+			}
+
+			formatOptions = append(formatOptions, option, inodeSize)
 		}
 
 		passphraseKey, ok := request.GetSecrets()[EncryptionPassphraseKey]
@@ -167,7 +191,7 @@ func (n *NodeService) NodeStageVolume(_ context.Context, request *csi.NodeStageV
 			devicePath = lukskDevicePath
 		}
 
-		err = m.Mounter().FormatAndMount(devicePath, stagingTarget, fsType, options)
+		err = m.Mounter().FormatAndMountSensitiveWithFormatOptions(devicePath, stagingTarget, fsType, options, nil, formatOptions)
 		if err != nil {
 			klog.Errorf("NodeStageVolume: failed to mount device %s at %s (fstype: %s), error: %v", devicePath, stagingTarget, fsType, err)
 
@@ -503,7 +527,7 @@ func collectMountOptions(fsType string, mntFlags []string) []string {
 
 	// By default, xfs does not allow mounting of two volumes with the same filesystem uuid.
 	// Force ignore this uuid to be able to mount volume + its clone / restored snapshot on the same node.
-	if fsType == "xfs" {
+	if fsType == FSTypeXfs {
 		options = append(options, "nouuid")
 	}
 

@@ -76,7 +76,7 @@ func NewControllerService(cloudConfig string) (*ControllerService, error) {
 
 // CreateVolume creates a volume
 //
-//lint:gocyclo
+//nolint:gocyclo
 func (d *ControllerService) CreateVolume(_ context.Context, request *csi.CreateVolumeRequest) (*csi.CreateVolumeResponse, error) {
 	klog.V(4).Infof("CreateVolume: called with args %+v", protosanitizer.StripSecrets(*request))
 
@@ -97,6 +97,18 @@ func (d *ControllerService) CreateVolume(_ context.Context, request *csi.CreateV
 
 	if params[StorageIDKey] == "" {
 		return nil, status.Errorf(codes.InvalidArgument, "Parameters %s must be provided", StorageIDKey)
+	}
+
+	if params[StorageBlockSizeKey] != "" {
+		if _, err := strconv.Atoi(params[StorageBlockSizeKey]); err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "Parameters %s must be a number", StorageBlockSizeKey)
+		}
+	}
+
+	if params[StorageInodeSizeKey] != "" {
+		if _, err := strconv.Atoi(params[StorageInodeSizeKey]); err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "Parameters %s must be a number", StorageInodeSizeKey)
+		}
 	}
 
 	// Volume Size - Default is 10 GiB
@@ -309,23 +321,23 @@ func (d *ControllerService) ControllerPublishVolume(_ context.Context, request *
 		options["cache"] = volCtx[StorageCacheKey]
 	}
 
-	if volCtx[StorageDiskIOPS] != "" {
-		iops, err := strconv.Atoi(volCtx[StorageDiskIOPS]) //nolint:govet
+	if volCtx[StorageDiskIOPSKey] != "" {
+		iops, err := strconv.Atoi(volCtx[StorageDiskIOPSKey]) //nolint:govet
 		if err != nil {
-			klog.Errorf("failed %s must be a number: %v", StorageDiskIOPS, err)
+			klog.Errorf("failed %s must be a number: %v", StorageDiskIOPSKey, err)
 
-			return nil, status.Error(codes.InvalidArgument, fmt.Sprintf("failed %s must be a number: %v", StorageDiskIOPS, err))
+			return nil, status.Error(codes.InvalidArgument, fmt.Sprintf("failed %s must be a number: %v", StorageDiskIOPSKey, err))
 		}
 
 		options["iops"] = strconv.Itoa(iops)
 	}
 
-	if volCtx[StorageDiskMBps] != "" {
-		mbps, err := strconv.Atoi(volCtx[StorageDiskMBps]) //nolint:govet
+	if volCtx[StorageDiskMBpsKey] != "" {
+		mbps, err := strconv.Atoi(volCtx[StorageDiskMBpsKey]) //nolint:govet
 		if err != nil {
-			klog.Errorf("failed %s must be a number: %v", StorageDiskMBps, err)
+			klog.Errorf("failed %s must be a number: %v", StorageDiskMBpsKey, err)
 
-			return nil, status.Error(codes.InvalidArgument, fmt.Sprintf("failed %s must be a number: %v", StorageDiskMBps, err))
+			return nil, status.Error(codes.InvalidArgument, fmt.Sprintf("failed %s must be a number: %v", StorageDiskMBpsKey, err))
 		}
 
 		options["mbps"] = strconv.Itoa(mbps)
