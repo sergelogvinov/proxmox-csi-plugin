@@ -1,4 +1,4 @@
-{{- if ne .Release.Namespace "kube-system" }}
+{{- if and .Values.createNamespace (ne .Release.Namespace "kube-system") }}
 apiVersion: v1
 kind: Namespace
 metadata:

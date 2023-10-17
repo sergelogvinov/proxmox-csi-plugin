@@ -103,6 +103,7 @@ docs:
 		charts/proxmox-csi-plugin > docs/deploy/proxmox-csi-plugin.yml
 	helm template -n csi-proxmox proxmox-csi-plugin \
 		--set-string image.tag=$(TAG) \
+		--set createNamespace=true \
 		charts/proxmox-csi-plugin > docs/deploy/proxmox-csi-plugin-release.yml
 	helm template -n csi-proxmox proxmox-csi-plugin \
 		-f charts/proxmox-csi-plugin/values.talos.yaml \

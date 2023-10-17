@@ -1,4 +1,6 @@
 
+createNamespace: true
+
 controller:
   plugin:
     image:
