@@ -35,33 +35,6 @@ metadata:
     app.kubernetes.io/version: "v0.3.0"
     app.kubernetes.io/managed-by: Helm
 ---
-# Source: proxmox-csi-plugin/templates/storageclass.yaml
-apiVersion: storage.k8s.io/v1
-kind: StorageClass
-metadata:
-  name: proxmox-data-xfs
-provisioner: csi.proxmox.sinextra.dev
-allowVolumeExpansion: true
-volumeBindingMode: WaitForFirstConsumer
-reclaimPolicy: Delete
-parameters:
-  csi.storage.k8s.io/fstype: xfs
-  storage: data
----
-# Source: proxmox-csi-plugin/templates/storageclass.yaml
-apiVersion: storage.k8s.io/v1
-kind: StorageClass
-metadata:
-  name: proxmox-data
-provisioner: csi.proxmox.sinextra.dev
-allowVolumeExpansion: true
-volumeBindingMode: WaitForFirstConsumer
-reclaimPolicy: Delete
-parameters:
-  csi.storage.k8s.io/fstype: ext4
-  storage: data
-  ssd: "true"
----
 # Source: proxmox-csi-plugin/templates/controller-clusterrole.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -241,8 +214,8 @@ spec:
               - DAC_OVERRIDE
             seccompProfile:
               type: RuntimeDefault
-          image: "ghcr.io/sergelogvinov/proxmox-csi-node:edge"
-          imagePullPolicy: Always
+          image: "ghcr.io/sergelogvinov/proxmox-csi-node:v0.3.0"
+          imagePullPolicy: IfNotPresent
           args:
             - "-v=5"
             - "--csi-address=unix:///csi/csi.sock"
@@ -389,8 +362,8 @@ spec:
             readOnlyRootFilesystem: true
             seccompProfile:
               type: RuntimeDefault
-          image: "ghcr.io/sergelogvinov/proxmox-csi-controller:edge"
-          imagePullPolicy: Always
+          image: "ghcr.io/sergelogvinov/proxmox-csi-controller:v0.3.0"
+          imagePullPolicy: IfNotPresent
           args:
             - "-v=5"
             - "--csi-address=unix:///csi/csi.sock"
@@ -515,11 +488,6 @@ spec:
         - name: cloud-config
           secret:
             secretName: proxmox-csi-plugin
-      nodeSelector:
-        node-role.kubernetes.io/control-plane: ""
-      tolerations:
-        - effect: NoSchedule
-          key: node-role.kubernetes.io/control-plane
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname
