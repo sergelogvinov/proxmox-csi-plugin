@@ -122,6 +122,10 @@ storageClass:
 ```
 
 ```shell
+kubectl create ns csi-proxmox
+# We have to label the namespace to allow the plugin to run as privileged
+kubectl label ns/csi-proxmox pod-security.kubernetes.io/enforce=privileged
+
 helm upgrade -i -n csi-proxmox -f proxmox-csi.yaml proxmox-csi-plugin oci://ghcr.io/sergelogvinov/charts/proxmox-csi-plugin
 ```
 

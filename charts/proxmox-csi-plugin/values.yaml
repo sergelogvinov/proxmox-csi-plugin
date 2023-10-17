@@ -8,6 +8,10 @@ imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
 
+# -- Create namespace.
+# Very useful when using helm template.
+createNamespace: false
+
 # -- Controller pods priorityClassName.
 priorityClassName: system-cluster-critical
 
