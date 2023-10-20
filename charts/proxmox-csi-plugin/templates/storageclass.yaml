@@ -1,20 +1,28 @@
+{{- define "storageClass.parameters" -}}
+csi.storage.k8s.io/fstype: {{ default "ext4" .fstype }}
+storage: {{ .storage | required "Proxmox Storage name must be provided." }}
+{{- with .cache }}
+cache: {{ . }}
+{{- end }}
+{{- if .ssd }}
+ssd: "true"
+{{- end }}
+{{- end }}
+
 {{- range $storage := .Values.storageClass }}
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
-  name: {{ $storage.name }}
+  name: {{ $storage.name | required "StorageClass name must be provided." }}
 provisioner: {{ $.Values.provisionerName }}
 allowVolumeExpansion: true
 volumeBindingMode: WaitForFirstConsumer
 reclaimPolicy: {{ default "Delete" $storage.reclaimPolicy }}
 parameters:
-  csi.storage.k8s.io/fstype: {{ default "ext4" $storage.fstype }}
-  storage: {{ $storage.storage }}
-  {{- if $storage.cache }}
-  cache: {{  $storage.cache }}
-  {{- end }}
-  {{- if $storage.ssd }}
-  ssd: "true"
-  {{- end }}
+  {{- mustMergeOverwrite (default (dict) $storage.extraParameters) (include "storageClass.parameters" . | fromYaml) | toYaml | nindent 2 -}}
+{{- with $storage.mountOptions }}
+mountOptions:
+  {{- . | toYaml | nindent 2 }}
+{{- end }}
 ---
 {{- end }}

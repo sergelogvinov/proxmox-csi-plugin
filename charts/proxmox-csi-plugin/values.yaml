@@ -68,6 +68,14 @@ storageClass: []
   #   # https://pve.proxmox.com/wiki/Performance_Tweaks
   #   cache: directsync|none|writeback|writethrough
   #   ssd: true
+  #   extraParameters:
+  #     # https://kubernetes-csi.github.io/docs/secrets-and-credentials-storage-class.html
+  #     csi.storage.k8s.io/node-stage-secret-name: "proxmox-csi-secret"
+  #     csi.storage.k8s.io/node-stage-secret-namespace: "kube-system"
+  #     csi.storage.k8s.io/node-expand-secret-name: "proxmox-csi-secret"
+  #     csi.storage.k8s.io/node-expand-secret-namespace: "kube-system"
+  #   mountOptions:
+  #     - discard
 
 controller:
   plugin:

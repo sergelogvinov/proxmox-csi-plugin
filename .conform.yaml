@@ -27,6 +27,7 @@ policies:
         scopes:
           - deps
           - main
+          - chart
         descriptionLength: 72
   - type: license
     spec:
