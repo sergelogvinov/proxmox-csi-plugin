@@ -76,7 +76,7 @@ func NewControllerService(cloudConfig string) (*ControllerService, error) {
 
 // CreateVolume creates a volume
 //
-//nolint:gocyclo
+//nolint:gocyclo,cyclop
 func (d *ControllerService) CreateVolume(_ context.Context, request *csi.CreateVolumeRequest) (*csi.CreateVolumeResponse, error) {
 	klog.V(4).Infof("CreateVolume: called with args %+v", protosanitizer.StripSecrets(*request))
 
@@ -144,16 +144,6 @@ func (d *ControllerService) CreateVolume(_ context.Context, request *csi.CreateV
 
 	klog.V(4).Infof("CreateVolume: storage config: %+v", storageConfig)
 
-	vol := volume.NewVolume(region, zone, params[StorageIDKey], fmt.Sprintf("vm-%d-%s", vmID, pvc))
-	if storageConfig["path"] != nil && storageConfig["path"].(string) != "" {
-		vol = volume.NewVolume(region, zone, params[StorageIDKey], fmt.Sprintf("%d/vm-%d-%s.raw", vmID, vmID, pvc))
-	}
-
-	err = createVolume(cl, vol, volSizeGB)
-	if err != nil {
-		return nil, status.Error(codes.Internal, err.Error())
-	}
-
 	topology := &csi.Topology{
 		Segments: map[string]string{
 			corev1.LabelTopologyRegion: region,
@@ -173,6 +163,30 @@ func (d *ControllerService) CreateVolume(_ context.Context, request *csi.CreateV
 				corev1.LabelTopologyRegion: region,
 			},
 		}
+	}
+
+	vol := volume.NewVolume(region, zone, params[StorageIDKey], fmt.Sprintf("vm-%d-%s", vmID, pvc))
+	if storageConfig["path"] != nil && storageConfig["path"].(string) != "" {
+		vol = volume.NewVolume(region, zone, params[StorageIDKey], fmt.Sprintf("%d/vm-%d-%s.raw", vmID, vmID, pvc))
+	}
+
+	// Check if volume already exists, and use it if it has the same size, otherwise create a new one
+	size, err := getVolumeSize(cl, vol)
+	if err != nil {
+		if err.Error() != ErrorNotFound {
+			klog.Errorf("failed to check if pvc exists: %v", err)
+
+			return nil, status.Error(codes.Internal, err.Error())
+		}
+
+		err = createVolume(cl, vol, volSizeGB)
+		if err != nil {
+			return nil, status.Error(codes.Internal, err.Error())
+		}
+	} else if size != int64(volSizeGB*1024*1024*1024) {
+		klog.Errorf("CreateVolume: volume %s is already exists, volume size %d, expected %d", vol.VolumeID(), size, int64(volSizeGB*1024*1024*1024))
+
+		return nil, status.Error(codes.AlreadyExists, "volume already exists with same name and different capacity")
 	}
 
 	volume := csi.Volume{
@@ -211,7 +225,7 @@ func (d *ControllerService) DeleteVolume(_ context.Context, request *csi.DeleteV
 
 	exist, err := isPvcExists(cl, vol)
 	if err != nil {
-		klog.Errorf("failed to check if pvc exists: %v", err)
+		klog.Errorf("failed to verify the existence of the PVC: %v", err)
 
 		return nil, status.Error(codes.Internal, err.Error())
 	}
@@ -341,6 +355,17 @@ func (d *ControllerService) ControllerPublishVolume(_ context.Context, request *
 		}
 
 		options["mbps"] = strconv.Itoa(mbps)
+	}
+
+	exist, err := isPvcExists(cl, vol)
+	if err != nil {
+		klog.Errorf("failed to verify the existence of the volume: %v", err)
+
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	if !exist {
+		return nil, status.Error(codes.NotFound, "failed to find volume")
 	}
 
 	d.volumeLocks.Lock()
@@ -593,7 +618,7 @@ func (d *ControllerService) ControllerExpandVolume(_ context.Context, request *c
 
 	klog.Errorf("cannot resize unpublished volumeID %s", volumeID)
 
-	return &csi.ControllerExpandVolumeResponse{}, nil
+	return nil, status.Error(codes.Internal, "cannot resize unpublished volumeID")
 }
 
 // ControllerGetVolume get a volume

@@ -162,6 +162,20 @@ clusters:
 		},
 	)
 
+	httpmock.RegisterResponder("GET", "https://127.0.0.1:8006/api2/json/nodes/pve-1/storage/smb/content",
+		func(req *http.Request) (*http.Response, error) {
+			return httpmock.NewJsonResponse(200, map[string]interface{}{
+				"data": []interface{}{
+					map[string]interface{}{
+						"format": "raw",
+						"size":   1024 * 1024 * 1024,
+						"volid":  "smb:vm-9999-pvc-smb",
+					},
+				},
+			})
+		},
+	)
+
 	httpmock.RegisterResponder("POST", "https://127.0.0.1:8006/api2/json/nodes/pve-1/storage/smb/content",
 		func(req *http.Request) (*http.Response, error) {
 			return httpmock.NewJsonResponse(200, map[string]interface{}{
@@ -199,6 +213,16 @@ clusters:
 						"format": "raw",
 						"size":   1024 * 1024 * 1024,
 						"volid":  "local-lvm:vm-9999-pvc-123",
+					},
+					map[string]interface{}{
+						"format": "raw",
+						"size":   5 * 1024 * 1024 * 1024,
+						"volid":  "local-lvm:vm-9999-pvc-exist",
+					},
+					map[string]interface{}{
+						"format": "raw",
+						"size":   csi.MinVolumeSize * 1024 * 1024 * 1024,
+						"volid":  "local-lvm:vm-9999-pvc-exist-same-size",
 					},
 					map[string]interface{}{
 						"format": "raw",
@@ -257,6 +281,7 @@ func TestNewControllerService(t *testing.T) {
 	assert.NotNil(t, service)
 }
 
+//nolint:dupl
 func (ts *csiTestSuite) TestCreateVolume() {
 	httpmock.Activate()
 	defer httpmock.DeactivateAndReset()
@@ -476,6 +501,62 @@ func (ts *csiTestSuite) TestCreateVolume() {
 			expectedError: status.Error(codes.Internal, "proxmox cluster Region-1 not found"),
 		},
 		{
+			msg: "PVCAlreadyExist",
+			request: &proto.CreateVolumeRequest{
+				Name:               "pvc-exist",
+				Parameters:         volParam,
+				VolumeCapabilities: []*proto.VolumeCapability{volcap},
+				CapacityRange: &proto.CapacityRange{
+					RequiredBytes: 100,
+				},
+				AccessibilityRequirements: &proto.TopologyRequirement{
+					Preferred: []*proto.Topology{
+						{
+							Segments: map[string]string{
+								corev1.LabelTopologyRegion: "cluster-1",
+								corev1.LabelTopologyZone:   "pve-1",
+							},
+						},
+					},
+				},
+			},
+			expectedError: status.Error(codes.AlreadyExists, "volume already exists with same name and different capacity"),
+		},
+		{
+			msg: "PVCAlreadyExistSameSize",
+			request: &proto.CreateVolumeRequest{
+				Name:               "pvc-exist-same-size",
+				Parameters:         volParam,
+				VolumeCapabilities: []*proto.VolumeCapability{volcap},
+				CapacityRange:      volsize,
+				AccessibilityRequirements: &proto.TopologyRequirement{
+					Preferred: []*proto.Topology{
+						{
+							Segments: map[string]string{
+								corev1.LabelTopologyRegion: "cluster-1",
+								corev1.LabelTopologyZone:   "pve-1",
+							},
+						},
+					},
+				},
+			},
+			expected: &proto.CreateVolumeResponse{
+				Volume: &proto.Volume{
+					VolumeId:      "cluster-1/pve-1/local-lvm/vm-9999-pvc-exist-same-size",
+					VolumeContext: volParam,
+					CapacityBytes: int64(1024 * 1024 * 1024),
+					AccessibleTopology: []*proto.Topology{
+						{
+							Segments: map[string]string{
+								corev1.LabelTopologyRegion: "cluster-1",
+								corev1.LabelTopologyZone:   "pve-1",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
 			msg: "CreateVolume",
 			request: &proto.CreateVolumeRequest{
 				Name:               "pvc-123",
@@ -615,7 +696,7 @@ func (ts *csiTestSuite) TestControllerServiceControllerGetCapabilities() {
 	}
 }
 
-// nolint:dupl
+//nolint:dupl
 func (ts *csiTestSuite) TestControllerPublishVolumeError() {
 	httpmock.Activate()
 	defer httpmock.DeactivateAndReset()
@@ -706,6 +787,16 @@ func (ts *csiTestSuite) TestControllerPublishVolumeError() {
 			expectedError: status.Error(codes.InvalidArgument, "volume cluster-1/pve-1/local-lvm/vm-9999-pvc-123 does not exist on the node cluster-1-node-2"),
 		},
 		{
+			msg: "VolumeNotExist",
+			request: &proto.ControllerPublishVolumeRequest{
+				NodeId:           "cluster-1-node-1",
+				VolumeId:         "cluster-1/pve-1/local-lvm/vm-9999-pvc-123-not-exist",
+				VolumeCapability: volcap,
+				VolumeContext:    volCtx,
+			},
+			expectedError: status.Error(codes.NotFound, "failed to find volume"),
+		},
+		{
 			msg: "VolumeAlreadyAttached",
 			request: &proto.ControllerPublishVolumeRequest{
 				NodeId:           "cluster-1-node-1",
@@ -739,7 +830,7 @@ func (ts *csiTestSuite) TestControllerPublishVolumeError() {
 	}
 }
 
-// nolint:dupl
+//nolint:dupl
 func (ts *csiTestSuite) TestControllerUnpublishVolumeError() {
 	httpmock.Activate()
 	defer httpmock.DeactivateAndReset()
@@ -1040,7 +1131,7 @@ func (ts *csiTestSuite) TestControllerExpandVolumeError() {
 				VolumeId:      "cluster-1/pve-1/local-lvm/vm-9999-pvc-error",
 				CapacityRange: capRange,
 			},
-			expected: &proto.ControllerExpandVolumeResponse{},
+			expectedError: status.Error(codes.Internal, "cannot resize unpublished volumeID"),
 		},
 		{
 			msg: "ExpandVolume",
