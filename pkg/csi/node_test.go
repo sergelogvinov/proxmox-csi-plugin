@@ -145,7 +145,7 @@ func TestNodeStageVolumeErrors(t *testing.T) {
 	}
 }
 
-// nolint:dupl
+//nolint:dupl
 func TestNodeUnstageVolumeErrors(t *testing.T) {
 	t.Parallel()
 
@@ -292,7 +292,7 @@ func TestNodeServiceNodePublishVolumeErrors(t *testing.T) {
 	}
 }
 
-// nolint:dupl
+//nolint:dupl
 func TestNodeUnpublishVolumeErrors(t *testing.T) {
 	t.Parallel()
 
@@ -330,7 +330,7 @@ func TestNodeUnpublishVolumeErrors(t *testing.T) {
 	}
 }
 
-// nolint:dupl
+//nolint:dupl
 func TestNodeGetVolumeStatsErrors(t *testing.T) {
 	t.Parallel()
 

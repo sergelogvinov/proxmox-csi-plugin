@@ -33,21 +33,29 @@ const (
 	TaskStatusCheckInterval = 5
 	// TaskTimeout is the timeout in seconds for all task
 	TaskTimeout = 30
+
+	// ErrorNotFound not found error message
+	ErrorNotFound string = "not found"
 )
 
-func isPvcExists(cl *pxapi.Client, vol *volume.Volume) (bool, error) {
+type storageContent struct {
+	volID string
+	size  int64
+}
+
+func getStorageContent(cl *pxapi.Client, vol *volume.Volume) (*storageContent, error) {
 	vmr := pxapi.NewVmRef(vmID)
 	vmr.SetNode(vol.Node())
 	vmr.SetVmType("qemu")
 
 	context, err := cl.GetStorageContent(vmr, vol.Storage())
 	if err != nil {
-		return false, fmt.Errorf("failed to get storage list: %v", err)
+		return nil, fmt.Errorf("failed to get storage list: %v", err)
 	}
 
 	images, ok := context["data"].([]interface{})
 	if !ok {
-		return false, fmt.Errorf("failed to cast images to map: %v", err)
+		return nil, fmt.Errorf("failed to cast images to map: %v", err)
 	}
 
 	volid := fmt.Sprintf("%s:%s", vol.Storage(), vol.Disk())
@@ -55,15 +63,40 @@ func isPvcExists(cl *pxapi.Client, vol *volume.Volume) (bool, error) {
 	for i := range images {
 		image, ok := images[i].(map[string]interface{})
 		if !ok {
-			return false, fmt.Errorf("failed to cast image to map: %v", err)
+			return nil, fmt.Errorf("failed to cast image to map: %v", err)
 		}
 
-		if image["volid"].(string) == volid {
-			return true, nil
+		if image["volid"].(string) == volid && image["size"] != nil {
+			return &storageContent{
+				volID: volid,
+				size:  int64(image["size"].(float64)),
+			}, nil
 		}
 	}
 
-	return false, nil
+	return nil, nil
+}
+
+func isPvcExists(cl *pxapi.Client, vol *volume.Volume) (bool, error) {
+	st, err := getStorageContent(cl, vol)
+	if err != nil {
+		return false, err
+	}
+
+	return st != nil, nil
+}
+
+func getVolumeSize(cl *pxapi.Client, vol *volume.Volume) (int64, error) {
+	st, err := getStorageContent(cl, vol)
+	if err != nil {
+		return 0, err
+	}
+
+	if st == nil {
+		return 0, fmt.Errorf(ErrorNotFound)
+	}
+
+	return st.size, nil
 }
 
 func isVolumeAttached(vmConfig map[string]interface{}, pvc string) (int, bool) {

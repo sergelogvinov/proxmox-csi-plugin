@@ -47,7 +47,7 @@ var (
 
 func main() {
 	klog.InitFlags(nil)
-	flag.Set("logtostderr", "true") // nolint: errcheck
+	flag.Set("logtostderr", "true") //nolint: errcheck
 	flag.Parse()
 
 	klog.V(2).Infof("Driver version %v, GitVersion %s", csi.DriverVersion, version)

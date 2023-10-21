@@ -203,7 +203,8 @@ func (n *NodeService) NodeStageVolume(_ context.Context, request *csi.NodeStageV
 }
 
 // NodeUnstageVolume is called by the CO when a workload that was using the specified volume is being moved to a different node.
-// nolint:dupl
+//
+//nolint:dupl
 func (n *NodeService) NodeUnstageVolume(_ context.Context, request *csi.NodeUnstageVolumeRequest) (*csi.NodeUnstageVolumeResponse, error) {
 	klog.V(4).Infof("NodeUnstageVolume: called with args %s", stripSecrets(*request))
 
@@ -244,7 +245,8 @@ func (n *NodeService) NodeUnstageVolume(_ context.Context, request *csi.NodeUnst
 }
 
 // NodePublishVolume mounts the volume on the node.
-// nolint:dupl
+//
+//nolint:dupl
 func (n *NodeService) NodePublishVolume(_ context.Context, request *csi.NodePublishVolumeRequest) (*csi.NodePublishVolumeResponse, error) {
 	klog.V(4).Infof("NodePublishVolume: called with args %s", stripSecrets(*request))
 
@@ -322,7 +324,8 @@ func (n *NodeService) NodePublishVolume(_ context.Context, request *csi.NodePubl
 }
 
 // NodeUnpublishVolume unmount the volume from the target path
-// nolint:dupl
+//
+//nolint:dupl
 func (n *NodeService) NodeUnpublishVolume(_ context.Context, request *csi.NodeUnpublishVolumeRequest) (*csi.NodeUnpublishVolumeResponse, error) {
 	klog.V(4).Infof("NodeUnpublishVolume: called with args %s", stripSecrets(*request))
 
