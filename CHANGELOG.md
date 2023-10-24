@@ -1,6 +1,35 @@
 
+<a name="v0.4.0"></a>
+## [v0.4.0](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.3.0...v0.4.0) (2023-10-24)
+
+Welcome to the v0.4.0 release of Proxmox CSI Plugin!
+
+### Bug Fixes
+
+- check volume existence
+- helm create namespace
+- remove nocloud label
+
+### Features
+
+- mkfs block/inode size options
+- disk speed limit
+- **chart:** make StorageClass parameters/mountOptions configurable
+
+### Changelog
+
+* df245fd chore: release v0.4.0
+* 9e5a139 chore: bump deps
+* aba0ca8 fix: check volume existence
+* a78e338 feat(chart): make StorageClass parameters/mountOptions configurable
+* 364b8be fix: helm create namespace
+* 74e42b2 fix: remove nocloud label
+* 88f4ebc feat: mkfs block/inode size options
+* c464dab feat: disk speed limit
+* a243ffb chore: bump deps
+
 <a name="v0.3.0"></a>
-## [v0.3.0](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.2.0...v0.3.0) (2023-09-18)
+## [v0.3.0](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.2.0...v0.3.0) (2023-09-19)
 
 Welcome to the v0.3.0 release of Proxmox CSI Plugin!
 
@@ -12,6 +41,7 @@ Welcome to the v0.3.0 release of Proxmox CSI Plugin!
 
 ### Changelog
 
+* 324ad91 chore: release v0.3.0
 * 5f5d781 chore: bump deps
 * 5e57204 docs: storage class options
 * 26c1928 feat: storage encryption
@@ -21,10 +51,9 @@ Welcome to the v0.3.0 release of Proxmox CSI Plugin!
 * ae63a06 chore: bump deps
 * c7d1541 feat: regional block devices
 * 4ceef77 chore: bump deps
-* 6a2d98a chore: release v0.2.0
 
 <a name="v0.2.0"></a>
-## [v0.2.0](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.1.1...v0.2.0) (2023-08-04)
+## [v0.2.0](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.1.1...v0.2.0) (2023-08-07)
 
 Welcome to the v0.2.0 release of Proxmox CSI Plugin!
 
@@ -46,6 +75,7 @@ Welcome to the v0.2.0 release of Proxmox CSI Plugin!
 
 ### Changelog
 
+* 6a2d98a chore: release v0.2.0
 * a24d24e fix: skip lxc containers on resize process
 * cd4f3f7 feat: noatime flag for ssd
 * b477132 chore: bump actions versions
