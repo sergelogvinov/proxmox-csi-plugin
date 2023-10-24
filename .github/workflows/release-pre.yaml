@@ -28,6 +28,8 @@ jobs:
 
       - name: Helm docs
         uses: gabe565/setup-helm-docs-action@v1
+        with:
+          version: v1.11.3
 
       - name: Generate
         run: make docs

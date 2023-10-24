@@ -98,6 +98,7 @@ helm-release: ## Helm Release
 
 .PHONY: docs
 docs:
+	yq -i '.appVersion = "$(TAG)"' charts/proxmox-csi-plugin/Chart.yaml
 	helm template -n csi-proxmox proxmox-csi-plugin \
 		-f charts/proxmox-csi-plugin/values.edge.yaml \
 		charts/proxmox-csi-plugin > docs/deploy/proxmox-csi-plugin.yml
