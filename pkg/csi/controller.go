@@ -39,6 +39,8 @@ import (
 
 const (
 	vmID = 9999
+
+	deviceNamePrefix = "scsi"
 )
 
 var controllerCaps = []csi.ControllerServiceCapability_RPC_Type{
@@ -601,7 +603,7 @@ func (d *ControllerService) ControllerExpandVolume(_ context.Context, request *c
 				continue
 			}
 
-			device := "scsi" + strconv.Itoa(lun)
+			device := deviceNamePrefix + strconv.Itoa(lun)
 
 			if _, err := cl.ResizeQemuDiskRaw(vmr, device, fmt.Sprintf("%dG", volSizeGB)); err != nil {
 				klog.Errorf("failed to resize vm disk: %s, %v", vol.Disk(), err)
