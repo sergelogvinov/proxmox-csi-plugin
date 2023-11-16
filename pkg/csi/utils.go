@@ -105,7 +105,7 @@ func isVolumeAttached(vmConfig map[string]interface{}, pvc string) (int, bool) {
 	}
 
 	for lun := 1; lun < 30; lun++ {
-		device := fmt.Sprintf("scsi%d", lun)
+		device := fmt.Sprintf("%s%d", deviceNamePrefix, lun)
 
 		if vmConfig[device] != nil && strings.Contains(vmConfig[device].(string), pvc) {
 			return lun, true
@@ -123,7 +123,7 @@ func waitForVolumeAttach(cl *pxapi.Client, vmr *pxapi.VmRef, lun int) error {
 			return fmt.Errorf("failed to get vm config: %v", err)
 		}
 
-		device := fmt.Sprintf("scsi%d", lun)
+		device := fmt.Sprintf("%s%d", deviceNamePrefix, lun)
 		if config[device] != nil {
 			return nil
 		}
@@ -168,7 +168,7 @@ func attachVolume(cl *pxapi.Client, vmr *pxapi.VmRef, storageName string, pvc st
 		wwm = hex.EncodeToString([]byte(fmt.Sprintf("PVC-ID%02d", lun)))
 	} else {
 		for lun = 1; lun < 30; lun++ {
-			if config["scsi"+strconv.Itoa(lun)] == nil {
+			if config[deviceNamePrefix+strconv.Itoa(lun)] == nil {
 				wwm = hex.EncodeToString([]byte(fmt.Sprintf("PVC-ID%02d", lun)))
 
 				options["wwn"] = "0x" + wwm
@@ -179,7 +179,7 @@ func attachVolume(cl *pxapi.Client, vmr *pxapi.VmRef, storageName string, pvc st
 				}
 
 				vmParams := map[string]interface{}{
-					"scsi" + strconv.Itoa(lun): fmt.Sprintf("%s:%s,%s", storageName, pvc, strings.Join(opt, ",")),
+					deviceNamePrefix + strconv.Itoa(lun): fmt.Sprintf("%s:%s,%s", storageName, pvc, strings.Join(opt, ",")),
 				}
 
 				_, err = cl.SetVmConfig(vmr, vmParams)
@@ -218,7 +218,7 @@ func detachVolume(cl *pxapi.Client, vmr *pxapi.VmRef, pvc string) error {
 	}
 
 	vmParams := map[string]interface{}{
-		"idlist": fmt.Sprintf("scsi%d", lun),
+		"idlist": fmt.Sprintf("%s%d", deviceNamePrefix, lun),
 	}
 
 	err = cl.Put(vmParams, "/nodes/"+vmr.Node()+"/qemu/"+strconv.Itoa(vmr.VmId())+"/unlink")
