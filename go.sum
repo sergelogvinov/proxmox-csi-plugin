@@ -85,8 +85,8 @@ github.com/rogpeppe/go-internal v1.10.0 h1:TMyTOH3F/DB16zRVcYyreMH6GnZZrwQVAoYjR
 github.com/rogpeppe/go-internal v1.10.0/go.mod h1:UQnix2H7Ngw/k4C5ijL5+65zddjncjaFoBhdsK/akog=
 github.com/sergelogvinov/proxmox-cloud-controller-manager v0.2.0 h1:oJLqLn2ZhfFr6baU4HcdYP/ySBNOTRDFHwgzDVKt3XQ=
 github.com/sergelogvinov/proxmox-cloud-controller-manager v0.2.0/go.mod h1:WTB5GHYbmgqbEh1/bb8UsoWt21fdy7+NYWZ784cOUvo=
-github.com/siderolabs/go-blockdevice v0.4.7-0.20230911102818-8a2102a6ec14 h1:pdP+dMUvXKOCDSTcgx+sIk8H16sdRNWmTXFTxFSBSsM=
-github.com/siderolabs/go-blockdevice v0.4.7-0.20230911102818-8a2102a6ec14/go.mod h1:4PeOuk71pReJj1JQEXDE7kIIQJPVe8a+HZQa+qjxSEA=
+github.com/siderolabs/go-blockdevice v0.4.7 h1:2bk4WpEEflGxjrNwp57ye24Pr+cYgAiAeNMWiQOuWbQ=
+github.com/siderolabs/go-blockdevice v0.4.7/go.mod h1:4PeOuk71pReJj1JQEXDE7kIIQJPVe8a+HZQa+qjxSEA=
 github.com/siderolabs/go-cmd v0.1.1 h1:nTouZUSxLeiiEe7hFexSVvaTsY/3O8k1s08BxPRrsps=
 github.com/siderolabs/go-cmd v0.1.1/go.mod h1:6hY0JG34LxEEwYE8aH2iIHkHX/ir12VRLqfwAf2yJIY=
 github.com/siderolabs/go-retry v0.3.2 h1:FzWslFm4y8RY1wU0gIskm0oZHOpsSibZqlR8N8/k4Eo=

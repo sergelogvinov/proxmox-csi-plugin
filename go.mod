@@ -9,7 +9,7 @@ require (
 	github.com/jarcoal/httpmock v1.3.1
 	github.com/kubernetes-csi/csi-lib-utils v0.16.0
 	github.com/sergelogvinov/proxmox-cloud-controller-manager v0.2.0
-	github.com/siderolabs/go-blockdevice v0.4.7-0.20230911102818-8a2102a6ec14
+	github.com/siderolabs/go-blockdevice v0.4.7
 	github.com/stretchr/testify v1.8.4
 	google.golang.org/grpc v1.59.0
 	k8s.io/api v0.28.4
