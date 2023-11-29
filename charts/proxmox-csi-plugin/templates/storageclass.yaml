@@ -24,5 +24,9 @@ parameters:
 mountOptions:
   {{- . | toYaml | nindent 2 }}
 {{- end }}
+{{- with $storage.allowedTopologies }}
+allowedTopologies:
+  {{- . | toYaml | nindent 2 }}
+{{- end }}
 ---
 {{- end }}
