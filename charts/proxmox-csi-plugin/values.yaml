@@ -76,7 +76,15 @@ storageClass: []
   #     csi.storage.k8s.io/node-expand-secret-namespace: "kube-system"
   #   mountOptions:
   #     - discard
-
+  #   allowedTopologies:
+  #   - matchLabelExpressions:
+  #     - key: topology.kubernetes.io/region
+  #       values:
+  #       - Region-1
+  #     - key: topology.kubernetes.io/zone
+  #       values:
+  #       - pve-1
+  #       - pve-3
 controller:
   plugin:
     # -- Controller CSI Driver.
