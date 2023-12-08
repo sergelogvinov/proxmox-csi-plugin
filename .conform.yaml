@@ -8,7 +8,7 @@ policies:
         invalidLastCharacters: .
       body:
         required: true
-      dco: false
+      dco: true
       gpg: false
       spellcheck:
         locale: US
@@ -33,6 +33,10 @@ policies:
     spec:
       skipPaths:
         - .git/
+      includeSuffixes:
+        - .go
+      excludeSuffixes:
+        - .pb.go
       allowPrecedingComments: false
       header: |
         /*
