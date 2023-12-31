@@ -1,0 +1,51 @@
+project_name: pvecsi-mutate
+
+before:
+  hooks:
+    - go mod download
+    - make release-update
+
+dist: bin
+builds:
+  - dir: cmd/pvecsi-mutate
+    binary: pvecsi-mutate-{{ .Os }}-{{ .Arch }}
+    no_unique_dist_dir: true
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+
+checksum:
+  name_template: "checksums.txt"
+
+snapshot:
+  name_template: edge
+
+dockers:
+  - use: buildx
+    image_templates:
+      - ghcr.io/sergelogvinov/pvecsi-mutate:{{ .Version }}-amd64
+    goos: linux
+    goarch: amd64
+    build_flag_templates:
+      - "--label=org.opencontainers.image.version={{.Version}}"
+      - "--target=pvecsi-mutate-goreleaser"
+      - "--platform=linux/amd64"
+  - use: buildx
+    image_templates:
+      - ghcr.io/sergelogvinov/pvecsi-mutate:{{ .Version }}-arm64
+    goos: linux
+    goarch: arm64
+    build_flag_templates:
+      - "--label=org.opencontainers.image.version={{.Version}}"
+      - "--target=pvecsi-mutate-goreleaser"
+      - "--platform=linux/arm64"
+docker_manifests:
+  - name_template: ghcr.io/sergelogvinov/{{ .ProjectName }}:{{ .Version }}
+    image_templates:
+      - ghcr.io/sergelogvinov/{{ .ProjectName }}:{{ .Version }}-amd64
+      - ghcr.io/sergelogvinov/{{ .ProjectName }}:{{ .Version }}-arm64
