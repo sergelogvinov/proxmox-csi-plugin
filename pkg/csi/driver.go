@@ -23,7 +23,7 @@ const (
 	// DriverVersion is the version of the CSI driver
 	DriverVersion = "0.4.0"
 	// DriverSpecVersion CSI spec version
-	DriverSpecVersion = "1.8.0"
+	DriverSpecVersion = "1.9.0"
 
 	// StorageIDKey is the ID of the Proxmox storage
 	StorageIDKey = "storage"

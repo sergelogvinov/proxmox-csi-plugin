@@ -9,7 +9,7 @@ RUN go mod download
 
 ########################################
 
-FROM --platform=${BUILDPLATFORM} golang:1.21.4-alpine3.18 AS builder
+FROM --platform=${BUILDPLATFORM} golang:1.21.6-alpine3.18 AS builder
 RUN apk update && apk add --no-cache make
 ENV GO111MODULE on
 WORKDIR /src
@@ -24,7 +24,7 @@ RUN make build-all-archs
 
 ########################################
 
-FROM --platform=${TARGETARCH} scratch AS controller
+FROM --platform=${TARGETARCH} scratch AS proxmox-csi-controller
 LABEL org.opencontainers.image.source="https://github.com/sergelogvinov/proxmox-csi-plugin" \
       org.opencontainers.image.licenses="Apache-2.0" \
       org.opencontainers.image.description="Proxmox VE CSI plugin"
@@ -65,7 +65,7 @@ RUN /tools/deps-check.sh
 
 ########################################
 
-FROM --platform=${TARGETARCH} scratch AS node
+FROM --platform=${TARGETARCH} scratch AS proxmox-csi-node
 LABEL org.opencontainers.image.source="https://github.com/sergelogvinov/proxmox-csi-plugin" \
       org.opencontainers.image.licenses="Apache-2.0" \
       org.opencontainers.image.description="Proxmox VE CSI plugin"
@@ -77,3 +77,27 @@ ARG TARGETARCH
 COPY --from=builder /src/bin/proxmox-csi-node-${TARGETARCH} /bin/proxmox-csi-node
 
 ENTRYPOINT ["/bin/proxmox-csi-node"]
+
+########################################
+
+FROM alpine:3.18 AS pvecsi-mutate
+LABEL org.opencontainers.image.source="https://github.com/sergelogvinov/proxmox-csi-plugin" \
+      org.opencontainers.image.licenses="Apache-2.0" \
+      org.opencontainers.image.description="Proxmox VE CSI tools"
+
+ARG TARGETARCH
+COPY --from=builder /src/bin/pvecsi-mutate-${TARGETARCH} /bin/pvecsi-mutate
+
+ENTRYPOINT ["/bin/pvecsi-mutate"]
+
+########################################
+
+FROM alpine:3.18 AS pvecsi-mutate-goreleaser
+LABEL org.opencontainers.image.source="https://github.com/sergelogvinov/proxmox-csi-plugin" \
+      org.opencontainers.image.licenses="Apache-2.0" \
+      org.opencontainers.image.description="Proxmox VE CSI tools"
+
+ARG TARGETARCH
+COPY pvecsi-mutate-linux-${TARGETARCH} /bin/pvecsi-mutate
+
+ENTRYPOINT ["/bin/pvecsi-mutate"]

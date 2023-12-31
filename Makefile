@@ -1,14 +1,13 @@
 REGISTRY ?= ghcr.io
 USERNAME ?= sergelogvinov
-PROJECT ?= proxmox-csi
-IMAGE ?= $(REGISTRY)/$(USERNAME)/$(PROJECT)
+OCIREPO ?= $(REGISTRY)/$(USERNAME)
 HELMREPO ?= $(REGISTRY)/$(USERNAME)/charts
 PLATFORM ?= linux/arm64,linux/amd64
 PUSH ?= false
 
-SHA ?= $(shell git describe --match=none --always --abbrev=8 --dirty)
+SHA ?= $(shell git describe --match=none --always --abbrev=7 --dirty)
 TAG ?= $(shell git describe --tag --always --match v[0-9]\*)
-GO_LDFLAGS := -ldflags "-w -s -X main.version=$(SHA)"
+GO_LDFLAGS := -ldflags "-w -s -X main.version=$(TAG) -X main.commit=$(SHA)"
 
 OS ?= $(shell go env GOOS)
 ARCH ?= $(shell go env GOARCH)
@@ -16,7 +15,7 @@ ARCHS = amd64 arm64
 
 BUILD_ARGS := --platform=$(PLATFORM)
 ifeq ($(PUSH),true)
-BUILD_ARGS += --push=$(PUSH)
+BUILD_ARGS += --push=$(PUSH) --output type=image,annotation-index.org.opencontainers.image.source="https://github.com/$(USERNAME)/proxmox-csi-plugin"
 else
 BUILD_ARGS += --output type=docker
 endif
@@ -57,12 +56,16 @@ build-all-archs:
 clean: ## Clean
 	rm -rf bin .cache
 
+build-pvecsi-mutate:
+	CGO_ENABLED=0 GOOS=$(OS) GOARCH=$(ARCH) go build $(GO_LDFLAGS) \
+		-o bin/pvecsi-mutate-$(ARCH) ./cmd/pvecsi-mutate
+
 build-%:
 	CGO_ENABLED=0 GOOS=$(OS) GOARCH=$(ARCH) go build $(GO_LDFLAGS) \
 		-o bin/proxmox-csi-$*-$(ARCH) ./cmd/$*
 
 .PHONY: build
-build: build-controller build-node ## Build
+build: build-controller build-node build-pvecsi-mutate ## Build
 
 .PHONY: run
 run: build-controller ## Run
@@ -133,19 +136,21 @@ image-%:
 	docker buildx build $(BUILD_ARGS) \
 		--build-arg TAG=$(TAG) \
 		--build-arg SHA=$(SHA) \
-		-t $(IMAGE)-$*:$(TAG) \
+		-t $(OCIREPO)/$*:$(TAG) \
 		--target $* \
 		-f Dockerfile .
 
 .PHONY: images-checks
 images-checks: images image-tools-check
-	trivy image --exit-code 1 --ignore-unfixed --severity HIGH,CRITICAL --no-progress $(IMAGE)-controller:$(TAG)
-	trivy image --exit-code 1 --ignore-unfixed --severity HIGH,CRITICAL --no-progress $(IMAGE)-node:$(TAG)
+	trivy image --exit-code 1 --ignore-unfixed --severity HIGH,CRITICAL --no-progress $(OCIREPO)/proxmox-csi-controller:$(TAG)
+	trivy image --exit-code 1 --ignore-unfixed --severity HIGH,CRITICAL --no-progress $(OCIREPO)/proxmox-csi-node:$(TAG)
+	trivy image --exit-code 1 --ignore-unfixed --severity HIGH,CRITICAL --no-progress $(OCIREPO)/pvecsi-mutate:$(TAG)
 
 .PHONY: images-cosign
 images-cosign:
-	@cosign sign --yes $(COSING_ARGS) --recursive $(IMAGE)-controller:$(TAG)
-	@cosign sign --yes $(COSING_ARGS) --recursive $(IMAGE)-node:$(TAG)
+	@cosign sign --yes $(COSING_ARGS) --recursive $(OCIREPO)/proxmox-csi-controller:$(TAG)
+	@cosign sign --yes $(COSING_ARGS) --recursive $(OCIREPO)/proxmox-csi-node:$(TAG)
+	@cosign sign --yes $(COSING_ARGS) --recursive $(OCIREPO)/pvecsi-mutate:$(TAG)
 
 .PHONY: images
-images: image-controller image-node ## Build images
+images: image-proxmox-csi-controller image-proxmox-csi-node image-pvecsi-mutate ## Build images
