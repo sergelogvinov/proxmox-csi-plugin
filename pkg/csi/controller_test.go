@@ -104,6 +104,23 @@ clusters:
 		},
 	)
 
+	httpmock.RegisterResponder("GET", "https://127.0.0.1:8006/api2/json/nodes",
+		func(req *http.Request) (*http.Response, error) {
+			return httpmock.NewJsonResponse(200, map[string]interface{}{
+				"data": []interface{}{
+					map[string]interface{}{
+						"node":   "pve-1",
+						"status": "online",
+					},
+					map[string]interface{}{
+						"node":   "pve-2",
+						"status": "online",
+					},
+				},
+			})
+		},
+	)
+
 	httpmock.RegisterResponder("GET", "https://127.0.0.1:8006/api2/json/nodes/pve-1/qemu/100/config",
 		func(req *http.Request) (*http.Response, error) {
 			return httpmock.NewJsonResponse(200, map[string]interface{}{
@@ -398,26 +415,28 @@ func (ts *csiTestSuite) TestCreateVolume() {
 				VolumeCapabilities: []*proto.VolumeCapability{volcap},
 				CapacityRange:      volsize,
 			},
-			expectedError: status.Error(codes.InvalidArgument, "cannot find best region and zone"),
+			expectedError: status.Error(codes.Internal, "cannot find best region"),
 		},
 		{
 			msg: "EmptyZone",
 			request: &proto.CreateVolumeRequest{
-				Name:               "volume-id",
-				Parameters:         volParam,
+				Name: "volume-id",
+				Parameters: map[string]string{
+					"storage": "fake-storage",
+				},
 				VolumeCapabilities: []*proto.VolumeCapability{volcap},
 				CapacityRange:      volsize,
 				AccessibilityRequirements: &proto.TopologyRequirement{
 					Preferred: []*proto.Topology{
 						{
 							Segments: map[string]string{
-								corev1.LabelTopologyRegion: "region",
+								corev1.LabelTopologyRegion: "cluster-1",
 							},
 						},
 					},
 				},
 			},
-			expectedError: status.Error(codes.InvalidArgument, "cannot find best region and zone"),
+			expectedError: status.Error(codes.Internal, "cannot find best region and zone: failed to find node with storage fake-storage"),
 		},
 		{
 			msg: "EmptyRegion",
@@ -436,7 +455,26 @@ func (ts *csiTestSuite) TestCreateVolume() {
 					},
 				},
 			},
-			expectedError: status.Error(codes.InvalidArgument, "cannot find best region and zone"),
+			expectedError: status.Error(codes.Internal, "cannot find best region"),
+		},
+		{
+			msg: "UnknowRegion",
+			request: &proto.CreateVolumeRequest{
+				Name:               "volume-id",
+				Parameters:         volParam,
+				VolumeCapabilities: []*proto.VolumeCapability{volcap},
+				CapacityRange:      volsize,
+				AccessibilityRequirements: &proto.TopologyRequirement{
+					Preferred: []*proto.Topology{
+						{
+							Segments: map[string]string{
+								corev1.LabelTopologyRegion: "unknown-region",
+							},
+						},
+					},
+				},
+			},
+			expectedError: status.Error(codes.Internal, "proxmox cluster unknown-region not found"),
 		},
 		{
 			msg: "NonSupportZonalSMB",
@@ -458,7 +496,7 @@ func (ts *csiTestSuite) TestCreateVolume() {
 					},
 				},
 			},
-			expectedError: status.Error(codes.InvalidArgument, "error: shared storage type nfs,cifs,pbs are not supported"),
+			expectedError: status.Error(codes.Internal, "error: shared storage type nfs,cifs,pbs are not supported"),
 		},
 		{
 			msg: "WrongClusterNotFound",

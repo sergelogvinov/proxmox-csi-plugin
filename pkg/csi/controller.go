@@ -124,22 +124,36 @@ func (d *ControllerService) CreateVolume(_ context.Context, request *csi.CreateV
 	accessibleTopology := request.GetAccessibilityRequirements()
 
 	region, zone := locationFromTopologyRequirement(accessibleTopology)
-	if region == "" || zone == "" {
-		klog.Errorf("CreateVolume: region or zone is empty: accessibleTopology=%+v", accessibleTopology)
+	if region == "" {
+		klog.Errorf("CreateVolume: region is empty: accessibleTopology=%+v", accessibleTopology)
 
-		return nil, status.Error(codes.InvalidArgument, "cannot find best region and zone")
+		return nil, status.Error(codes.Internal, "cannot find best region")
 	}
 
 	cl, err := d.Cluster.GetProxmoxCluster(region)
 	if err != nil {
-		klog.Errorf("failed to get proxmox cluster: %v", err)
+		klog.Errorf("CreateVolume: failed to get proxmox cluster: %v", err)
 
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
+	if zone == "" {
+		if zone, err = getNodeWithStorage(cl, params[StorageIDKey]); err != nil {
+			klog.Errorf("CreateVolume: failed to get node with storage: %v", err)
+
+			return nil, status.Errorf(codes.Internal, "cannot find best region and zone: %v", err)
+		}
+	}
+
+	if region == "" || zone == "" {
+		klog.Errorf("CreateVolume: region or zone is empty: accessibleTopology=%+v", accessibleTopology)
+
+		return nil, status.Error(codes.Internal, "cannot find best region and zone")
+	}
+
 	storageConfig, err := cl.GetStorageConfig(params[StorageIDKey])
 	if err != nil {
-		klog.Errorf("failed to get proxmox storage config: %v", err)
+		klog.Errorf("CreateVolume: failed to get proxmox storage config: %v", err)
 
 		return nil, status.Error(codes.Internal, err.Error())
 	}
@@ -157,7 +171,7 @@ func (d *ControllerService) CreateVolume(_ context.Context, request *csi.CreateV
 		// https://pve.proxmox.com/wiki/Storage only block/local storage are supported
 		switch storageConfig["type"].(string) {
 		case "nfs", "cifs", "pbs":
-			return nil, status.Error(codes.InvalidArgument, "error: shared storage type nfs,cifs,pbs are not supported")
+			return nil, status.Error(codes.Internal, "error: shared storage type nfs,cifs,pbs are not supported")
 		}
 
 		topology = &csi.Topology{
@@ -176,7 +190,7 @@ func (d *ControllerService) CreateVolume(_ context.Context, request *csi.CreateV
 	size, err := getVolumeSize(cl, vol)
 	if err != nil {
 		if err.Error() != ErrorNotFound {
-			klog.Errorf("failed to check if pvc exists: %v", err)
+			klog.Errorf("CreateVolume: failed to check if pvc exists: %v", err)
 
 			return nil, status.Error(codes.Internal, err.Error())
 		}

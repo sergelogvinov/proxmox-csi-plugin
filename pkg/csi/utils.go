@@ -43,6 +43,34 @@ type storageContent struct {
 	size  int64
 }
 
+func getNodeWithStorage(cl *pxapi.Client, storageName string) (string, error) {
+	data, err := cl.GetNodeList()
+	if err != nil {
+		return "", fmt.Errorf("failed to get node list: %v", err)
+	}
+
+	if data["data"] == nil {
+		return "", fmt.Errorf("failed to parce node list: %v", err)
+	}
+
+	for _, item := range data["data"].([]interface{}) {
+		node, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		vmr := pxapi.NewVmRef(vmID)
+		vmr.SetNode(node["node"].(string))
+		vmr.SetVmType("qemu")
+
+		if _, err := cl.GetStorageStatus(vmr, storageName); err == nil {
+			return vmr.Node(), nil
+		}
+	}
+
+	return "", fmt.Errorf("failed to find node with storage %s", storageName)
+}
+
 func getStorageContent(cl *pxapi.Client, vol *volume.Volume) (*storageContent, error) {
 	vmr := pxapi.NewVmRef(vmID)
 	vmr.SetNode(vol.Node())
