@@ -160,6 +160,9 @@ node:
         cpu: 10m
         memory: 16Mi
 
+  # -- Location of the /var/lib/kubelet directory as some k8s distribution differ from the standard.
+  kubeletDir: /var/lib/kubelet
+
   # -- Node labels for node-plugin assignment.
   # ref: https://kubernetes.io/docs/user-guide/node-selection/
   nodeSelector: {}
