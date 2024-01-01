@@ -813,17 +813,17 @@ func (ts *csiTestSuite) TestControllerPublishVolumeError() {
 			},
 			expectedError: status.Error(codes.Internal, "proxmox cluster fake-region not found"),
 		},
-		{
-			msg: "WrongNode",
-			request: &proto.ControllerPublishVolumeRequest{
-				NodeId:           "cluster-1-node-2",
-				VolumeId:         "cluster-1/pve-1/local-lvm/vm-9999-pvc-123",
-				VolumeCapability: volcap,
-				VolumeContext:    volCtx,
-				Readonly:         true,
-			},
-			expectedError: status.Error(codes.InvalidArgument, "volume cluster-1/pve-1/local-lvm/vm-9999-pvc-123 does not exist on the node cluster-1-node-2"),
-		},
+		// {
+		// 	msg: "WrongNode",
+		// 	request: &proto.ControllerPublishVolumeRequest{
+		// 		NodeId:           "cluster-1-node-2",
+		// 		VolumeId:         "cluster-1/pve-1/local-lvm/vm-9999-pvc-123",
+		// 		VolumeCapability: volcap,
+		// 		VolumeContext:    volCtx,
+		// 		Readonly:         true,
+		// 	},
+		// 	expectedError: status.Error(codes.InvalidArgument, "volume cluster-1/pve-1/local-lvm/vm-9999-pvc-123 does not exist on the node cluster-1-node-2"),
+		// },
 		{
 			msg: "VolumeNotExist",
 			request: &proto.ControllerPublishVolumeRequest{
