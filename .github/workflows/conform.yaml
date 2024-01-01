@@ -9,7 +9,8 @@ jobs:
   conform:
     name: Conformance
     timeout-minutes: 5
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
     steps:
       - name: Checkout
         uses: actions/checkout@v4
