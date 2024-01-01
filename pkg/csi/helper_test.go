@@ -95,7 +95,21 @@ func TestLocationFromTopologyRequirement(t *testing.T) {
 					},
 				},
 			},
-			expectedRegion: "",
+			expectedRegion: "region1",
+			expectedZone:   "",
+		},
+		{
+			msg: "EmptyTopologyRequisiteZone",
+			topology: &proto.TopologyRequirement{
+				Requisite: []*proto.Topology{
+					{
+						Segments: map[string]string{
+							corev1.LabelTopologyRegion: "region1",
+						},
+					},
+				},
+			},
+			expectedRegion: "region1",
 			expectedZone:   "",
 		},
 		{
@@ -116,6 +130,21 @@ func TestLocationFromTopologyRequirement(t *testing.T) {
 			msg: "TopologyPreferred",
 			topology: &proto.TopologyRequirement{
 				Preferred: []*proto.Topology{
+					{
+						Segments: map[string]string{
+							corev1.LabelTopologyRegion: "region1",
+							corev1.LabelTopologyZone:   "zone1",
+						},
+					},
+				},
+			},
+			expectedRegion: "region1",
+			expectedZone:   "zone1",
+		},
+		{
+			msg: "TopologyRequisite",
+			topology: &proto.TopologyRequirement{
+				Requisite: []*proto.Topology{
 					{
 						Segments: map[string]string{
 							corev1.LabelTopologyRegion: "region1",

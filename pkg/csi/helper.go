@@ -60,7 +60,7 @@ func locationFromTopologyRequirement(tr *proto.TopologyRequirement) (region, zon
 		return "", ""
 	}
 
-	for _, top := range tr.Preferred {
+	for _, top := range tr.GetPreferred() {
 		segment := top.GetSegments()
 
 		tsr := segment[corev1.LabelTopologyRegion]
@@ -69,9 +69,28 @@ func locationFromTopologyRequirement(tr *proto.TopologyRequirement) (region, zon
 		if tsr != "" && tsz != "" {
 			return tsr, tsz
 		}
+
+		if tsr != "" && region == "" {
+			region = tsr
+		}
 	}
 
-	return "", ""
+	for _, top := range tr.GetRequisite() {
+		segment := top.GetSegments()
+
+		tsr := segment[corev1.LabelTopologyRegion]
+		tsz := segment[corev1.LabelTopologyZone]
+
+		if tsr != "" && tsz != "" {
+			return tsr, tsz
+		}
+
+		if tsr != "" && region == "" {
+			region = tsr
+		}
+	}
+
+	return region, ""
 }
 
 func stripSecrets(msg interface{}) string {
