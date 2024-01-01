@@ -1,4 +1,30 @@
 
+<a name="v0.4.1"></a>
+## [v0.4.1](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.4.0...v0.4.1) (2024-01-01)
+
+Welcome to the v0.4.1 release of Proxmox CSI Plugin!
+
+### Bug Fixes
+
+- publish shared volumes
+- find zone by region
+
+### Features
+
+- **chart:** add value to customize kubeletDir
+- **chart:** add allowedTopologies
+
+### Changelog
+
+* a681b2b fix: publish shared volumes
+* 2a86bd7 chore: bump deps
+* bbb627f feat(chart): add value to customize kubeletDir
+* 4eae22d fix: find zone by region
+* d8c98ea chore: bump deps
+* 41cb02a feat(chart): add allowedTopologies
+* 4c9bae4 ci: update bug template
+* 9054282 chore: bump deps
+
 <a name="v0.4.0"></a>
 ## [v0.4.0](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.3.0...v0.4.0) (2023-10-24)
 
@@ -18,7 +44,7 @@ Welcome to the v0.4.0 release of Proxmox CSI Plugin!
 
 ### Changelog
 
-* df245fd chore: release v0.4.0
+* 764b741 chore: release v0.4.0
 * 9e5a139 chore: bump deps
 * aba0ca8 fix: check volume existence
 * a78e338 feat(chart): make StorageClass parameters/mountOptions configurable

@@ -46,9 +46,11 @@ mountOptions:
 # Optional: Allowed topologies restricts what nodes this StorageClass can be used on
 allowedTopologies:
 - matchLabelExpressions:
+  # Region have to be exist, if you want to use allowedTopologies
   - key: topology.kubernetes.io/region
     values:
     - Region-1
+  # Better to set zone, otherwise it will be used random node in the region
   - key: topology.kubernetes.io/zone
     values:
     - pve-1
