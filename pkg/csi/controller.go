@@ -329,9 +329,9 @@ func (d *ControllerService) ControllerPublishVolume(_ context.Context, request *
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
-	if vm.Node() != vol.Node() {
-		return nil, status.Error(codes.InvalidArgument, fmt.Sprintf("volume %s does not exist on the node %s", volumeID, nodeID))
-	}
+	// if vm.Node() != vol.Node() {
+	// 	return nil, status.Error(codes.InvalidArgument, fmt.Sprintf("volume %s does not exist on the node %s", volumeID, nodeID))
+	// }
 
 	options := map[string]string{
 		"backup":   "0",
