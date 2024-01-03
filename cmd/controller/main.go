@@ -45,6 +45,7 @@ func main() {
 	flag.Parse()
 
 	klog.V(2).Infof("Driver version %v, GitVersion %s", csi.DriverVersion, version)
+	klog.V(2).Info("Driver CSI Spec version: ", csi.DriverSpecVersion)
 
 	if *showVersion {
 		klog.Infof("Driver version %v, GitVersion %s", csi.DriverVersion, version)

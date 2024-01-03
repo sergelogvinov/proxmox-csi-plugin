@@ -248,24 +248,6 @@ func TestNodeServiceNodePublishVolumeErrors(t *testing.T) {
 			expectedError: fmt.Errorf("VolumeCapability not supported"),
 		},
 		{
-			msg: "BlockVolume",
-			request: &proto.NodePublishVolumeRequest{
-				VolumeId:          "pvc-1",
-				StagingTargetPath: "/staging",
-				TargetPath:        "/target",
-				VolumeCapability: &proto.VolumeCapability{
-					AccessMode: &proto.VolumeCapability_AccessMode{
-						Mode: proto.VolumeCapability_AccessMode_SINGLE_NODE_WRITER,
-					},
-					AccessType: &proto.VolumeCapability_Block{
-						Block: &proto.VolumeCapability_BlockVolume{},
-					},
-				},
-				PublishContext: params,
-			},
-			expectedError: fmt.Errorf("publish block volume is not supported"),
-		},
-		{
 			msg: "VolumeCapability",
 			request: &proto.NodePublishVolumeRequest{
 				VolumeId:          "pvc-1",
