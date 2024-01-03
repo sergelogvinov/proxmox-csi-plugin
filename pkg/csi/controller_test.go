@@ -1108,6 +1108,12 @@ func (ts *csiTestSuite) TestControllerExpandVolumeError() {
 		LimitBytes:    150,
 	}
 
+	volCapability := &proto.VolumeCapability{
+		AccessMode: &proto.VolumeCapability_AccessMode{
+			Mode: proto.VolumeCapability_AccessMode_SINGLE_NODE_WRITER,
+		},
+	}
+
 	tests := []struct {
 		msg           string
 		request       *proto.ControllerExpandVolumeRequest
@@ -1117,14 +1123,16 @@ func (ts *csiTestSuite) TestControllerExpandVolumeError() {
 		{
 			msg: "VolumeID",
 			request: &proto.ControllerExpandVolumeRequest{
-				CapacityRange: capRange,
+				CapacityRange:    capRange,
+				VolumeCapability: volCapability,
 			},
 			expectedError: status.Error(codes.InvalidArgument, "VolumeID must be provided"),
 		},
 		{
 			msg: "CapacityRange",
 			request: &proto.ControllerExpandVolumeRequest{
-				VolumeId: "volume-id",
+				VolumeId:         "volume-id",
+				VolumeCapability: volCapability,
 			},
 			expectedError: status.Error(codes.InvalidArgument, "CapacityRange must be provided"),
 		},
@@ -1136,46 +1144,52 @@ func (ts *csiTestSuite) TestControllerExpandVolumeError() {
 					RequiredBytes: 150,
 					LimitBytes:    100,
 				},
+				VolumeCapability: volCapability,
 			},
 			expectedError: status.Error(codes.OutOfRange, "after round-up, volume size exceeds the limit specified"),
 		},
 		{
 			msg: "WrongVolumeID",
 			request: &proto.ControllerExpandVolumeRequest{
-				VolumeId:      "volume-id",
-				CapacityRange: capRange,
+				VolumeId:         "volume-id",
+				CapacityRange:    capRange,
+				VolumeCapability: volCapability,
 			},
 			expectedError: status.Error(codes.InvalidArgument, "VolumeID must be in the format of region/zone/storageName/diskName"),
 		},
 		{
 			msg: "WrongCluster",
 			request: &proto.ControllerExpandVolumeRequest{
-				VolumeId:      "fake-region/node/data/volume-id",
-				CapacityRange: capRange,
+				VolumeId:         "fake-region/node/data/volume-id",
+				CapacityRange:    capRange,
+				VolumeCapability: volCapability,
 			},
 			expectedError: status.Error(codes.Internal, "proxmox cluster fake-region not found"),
 		},
 		{
 			msg: "WrongPVC",
 			request: &proto.ControllerExpandVolumeRequest{
-				VolumeId:      "cluster-1/pve-1/local-lvm/vm-9999-pvc-none",
-				CapacityRange: capRange,
+				VolumeId:         "cluster-1/pve-1/local-lvm/vm-9999-pvc-none",
+				CapacityRange:    capRange,
+				VolumeCapability: volCapability,
 			},
 			expected: &proto.ControllerExpandVolumeResponse{},
 		},
 		{
 			msg: "UpublishedVolume",
 			request: &proto.ControllerExpandVolumeRequest{
-				VolumeId:      "cluster-1/pve-1/local-lvm/vm-9999-pvc-error",
-				CapacityRange: capRange,
+				VolumeId:         "cluster-1/pve-1/local-lvm/vm-9999-pvc-error",
+				CapacityRange:    capRange,
+				VolumeCapability: volCapability,
 			},
 			expectedError: status.Error(codes.Internal, "cannot resize unpublished volumeID"),
 		},
 		{
 			msg: "ExpandVolume",
 			request: &proto.ControllerExpandVolumeRequest{
-				VolumeId:      "cluster-1/pve-1/local-lvm/vm-9999-pvc-123",
-				CapacityRange: capRange,
+				VolumeId:         "cluster-1/pve-1/local-lvm/vm-9999-pvc-123",
+				CapacityRange:    capRange,
+				VolumeCapability: volCapability,
 			},
 			expected: &proto.ControllerExpandVolumeResponse{
 				CapacityBytes:         100,

@@ -19,6 +19,8 @@ package csi
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
@@ -213,6 +215,12 @@ func (n *NodeService) NodeUnstageVolume(_ context.Context, request *csi.NodeUnst
 		return nil, status.Error(codes.InvalidArgument, "StagingTargetPath must be provided")
 	}
 
+	// Raw Block device is not mounted, so we can return here
+	// https://github.com/kubernetes/kubernetes/blob/master/pkg/volume/csi/csi_block.go
+	if strings.Contains(stagingTargetPath, "/kubernetes.io/csi/volumeDevices/") {
+		return &csi.NodeUnstageVolumeResponse{}, nil
+	}
+
 	cmd := exec.New().Command("fstrim", "-v", stagingTargetPath)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		klog.Errorf("NodeUnstageVolume: failed to trim filesystem %s: %v\n", stagingTargetPath, err)
@@ -285,11 +293,37 @@ func (n *NodeService) NodePublishVolume(_ context.Context, request *csi.NodePubl
 		mountOptions = append(mountOptions, "rw")
 	}
 
-	if blk := volumeCapability.GetBlock(); blk != nil {
-		return nil, status.Error(codes.Unimplemented, "publish block volume is not supported")
-	}
-
 	m := n.Mount
+
+	if blk := volumeCapability.GetBlock(); blk != nil {
+		podVolumePath := filepath.Dir(targetPath)
+
+		exists, err := utilpath.Exists(utilpath.CheckFollowSymlink, podVolumePath)
+		if err != nil {
+			return nil, status.Error(codes.Internal, err.Error())
+		}
+
+		if !exists {
+			if err = m.MakeDir(podVolumePath); err != nil {
+				return nil, status.Errorf(codes.Internal, "Could not create dir %q: %v", podVolumePath, err)
+			}
+		}
+
+		err = m.MakeFile(targetPath)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "Error in making file %v", err)
+		}
+
+		if err := m.Mounter().Mount(devicePath, targetPath, "", mountOptions); err != nil {
+			if removeErr := os.Remove(targetPath); removeErr != nil {
+				return nil, status.Errorf(codes.Internal, "Could not remove mount target %q: %v", targetPath, err)
+			}
+
+			return nil, status.Errorf(codes.Internal, "Could not mount %q at %q: %v", devicePath, targetPath, err)
+		}
+
+		return &csi.NodePublishVolumeResponse{}, nil
+	}
 
 	_, err := m.GetMountFs(stagingTargetPath)
 	if err != nil {
@@ -400,6 +434,15 @@ func (n *NodeService) NodeExpandVolume(_ context.Context, request *csi.NodeExpan
 	volumePath := request.GetVolumePath()
 	if len(volumePath) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "VolumePath must be provided")
+	}
+
+	volCapability := request.GetVolumeCapability()
+	if volCapability == nil {
+		return nil, status.Error(codes.InvalidArgument, "VolumeCapability must be provided")
+	}
+
+	if volCapability.GetBlock() != nil {
+		return &csi.NodeExpandVolumeResponse{}, nil
 	}
 
 	output, err := n.Mount.GetMountFs(volumePath)

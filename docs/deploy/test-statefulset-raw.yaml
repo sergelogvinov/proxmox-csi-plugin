@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: test
+  namespace: default
+  labels:
+    app: alpine
+spec:
+  podManagementPolicy: Parallel  # default is OrderedReady
+  serviceName: test
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: alpine
+    spec:
+      terminationGracePeriodSeconds: 3
+      tolerations:
+        - effect: NoSchedule
+          key: node-role.kubernetes.io/control-plane
+      nodeSelector:
+        # kubernetes.io/hostname: kube-21
+        # topology.kubernetes.io/zone: hvm-1
+      containers:
+        - name: alpine
+          image: alpine
+          command: ["sleep","1d"]
+          securityContext:
+            privileged: true
+            capabilities:
+              drop:
+              - ALL
+              add:
+              - SYS_ADMIN
+              - CHOWN
+              - DAC_OVERRIDE
+            seccompProfile:
+              type: RuntimeDefault
+          volumeDevices:
+            - name: storage
+              devicePath: /dev/xvda
+  updateStrategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app: alpine
+  volumeClaimTemplates:
+    - metadata:
+        name: storage
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        volumeMode: Block
+        resources:
+          requests:
+            storage: 1Gi
+        storageClassName: proxmox-zfs

@@ -24,7 +24,7 @@ services:
         source: ./
         target: /src
   csi-attacher:
-    image: registry.k8s.io/sig-storage/csi-attacher:v4.4.0
+    image: registry.k8s.io/sig-storage/csi-attacher:v4.4.3
     network_mode: "service:base"
     command:
       - "--v=5"
@@ -40,7 +40,7 @@ services:
         source: ./hack
         target: /etc/kubernetes
   csi-resizer:
-    image: registry.k8s.io/sig-storage/csi-resizer:v1.9.0
+    image: registry.k8s.io/sig-storage/csi-resizer:v1.9.3
     network_mode: "service:base"
     command:
       - "--v=5"
@@ -56,7 +56,7 @@ services:
         source: ./hack
         target: /etc/kubernetes
   csi-provisioner:
-    image: registry.k8s.io/sig-storage/csi-provisioner:v3.6.0
+    image: registry.k8s.io/sig-storage/csi-provisioner:v3.6.3
     network_mode: "service:base"
     command:
       - "--v=5"
@@ -81,7 +81,7 @@ services:
         source: ./hack
         target: /etc/kubernetes
   # csi-node-driver-registrar:
-  #   image: registry.k8s.io/sig-storage/csi-node-driver-registrar:v2.7.0
+  #   image: registry.k8s.io/sig-storage/csi-node-driver-registrar:v2.9.3
   #   network_mode: "service:base"
   #   command:
   #     - "--v=5"

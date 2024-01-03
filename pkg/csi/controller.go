@@ -532,6 +532,11 @@ func (d *ControllerService) ControllerExpandVolume(_ context.Context, request *c
 		return nil, status.Error(codes.InvalidArgument, "VolumeID must be provided")
 	}
 
+	volCapability := request.GetVolumeCapability()
+	if volCapability == nil {
+		return nil, status.Error(codes.InvalidArgument, "VolumeCapability must be provided")
+	}
+
 	capacityRange := request.GetCapacityRange()
 	if capacityRange == nil {
 		return nil, status.Error(codes.InvalidArgument, "CapacityRange must be provided")
@@ -640,6 +645,13 @@ func (d *ControllerService) ControllerExpandVolume(_ context.Context, request *c
 // ControllerGetVolume get a volume
 func (d *ControllerService) ControllerGetVolume(_ context.Context, request *csi.ControllerGetVolumeRequest) (*csi.ControllerGetVolumeResponse, error) {
 	klog.V(4).Infof("ControllerGetVolume: called with args %+v", protosanitizer.StripSecrets(*request))
+
+	return nil, status.Error(codes.Unimplemented, "")
+}
+
+// ControllerModifyVolume modify a volume
+func (d *ControllerService) ControllerModifyVolume(_ context.Context, request *csi.ControllerModifyVolumeRequest) (*csi.ControllerModifyVolumeResponse, error) {
+	klog.V(4).Infof("ControllerModifyVolume: called with args %+v", protosanitizer.StripSecrets(*request))
 
 	return nil, status.Error(codes.Unimplemented, "")
 }
