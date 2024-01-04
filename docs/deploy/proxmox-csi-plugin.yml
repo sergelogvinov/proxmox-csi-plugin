@@ -16,7 +16,7 @@ metadata:
   name: proxmox-csi-plugin-controller
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.1.16
+    helm.sh/chart: proxmox-csi-plugin-0.1.17
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
     app.kubernetes.io/version: "v0.4.1"
@@ -29,7 +29,7 @@ metadata:
   name: proxmox-csi-plugin-node
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.1.16
+    helm.sh/chart: proxmox-csi-plugin-0.1.17
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
     app.kubernetes.io/version: "v0.4.1"
@@ -69,7 +69,7 @@ metadata:
   name: proxmox-csi-plugin-controller
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.1.16
+    helm.sh/chart: proxmox-csi-plugin-0.1.17
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
     app.kubernetes.io/version: "v0.4.1"
@@ -112,7 +112,7 @@ metadata:
   name: proxmox-csi-plugin-node
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.1.16
+    helm.sh/chart: proxmox-csi-plugin-0.1.17
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
     app.kubernetes.io/version: "v0.4.1"
@@ -160,7 +160,7 @@ metadata:
   name: proxmox-csi-plugin-controller
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.1.16
+    helm.sh/chart: proxmox-csi-plugin-0.1.17
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
     app.kubernetes.io/version: "v0.4.1"
@@ -202,7 +202,7 @@ metadata:
   name: proxmox-csi-plugin-node
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.1.16
+    helm.sh/chart: proxmox-csi-plugin-0.1.17
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
     app.kubernetes.io/version: "v0.4.1"
@@ -239,6 +239,7 @@ spec:
               - SYS_ADMIN
               - CHOWN
               - DAC_OVERRIDE
+            readOnlyRootFilesystem: true
             seccompProfile:
               type: RuntimeDefault
           image: "ghcr.io/sergelogvinov/proxmox-csi-node:edge"
@@ -270,10 +271,10 @@ spec:
             capabilities:
               drop:
               - ALL
-            # readOnlyRootFilesystem: true
+            readOnlyRootFilesystem: true
             seccompProfile:
               type: RuntimeDefault
-          image: "registry.k8s.io/sig-storage/csi-node-driver-registrar:v2.9.0"
+          image: "registry.k8s.io/sig-storage/csi-node-driver-registrar:v2.9.3"
           imagePullPolicy: IfNotPresent
           args:
             - "-v=5"
@@ -345,7 +346,7 @@ metadata:
   name: proxmox-csi-plugin-controller
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.1.16
+    helm.sh/chart: proxmox-csi-plugin-0.1.17
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
     app.kubernetes.io/version: "v0.4.1"
@@ -413,7 +414,7 @@ spec:
             readOnlyRootFilesystem: true
             seccompProfile:
               type: RuntimeDefault
-          image: "registry.k8s.io/sig-storage/csi-attacher:v4.4.0"
+          image: "registry.k8s.io/sig-storage/csi-attacher:v4.4.3"
           imagePullPolicy: IfNotPresent
           args:
             - "-v=5"
@@ -437,7 +438,7 @@ spec:
             readOnlyRootFilesystem: true
             seccompProfile:
               type: RuntimeDefault
-          image: "registry.k8s.io/sig-storage/csi-provisioner:v3.6.0"
+          image: "registry.k8s.io/sig-storage/csi-provisioner:v3.6.3"
           imagePullPolicy: IfNotPresent
           args:
             - "-v=5"
@@ -473,7 +474,7 @@ spec:
             readOnlyRootFilesystem: true
             seccompProfile:
               type: RuntimeDefault
-          image: "registry.k8s.io/sig-storage/csi-resizer:v1.9.0"
+          image: "registry.k8s.io/sig-storage/csi-resizer:v1.9.3"
           imagePullPolicy: IfNotPresent
           args:
             - "-v=5"
@@ -541,4 +542,3 @@ spec:
   storageCapacity: true
   volumeLifecycleModes:
   - Persistent
-  # - Ephemeral
