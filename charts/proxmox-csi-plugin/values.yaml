@@ -243,3 +243,15 @@ tolerations: []
 # -- Affinity for controller assignment.
 # ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity
 affinity: {}
+
+# -- Additional volumes for Pods
+extraVolumes: []
+# - name: ca
+#   secret:
+#     secretName: my-ca
+# -- Additional volume mounts for Pods
+
+extraVolumeMounts: []
+# - mountPath: /etc/ssl/certs/ca-certificates.crt
+#   name: ca
+#   subPath: ca.crt
