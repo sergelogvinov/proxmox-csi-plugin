@@ -52,6 +52,9 @@ spec:
               mountPath: /csi
             - name: cloud-config
               mountPath: /etc/proxmox/
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
         - name: csi-attacher
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
@@ -135,6 +138,9 @@ spec:
         - name: cloud-config
           secret:
             secretName: {{ include "proxmox-csi-plugin.fullname" . }}
+        {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
         {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
