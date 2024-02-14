@@ -9,10 +9,12 @@ options:
       Type:
         - feat
         - fix
+        - chore
   commit_groups:
     title_maps:
       feat: Features
       fix: Bug Fixes
+      chore: Miscellaneous
   header:
     pattern: "^(\\w*)(?:\\(([\\w\\$\\.\\-\\*\\s]*)\\))?\\:\\s(.*)$"
     pattern_maps:
