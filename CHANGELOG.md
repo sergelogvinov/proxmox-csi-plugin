@@ -1,5 +1,14 @@
-
 <a name="v0.4.1"></a>
+## [0.5.0](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.4.1...v0.5.0) (2024-02-14)
+
+
+### Features
+
+* **chart:** add support to mount a custom CA ([9b94627](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/9b94627a9fb793b679b834efcf5ce84c36e2cd39))
+* raw block device ([1be660b](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/1be660bf3014fa3e1d40251561a67b76d1e9cf98))
+* use readonly root ([ca00846](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/ca00846bb87c8f0e9a35c2ab7a6f2ceadb14bcf2))
+* use release please tool ([39c4b22](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/39c4b223f64351c2c2e8685d55091ffe7d58a7ce))
+
 ## [v0.4.1](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.4.0...v0.4.1) (2024-01-01)
 
 Welcome to the v0.4.1 release of Proxmox CSI Plugin!
