@@ -27,14 +27,18 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/csi"
+	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/tools"
 
+	clientkubernetes "k8s.io/client-go/kubernetes"
 	"k8s.io/klog/v2"
 )
 
 var (
 	showVersion = flag.Bool("version", false, "Print the version and exit.")
 	csiEndpoint = flag.String("csi-address", "unix:///csi/csi.sock", "CSI Endpoint")
+
 	cloudconfig = flag.String("cloud-config", "", "The path to the CSI driver cloud config.")
+	kubeconfig  = flag.String("kubeconfig", "", "Absolute path to the kubeconfig file. Either this or master needs to be set if the provisioner is being run out of cluster.")
 
 	version string
 )
@@ -60,6 +64,16 @@ func main() {
 		klog.Fatalln("cloud-config must be provided")
 	}
 
+	kconfig, _, err := tools.BuildConfig(*kubeconfig, "")
+	if err != nil {
+		klog.Fatalf("failed to create kubernetes config: %v", err)
+	}
+
+	clientset, err := clientkubernetes.NewForConfig(kconfig)
+	if err != nil {
+		klog.Fatalf("failed to create kubernetes client: %v", err)
+	}
+
 	scheme, addr, err := csi.ParseEndpoint(*csiEndpoint)
 	if err != nil {
 		klog.Fatalf("Failed to parse endpoint: %v", err)
@@ -70,7 +84,7 @@ func main() {
 		klog.Fatalf("Failed to listen on %s: %v", *csiEndpoint, err)
 	}
 
-	logErr := func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+	logErr := func(ctx context.Context, req interface{}, _ *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 		resp, rpcerr := handler(ctx, req)
 		if rpcerr != nil {
 			klog.Errorf("GRPC error: %v", rpcerr)
@@ -87,7 +101,7 @@ func main() {
 
 	identityService := csi.NewIdentityService()
 
-	controllerService, err := csi.NewControllerService(*cloudconfig)
+	controllerService, err := csi.NewControllerService(clientset, *cloudconfig)
 	if err != nil {
 		klog.Fatalf("Failed to create controller service: %v", err)
 	}

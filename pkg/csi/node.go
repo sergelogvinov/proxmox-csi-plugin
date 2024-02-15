@@ -526,15 +526,8 @@ func (n *NodeService) NodeGetInfo(ctx context.Context, request *csi.NodeGetInfoR
 		return nil, fmt.Errorf("failed to get zone for node %s", n.nodeID)
 	}
 
-	nodeID := n.nodeID
-
-	// nodeID := node.Spec.ProviderID
-	// if nodeID == "" {
-	// 	nodeID = n.nodeID
-	// }
-
 	return &csi.NodeGetInfoResponse{
-		NodeId:            nodeID,
+		NodeId:            n.nodeID,
 		MaxVolumesPerNode: MaxVolumesPerNode,
 		AccessibleTopology: &csi.Topology{
 			Segments: map[string]string{
