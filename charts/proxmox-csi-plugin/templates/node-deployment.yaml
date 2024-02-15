@@ -41,7 +41,6 @@ spec:
               - SYS_ADMIN
               - CHOWN
               - DAC_OVERRIDE
-            readOnlyRootFilesystem: true
             seccompProfile:
               type: RuntimeDefault
           image: "{{ .Values.node.plugin.image.repository }}:{{ .Values.node.plugin.image.tag | default .Chart.AppVersion }}"
