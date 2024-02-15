@@ -20,6 +20,9 @@ import (
 	"context"
 	"fmt"
 
+	provider "github.com/sergelogvinov/proxmox-cloud-controller-manager/pkg/provider"
+
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	clientkubernetes "k8s.io/client-go/kubernetes"
@@ -83,4 +86,16 @@ func UncondonNodes(ctx context.Context, kclient *clientkubernetes.Clientset, nod
 	}
 
 	return nil
+}
+
+// ProxmoxVMID returns the Proxmox VM ID from the specified kubernetes node name.
+func ProxmoxVMID(ctx context.Context, kclient clientkubernetes.Interface, nodeName string) (int, string, error) {
+	node, err := kclient.CoreV1().Nodes().Get(ctx, nodeName, metav1.GetOptions{})
+	if err != nil {
+		return 0, "", fmt.Errorf("failed to get node: %v", err)
+	}
+
+	vmID, err := provider.GetVMID(node.Spec.ProviderID)
+
+	return vmID, node.Labels[corev1.LabelTopologyZone], err
 }

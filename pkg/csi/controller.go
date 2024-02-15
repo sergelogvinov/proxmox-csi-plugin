@@ -30,9 +30,11 @@ import (
 	"google.golang.org/grpc/status"
 
 	proxmox "github.com/sergelogvinov/proxmox-cloud-controller-manager/pkg/cluster"
+	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/tools"
 	volume "github.com/sergelogvinov/proxmox-csi-plugin/pkg/volume"
 
 	corev1 "k8s.io/api/core/v1"
+	clientkubernetes "k8s.io/client-go/kubernetes"
 	"k8s.io/cloud-provider-openstack/pkg/util"
 	"k8s.io/klog/v2"
 )
@@ -55,12 +57,13 @@ var controllerCaps = []csi.ControllerServiceCapability_RPC_Type{
 // ControllerService is the controller service for the CSI driver
 type ControllerService struct {
 	Cluster *proxmox.Cluster
+	Kclient clientkubernetes.Interface
 
 	volumeLocks sync.Mutex
 }
 
 // NewControllerService returns a new controller service
-func NewControllerService(cloudConfig string) (*ControllerService, error) {
+func NewControllerService(kclient *clientkubernetes.Clientset, cloudConfig string) (*ControllerService, error) {
 	cfg, err := proxmox.ReadCloudConfigFromFile(cloudConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read config: %v", err)
@@ -73,6 +76,7 @@ func NewControllerService(cloudConfig string) (*ControllerService, error) {
 
 	return &ControllerService{
 		Cluster: cluster,
+		Kclient: kclient,
 	}, nil
 }
 
@@ -288,7 +292,7 @@ func (d *ControllerService) ControllerGetCapabilities(_ context.Context, request
 }
 
 // ControllerPublishVolume publish a volume
-func (d *ControllerService) ControllerPublishVolume(_ context.Context, request *csi.ControllerPublishVolumeRequest) (*csi.ControllerPublishVolumeResponse, error) {
+func (d *ControllerService) ControllerPublishVolume(ctx context.Context, request *csi.ControllerPublishVolumeRequest) (*csi.ControllerPublishVolumeResponse, error) {
 	klog.V(4).Infof("ControllerPublishVolume: called with args %+v", protosanitizer.StripSecrets(*request))
 
 	volumeID := request.GetVolumeId()
@@ -322,14 +326,25 @@ func (d *ControllerService) ControllerPublishVolume(_ context.Context, request *
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
-	vm, err := cl.GetVmRefByName(nodeID)
-	if err != nil {
-		klog.Errorf("failed to get vm ref by name: %v", err)
+	var vmr *pxapi.VmRef
 
-		return nil, status.Error(codes.Internal, err.Error())
+	vmrid, zone, err := tools.ProxmoxVMID(ctx, d.Kclient, nodeID)
+	if err != nil {
+		klog.Warningf("failed to get proxmox vmid from ProviderID: %v", err)
+
+		vmr, err = cl.GetVmRefByName(nodeID)
+		if err != nil {
+			klog.Errorf("failed to get vm ref by name: %v", err)
+
+			return nil, status.Error(codes.Internal, err.Error())
+		}
+	} else {
+		vmr = pxapi.NewVmRef(vmrid)
+		vmr.SetNode(zone)
+		vmr.SetVmType("qemu")
 	}
 
-	// if vm.Node() != vol.Node() {
+	// if vmr.Node() != vol.Node() {
 	// 	return nil, status.Error(codes.InvalidArgument, fmt.Sprintf("volume %s does not exist on the node %s", volumeID, nodeID))
 	// }
 
@@ -387,7 +402,7 @@ func (d *ControllerService) ControllerPublishVolume(_ context.Context, request *
 	d.volumeLocks.Lock()
 	defer d.volumeLocks.Unlock()
 
-	pvInfo, err := attachVolume(cl, vm, vol.Storage(), vol.Disk(), options)
+	pvInfo, err := attachVolume(cl, vmr, vol.Storage(), vol.Disk(), options)
 	if err != nil {
 		klog.Errorf("failed to attach volume: %v", err)
 
@@ -398,7 +413,7 @@ func (d *ControllerService) ControllerPublishVolume(_ context.Context, request *
 }
 
 // ControllerUnpublishVolume unpublish a volume
-func (d *ControllerService) ControllerUnpublishVolume(_ context.Context, request *csi.ControllerUnpublishVolumeRequest) (*csi.ControllerUnpublishVolumeResponse, error) {
+func (d *ControllerService) ControllerUnpublishVolume(ctx context.Context, request *csi.ControllerUnpublishVolumeRequest) (*csi.ControllerUnpublishVolumeResponse, error) {
 	klog.V(4).Infof("ControllerUnpublishVolume: called with args %+v", protosanitizer.StripSecrets(*request))
 
 	volumeID := request.GetVolumeId()
@@ -423,14 +438,25 @@ func (d *ControllerService) ControllerUnpublishVolume(_ context.Context, request
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
-	vm, err := cl.GetVmRefByName(nodeID)
-	if err != nil {
-		klog.Errorf("failed to get vm ref by name: %v", err)
+	var vmr *pxapi.VmRef
 
-		return nil, status.Error(codes.Internal, err.Error())
+	vmrid, zone, err := tools.ProxmoxVMID(ctx, d.Kclient, nodeID)
+	if err != nil {
+		klog.Warningf("failed to get proxmox vmid from ProviderID: %v", err)
+
+		vmr, err = cl.GetVmRefByName(nodeID)
+		if err != nil {
+			klog.Errorf("failed to get vm ref by name: %v", err)
+
+			return nil, status.Error(codes.Internal, err.Error())
+		}
+	} else {
+		vmr = pxapi.NewVmRef(vmrid)
+		vmr.SetNode(zone)
+		vmr.SetVmType("qemu")
 	}
 
-	if err := detachVolume(cl, vm, vol.Disk()); err != nil {
+	if err := detachVolume(cl, vmr, vol.Disk()); err != nil {
 		klog.Errorf("failed to detachVolume: %v", err)
 
 		return nil, status.Error(codes.Internal, err.Error())

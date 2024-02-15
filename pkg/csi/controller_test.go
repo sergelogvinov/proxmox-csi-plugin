@@ -34,6 +34,9 @@ import (
 	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/csi"
 
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	clientkubernetes "k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/kubernetes/fake"
 )
 
 var _ proto.ControllerServer = (*csi.ControllerService)(nil)
@@ -63,7 +66,7 @@ clusters:
 	}
 
 	httpmock.RegisterResponder("GET", "https://127.0.0.1:8006/api2/json/cluster/resources",
-		func(req *http.Request) (*http.Response, error) {
+		func(_ *http.Request) (*http.Response, error) {
 			return httpmock.NewJsonResponse(200, map[string]interface{}{
 				"data": []interface{}{
 					map[string]interface{}{
@@ -88,7 +91,7 @@ clusters:
 	)
 
 	httpmock.RegisterResponder("GET", "https://127.0.0.2:8006/api2/json/cluster/resources",
-		func(req *http.Request) (*http.Response, error) {
+		func(_ *http.Request) (*http.Response, error) {
 			return httpmock.NewJsonResponse(200, map[string]interface{}{
 				"data": []interface{}{
 					map[string]interface{}{
@@ -105,7 +108,7 @@ clusters:
 	)
 
 	httpmock.RegisterResponder("GET", "https://127.0.0.1:8006/api2/json/nodes",
-		func(req *http.Request) (*http.Response, error) {
+		func(_ *http.Request) (*http.Response, error) {
 			return httpmock.NewJsonResponse(200, map[string]interface{}{
 				"data": []interface{}{
 					map[string]interface{}{
@@ -122,7 +125,7 @@ clusters:
 	)
 
 	httpmock.RegisterResponder("GET", "https://127.0.0.1:8006/api2/json/nodes/pve-1/qemu/100/config",
-		func(req *http.Request) (*http.Response, error) {
+		func(_ *http.Request) (*http.Response, error) {
 			return httpmock.NewJsonResponse(200, map[string]interface{}{
 				"data": map[string]interface{}{
 					"vmid":  100,
@@ -134,7 +137,7 @@ clusters:
 	)
 
 	httpmock.RegisterResponder("GET", "https://127.0.0.1:8006/api2/json/nodes/pve-2/qemu/101/config",
-		func(req *http.Request) (*http.Response, error) {
+		func(_ *http.Request) (*http.Response, error) {
 			return httpmock.NewJsonResponse(200, map[string]interface{}{
 				"data": map[string]interface{}{
 					"vmid":  101,
@@ -146,20 +149,31 @@ clusters:
 		},
 	)
 
+	httpmock.RegisterResponder("GET", "https://127.0.0.1:8006/api2/json/nodes/cluster-1-node-2/qemu/101/config",
+		func(_ *http.Request) (*http.Response, error) {
+			return httpmock.NewJsonResponse(200, map[string]interface{}{
+				"data": map[string]interface{}{
+					"vmid":  101,
+					"scsi0": "local-lvm:vm-101-disk-0,size=10G",
+				},
+			})
+		},
+	)
+
 	httpmock.RegisterResponder("PUT", "https://127.0.0.1:8006/api2/json/nodes/pve-1/qemu/100/resize",
-		func(req *http.Request) (*http.Response, error) {
+		func(_ *http.Request) (*http.Response, error) {
 			return httpmock.NewJsonResponse(200, map[string]interface{}{})
 		},
 	)
 
 	httpmock.RegisterResponder("GET", "https://127.0.0.1:8006/api2/json/nodes/pve-1/storage/storage/status",
-		func(req *http.Request) (*http.Response, error) {
+		func(_ *http.Request) (*http.Response, error) {
 			return httpmock.NewJsonResponse(200, map[string]interface{}{})
 		},
 	)
 
 	httpmock.RegisterResponder("GET", "https://127.0.0.1:8006/api2/json/storage/local-lvm",
-		func(req *http.Request) (*http.Response, error) {
+		func(_ *http.Request) (*http.Response, error) {
 			return httpmock.NewJsonResponse(200, map[string]interface{}{
 				"data": map[string]interface{}{
 					"shared": 0,
@@ -169,7 +183,7 @@ clusters:
 	)
 
 	httpmock.RegisterResponder("GET", "https://127.0.0.1:8006/api2/json/storage/smb",
-		func(req *http.Request) (*http.Response, error) {
+		func(_ *http.Request) (*http.Response, error) {
 			return httpmock.NewJsonResponse(200, map[string]interface{}{
 				"data": map[string]interface{}{
 					"shared": 1,
@@ -180,7 +194,7 @@ clusters:
 	)
 
 	httpmock.RegisterResponder("GET", "https://127.0.0.1:8006/api2/json/nodes/pve-1/storage/smb/content",
-		func(req *http.Request) (*http.Response, error) {
+		func(_ *http.Request) (*http.Response, error) {
 			return httpmock.NewJsonResponse(200, map[string]interface{}{
 				"data": []interface{}{
 					map[string]interface{}{
@@ -194,7 +208,7 @@ clusters:
 	)
 
 	httpmock.RegisterResponder("POST", "https://127.0.0.1:8006/api2/json/nodes/pve-1/storage/smb/content",
-		func(req *http.Request) (*http.Response, error) {
+		func(_ *http.Request) (*http.Response, error) {
 			return httpmock.NewJsonResponse(200, map[string]interface{}{
 				"data": "smb:vm-9999-volume-id",
 			})
@@ -202,7 +216,7 @@ clusters:
 	)
 
 	httpmock.RegisterResponder("GET", "https://127.0.0.1:8006/api2/json/nodes/pve-1/storage/local-lvm/status",
-		func(req *http.Request) (*http.Response, error) {
+		func(_ *http.Request) (*http.Response, error) {
 			return httpmock.NewJsonResponse(200, map[string]interface{}{
 				"data": map[string]interface{}{
 					"type":  "lvmthin",
@@ -215,7 +229,7 @@ clusters:
 	)
 
 	httpmock.RegisterResponder("GET", "https://127.0.0.1:8006/api2/json/nodes/pve-1/storage/wrong-volume/content",
-		func(req *http.Request) (*http.Response, error) {
+		func(_ *http.Request) (*http.Response, error) {
 			return httpmock.NewJsonResponse(200, map[string]interface{}{
 				"data": []interface{}{},
 			})
@@ -223,7 +237,7 @@ clusters:
 	)
 
 	httpmock.RegisterResponder("GET", "https://127.0.0.1:8006/api2/json/nodes/pve-1/storage/local-lvm/content",
-		func(req *http.Request) (*http.Response, error) {
+		func(_ *http.Request) (*http.Response, error) {
 			return httpmock.NewJsonResponse(200, map[string]interface{}{
 				"data": []interface{}{
 					map[string]interface{}{
@@ -252,7 +266,7 @@ clusters:
 	)
 
 	httpmock.RegisterResponder("POST", "https://127.0.0.1:8006/api2/json/nodes/pve-1/storage/local-lvm/content",
-		func(req *http.Request) (*http.Response, error) {
+		func(_ *http.Request) (*http.Response, error) {
 			return httpmock.NewJsonResponse(200, map[string]interface{}{
 				"data": "local-lvm:vm-9999-pvc-123",
 			})
@@ -260,13 +274,13 @@ clusters:
 	)
 
 	httpmock.RegisterResponder("DELETE", "https://127.0.0.1:8006/api2/json/nodes/pve-1/storage/local-lvm/content/vm-9999-pvc-123",
-		func(req *http.Request) (*http.Response, error) {
+		func(_ *http.Request) (*http.Response, error) {
 			return httpmock.NewJsonResponse(200, map[string]interface{}{})
 		},
 	)
 
 	httpmock.RegisterResponder("DELETE", "https://127.0.0.1:8006/api2/json/nodes/pve-1/storage/local-lvm/content/vm-9999-pvc-error",
-		func(req *http.Request) (*http.Response, error) {
+		func(_ *http.Request) (*http.Response, error) {
 			return httpmock.NewJsonResponse(200, map[string]interface{}{
 				"errors": "fake error delete disk",
 			})
@@ -278,8 +292,28 @@ clusters:
 		ts.T().Fatalf("failed to create proxmox cluster client: %v", err)
 	}
 
+	nodes := &corev1.NodeList{
+		Items: []corev1.Node{
+			{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "Node",
+					APIVersion: "v1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "cluster-1-node-2",
+				},
+				Spec: corev1.NodeSpec{
+					ProviderID: "proxmox://cluster-1/101",
+				},
+			},
+		},
+	}
+
+	kclient := fake.NewSimpleClientset(nodes)
+
 	ts.s = &csi.ControllerService{
 		Cluster: cluster,
+		Kclient: kclient,
 	}
 }
 
@@ -288,12 +322,12 @@ func TestSuiteCCM(t *testing.T) {
 }
 
 func TestNewControllerService(t *testing.T) {
-	service, err := csi.NewControllerService("fake-file")
+	service, err := csi.NewControllerService(&clientkubernetes.Clientset{}, "fake-file")
 	assert.NotNil(t, err)
 	assert.Nil(t, service)
 	assert.Equal(t, "failed to read config: error reading fake-file: open fake-file: no such file or directory", err.Error())
 
-	service, err = csi.NewControllerService("../../hack/testdata/cloud-config.yaml")
+	service, err = csi.NewControllerService(&clientkubernetes.Clientset{}, "../../hack/testdata/cloud-config.yaml")
 	assert.Nil(t, err)
 	assert.NotNil(t, service)
 }

@@ -65,7 +65,7 @@ func run() int {
 		Use:     command,
 		Version: fmt.Sprintf("%s (commit: %s)", version, commit),
 		Short:   "A command-line utility to manipulate PersistentVolume/PersistentVolumeClaim on Proxmox VE",
-		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
 			f := cmd.Flags()
 			loglvl, _ := f.GetString(flagLogLevel) //nolint: errcheck
 
