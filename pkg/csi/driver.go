@@ -44,7 +44,7 @@ const (
 	StorageInodeSizeKey = "inodeSize"
 
 	// MaxVolumesPerNode is the maximum number of volumes that can be attached to a node
-	MaxVolumesPerNode = 16
+	MaxVolumesPerNode = 24
 	// MinVolumeSize is the minimum size of a volume
 	MinVolumeSize = 1 // GB
 	// DefaultVolumeSize is the default size of a volume

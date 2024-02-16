@@ -34,13 +34,14 @@ import (
 )
 
 var (
+	version string
+	commit  string
+
 	showVersion = flag.Bool("version", false, "Print the version and exit.")
 	csiEndpoint = flag.String("csi-address", "unix:///csi/csi.sock", "CSI Endpoint")
 
 	cloudconfig = flag.String("cloud-config", "", "The path to the CSI driver cloud config.")
 	kubeconfig  = flag.String("kubeconfig", "", "Absolute path to the kubeconfig file. Either this or master needs to be set if the provisioner is being run out of cluster.")
-
-	version string
 )
 
 func main() {
@@ -48,7 +49,7 @@ func main() {
 	flag.Set("logtostderr", "true") //nolint: errcheck
 	flag.Parse()
 
-	klog.V(2).Infof("Driver version %v, GitVersion %s", csi.DriverVersion, version)
+	klog.V(2).Infof("Driver version %v, GitVersion %s, GitCommit %s", csi.DriverVersion, version, commit)
 	klog.V(2).Info("Driver CSI Spec version: ", csi.DriverSpecVersion)
 
 	if *showVersion {

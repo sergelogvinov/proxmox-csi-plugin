@@ -22,6 +22,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/siderolabs/go-blockdevice/blockdevice/encryption"
@@ -67,7 +69,8 @@ type NodeService struct {
 	nodeID  string
 	kclient kubernetes.Interface
 
-	Mount mount.IMount
+	Mount       mount.IMount
+	volumeLocks sync.Mutex
 }
 
 // NewNodeService returns a new NodeService
@@ -112,11 +115,14 @@ func (n *NodeService) NodeStageVolume(_ context.Context, request *csi.NodeStageV
 		return nil, status.Error(codes.InvalidArgument, "DevicePath must be provided")
 	}
 
-	m := n.Mount
-
 	if blk := volumeCapability.GetBlock(); blk != nil {
 		return &csi.NodeStageVolumeResponse{}, nil
 	}
+
+	n.volumeLocks.Lock()
+	defer n.volumeLocks.Unlock()
+
+	m := n.Mount
 
 	notMnt, err := m.IsLikelyNotMountPointAttach(stagingTarget)
 	if err != nil {
@@ -221,6 +227,9 @@ func (n *NodeService) NodeUnstageVolume(_ context.Context, request *csi.NodeUnst
 		return &csi.NodeUnstageVolumeResponse{}, nil
 	}
 
+	n.volumeLocks.Lock()
+	defer n.volumeLocks.Unlock()
+
 	cmd := exec.New().Command("fstrim", "-v", stagingTargetPath)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		klog.Errorf("NodeUnstageVolume: failed to trim filesystem %s: %v\n", stagingTargetPath, err)
@@ -233,19 +242,28 @@ func (n *NodeService) NodeUnstageVolume(_ context.Context, request *csi.NodeUnst
 		klog.Errorf("NodeUnstageVolume: failed to find mount file system %s: %v", stagingTargetPath, err)
 	}
 
-	if err := n.Mount.UnmountPath(stagingTargetPath); err != nil {
+	if err = n.Mount.UnmountPath(stagingTargetPath); err != nil {
 		klog.Errorf("NodeUnstageVolume: failed to unmount targetPath %s, error: %v", stagingTargetPath, err)
 
 		return nil, status.Errorf(codes.Internal, "Unmount of targetPath %s failed with error %v", stagingTargetPath, err)
 	}
 
+	// wait fsync to complete
+	time.Sleep(3 * time.Second)
+
 	devicePath := strings.TrimSpace(string(sourcePath))
 	if strings.HasPrefix(devicePath, "/dev/mapper/") {
 		l := luks.New(luks.AESXTSPlain64Cipher)
-		if err := l.Close(devicePath); err != nil {
+		if err = l.Close(devicePath); err != nil {
 			klog.Errorf("NodeUnstageVolume: failed to close encrypted device %s, error: %v", devicePath, err)
 
 			return nil, status.Errorf(codes.Internal, "Close encrypted device %s failed with error %v", devicePath, err)
+		}
+	} else {
+		deviceName := filepath.Base(devicePath)
+
+		if err = os.WriteFile(fmt.Sprintf("/sys/block/%s/device/state", deviceName), []byte("offline"), 0644); err != nil { //nolint:gofumpt
+			klog.Warningf("NodeUnstageVolume: failed to offline device %s, error: %v, ignored", devicePath, err)
 		}
 	}
 
