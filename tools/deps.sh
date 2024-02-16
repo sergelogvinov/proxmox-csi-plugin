@@ -79,6 +79,11 @@ copy_deps /sbin/cryptsetup
 ARCH=$(uname -m)
 mkdir -p ${DEST}/lib/${ARCH}-linux-gnu && cp /lib/${ARCH}-linux-gnu/libgcc_s.so.* ${DEST}/lib/${ARCH}-linux-gnu/
 
+# hack for fsck https://github.com/sergelogvinov/proxmox-csi-plugin/issues/59
+copy_deps /bin/true
+rm -f ${DEST}/sbin/fsck.xfs
+ln -s /bin/true ${DEST}/sbin/fsck.xfs
+
 # This utils are using by
 # go mod k8s.io/cloud-provider-openstack/pkg/util/mount
 copy_deps /bin/udevadm
