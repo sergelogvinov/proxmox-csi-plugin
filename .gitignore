@@ -26,6 +26,7 @@ go.work
 /charts/proxmox-csi-plugin/values.*.yaml
 /hack/cloud-config.yaml
 /hack/kubeconfig
+/hack/kubeconfig*
 kubeconfig
 .cache/
 /log

@@ -40,3 +40,38 @@ jobs:
       - name: Sign images
         timeout-minutes: 4
         run: make images-cosign
+
+  build-publish-cli:
+    name: "Publish cli tool"
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Unshallow
+        run: git fetch --prune --unshallow
+
+      - name: Set up go
+        timeout-minutes: 5
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+
+      - name: Generate token
+        uses: actions/create-github-app-token@f4c6bf6752984b3a29fcc135a5e70eb792c40c6b # v1.8.0
+        id: token
+        with:
+          app-id: "${{ secrets.BOT_APP_ID }}"
+          private-key: "${{ secrets.BOT_APP_PRIVATE_KEY }}"
+          owner: "${{ github.repository_owner }}"
+          repositories: homebrew-pvecsictl
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v5
+        with:
+          version: latest
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HOMEBREW_PAT: ${{ steps.token.outputs.token }}

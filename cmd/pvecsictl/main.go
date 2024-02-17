@@ -30,7 +30,7 @@ import (
 )
 
 var (
-	command = "pvecsi-mutate"
+	command = "pvecsictl"
 	version = "v0.0.0"
 	commit  = "none"
 

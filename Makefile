@@ -56,16 +56,16 @@ build-all-archs:
 clean: ## Clean
 	rm -rf bin .cache
 
-build-pvecsi-mutate:
+build-pvecsictl:
 	CGO_ENABLED=0 GOOS=$(OS) GOARCH=$(ARCH) go build $(GO_LDFLAGS) \
-		-o bin/pvecsi-mutate-$(ARCH) ./cmd/pvecsi-mutate
+		-o bin/pvecsictl-$(ARCH) ./cmd/pvecsictl
 
 build-%:
 	CGO_ENABLED=0 GOOS=$(OS) GOARCH=$(ARCH) go build $(GO_LDFLAGS) \
 		-o bin/proxmox-csi-$*-$(ARCH) ./cmd/$*
 
 .PHONY: build
-build: build-controller build-node build-pvecsi-mutate ## Build
+build: build-controller build-node build-pvecsictl ## Build
 
 .PHONY: run
 run: build-controller ## Run
@@ -144,13 +144,13 @@ image-%:
 images-checks: images image-tools-check
 	trivy image --exit-code 1 --ignore-unfixed --severity HIGH,CRITICAL --no-progress $(OCIREPO)/proxmox-csi-controller:$(TAG)
 	trivy image --exit-code 1 --ignore-unfixed --severity HIGH,CRITICAL --no-progress $(OCIREPO)/proxmox-csi-node:$(TAG)
-	trivy image --exit-code 1 --ignore-unfixed --severity HIGH,CRITICAL --no-progress $(OCIREPO)/pvecsi-mutate:$(TAG)
+	trivy image --exit-code 1 --ignore-unfixed --severity HIGH,CRITICAL --no-progress $(OCIREPO)/pvecsictl:$(TAG)
 
 .PHONY: images-cosign
 images-cosign:
 	@cosign sign --yes $(COSING_ARGS) --recursive $(OCIREPO)/proxmox-csi-controller:$(TAG)
 	@cosign sign --yes $(COSING_ARGS) --recursive $(OCIREPO)/proxmox-csi-node:$(TAG)
-	@cosign sign --yes $(COSING_ARGS) --recursive $(OCIREPO)/pvecsi-mutate:$(TAG)
+	@cosign sign --yes $(COSING_ARGS) --recursive $(OCIREPO)/pvecsictl:$(TAG)
 
 .PHONY: images
-images: image-proxmox-csi-controller image-proxmox-csi-node image-pvecsi-mutate ## Build images
+images: image-proxmox-csi-controller image-proxmox-csi-node image-pvecsictl ## Build images
