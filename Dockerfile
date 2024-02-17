@@ -80,24 +80,24 @@ ENTRYPOINT ["/bin/proxmox-csi-node"]
 
 ########################################
 
-FROM alpine:3.18 AS pvecsi-mutate
+FROM alpine:3.19 AS pvecsictl
 LABEL org.opencontainers.image.source="https://github.com/sergelogvinov/proxmox-csi-plugin" \
       org.opencontainers.image.licenses="Apache-2.0" \
       org.opencontainers.image.description="Proxmox VE CSI tools"
 
 ARG TARGETARCH
-COPY --from=builder /src/bin/pvecsi-mutate-${TARGETARCH} /bin/pvecsi-mutate
+COPY --from=builder /src/bin/pvecsictl-${TARGETARCH} /bin/pvecsictl
 
-ENTRYPOINT ["/bin/pvecsi-mutate"]
+ENTRYPOINT ["/bin/pvecsictl"]
 
 ########################################
 
-FROM alpine:3.18 AS pvecsi-mutate-goreleaser
+FROM alpine:3.19 AS pvecsictl-goreleaser
 LABEL org.opencontainers.image.source="https://github.com/sergelogvinov/proxmox-csi-plugin" \
       org.opencontainers.image.licenses="Apache-2.0" \
       org.opencontainers.image.description="Proxmox VE CSI tools"
 
 ARG TARGETARCH
-COPY pvecsi-mutate-linux-${TARGETARCH} /bin/pvecsi-mutate
+COPY pvecsictl-linux-${TARGETARCH} /bin/pvecsictl
 
-ENTRYPOINT ["/bin/pvecsi-mutate"]
+ENTRYPOINT ["/bin/pvecsictl"]

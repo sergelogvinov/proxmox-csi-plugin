@@ -30,7 +30,7 @@ jobs:
           go-version-file: 'go.mod'
 
       - name: Lint
-        uses: golangci/golangci-lint-action@v3
+        uses: golangci/golangci-lint-action@v4
         with:
           version: v1.55.2
           args: --config=.golangci.yml

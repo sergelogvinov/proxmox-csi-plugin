@@ -1,14 +1,13 @@
-project_name: pvecsi-mutate
+project_name: pvecsictl
 
 before:
   hooks:
     - go mod download
-    - make release-update
 
 dist: bin
 builds:
-  - dir: cmd/pvecsi-mutate
-    binary: pvecsi-mutate-{{ .Os }}-{{ .Arch }}
+  - dir: cmd/pvecsictl
+    binary: pvecsictl-{{ .Os }}-{{ .Arch }}
     no_unique_dist_dir: true
     env:
       - CGO_ENABLED=0
@@ -19,33 +18,58 @@ builds:
       - amd64
       - arm64
 
+archives:
+  - format: binary
+    name_template: "{{ .Binary }}"
+
 checksum:
   name_template: "checksums.txt"
 
 snapshot:
   name_template: edge
 
-dockers:
-  - use: buildx
-    image_templates:
-      - ghcr.io/sergelogvinov/pvecsi-mutate:{{ .Version }}-amd64
-    goos: linux
-    goarch: amd64
-    build_flag_templates:
-      - "--label=org.opencontainers.image.version={{.Version}}"
-      - "--target=pvecsi-mutate-goreleaser"
-      - "--platform=linux/amd64"
-  - use: buildx
-    image_templates:
-      - ghcr.io/sergelogvinov/pvecsi-mutate:{{ .Version }}-arm64
-    goos: linux
-    goarch: arm64
-    build_flag_templates:
-      - "--label=org.opencontainers.image.version={{.Version}}"
-      - "--target=pvecsi-mutate-goreleaser"
-      - "--platform=linux/arm64"
-docker_manifests:
-  - name_template: ghcr.io/sergelogvinov/{{ .ProjectName }}:{{ .Version }}
-    image_templates:
-      - ghcr.io/sergelogvinov/{{ .ProjectName }}:{{ .Version }}-amd64
-      - ghcr.io/sergelogvinov/{{ .ProjectName }}:{{ .Version }}-arm64
+# dockers:
+#   - use: buildx
+#     image_templates:
+#       - ghcr.io/sergelogvinov/pvecsictl:{{ .Version }}-amd64
+#     goos: linux
+#     goarch: amd64
+#     build_flag_templates:
+#       - "--label=org.opencontainers.image.version={{.Version}}"
+#       - "--target=pvecsictl-goreleaser"
+#       - "--platform=linux/amd64"
+#   - use: buildx
+#     image_templates:
+#       - ghcr.io/sergelogvinov/pvecsictl:{{ .Version }}-arm64
+#     goos: linux
+#     goarch: arm64
+#     build_flag_templates:
+#       - "--label=org.opencontainers.image.version={{.Version}}"
+#       - "--target=pvecsictl-goreleaser"
+#       - "--platform=linux/arm64"
+# docker_manifests:
+#   - name_template: ghcr.io/sergelogvinov/{{ .ProjectName }}:{{ .Version }}
+#     image_templates:
+#       - ghcr.io/sergelogvinov/{{ .ProjectName }}:{{ .Version }}-amd64
+#       - ghcr.io/sergelogvinov/{{ .ProjectName }}:{{ .Version }}-arm64
+
+brews:
+  - name: pvecsictl
+    folder: Formula
+    homepage: https://github.com/sergelogvinov/proxmox-csi-plugin
+    description: "Proxmox VE CSI Mutate tool"
+    license: Apache-2.0
+
+    commit_author:
+      name: sergelogvinov
+      email: 5407715+sergelogvinov@users.noreply.github.com
+    repository:
+      owner: sergelogvinov
+      name: homebrew-pvecsictl
+      branch: main
+      token: "{{ .Env.HOMEBREW_PAT }}"
+
+    test: |
+      system "#{bin}/pvecsictl -v"
+    install: |
+      bin.install "{{ .Binary }}" => "pvecsictl"
