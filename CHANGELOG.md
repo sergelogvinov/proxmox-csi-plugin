@@ -1,4 +1,29 @@
 
+## [v0.5.0](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.4.1...v0.5.0) (2024-02-20)
+
+Welcome to the v0.5.0 release of Proxmox CSI Plugin!
+
+### Bug Fixes
+
+- add delay before unattach device (ff575d1)
+- release please (ffad744)
+- **chart:** detect safe mounted behavior (5580695)
+
+### Features
+
+- prefer providerID (7dcde72)
+- pv/pvc cli helper (d97bc32)
+- use release please tool (39c4b22)
+- use readonly root (ca00846)
+- raw block device (1be660b)
+- **chart:** add support to mount a custom CA (9b94627)
+
+### Miscellaneous
+
+- release v0.5.0 (be05e11)
+- bump deps (ac4ddd0)
+
+
 ## [v0.4.1](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.4.0...v0.4.1) (2024-01-01)
 
 Welcome to the v0.4.1 release of Proxmox CSI Plugin!
