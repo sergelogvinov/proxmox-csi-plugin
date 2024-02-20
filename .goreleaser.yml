@@ -65,9 +65,9 @@ brews:
       email: 5407715+sergelogvinov@users.noreply.github.com
     repository:
       owner: sergelogvinov
-      name: homebrew-pvecsictl
+      name: homebrew-tap
       branch: main
-      token: "{{ .Env.HOMEBREW_PAT }}"
+      token: "{{ .Env.HOMEBREW_TOKEN }}"
 
     test: |
       system "#{bin}/pvecsictl -v"
