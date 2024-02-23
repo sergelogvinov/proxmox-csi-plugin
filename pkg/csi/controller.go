@@ -50,6 +50,7 @@ var controllerCaps = []csi.ControllerServiceCapability_RPC_Type{
 	csi.ControllerServiceCapability_RPC_PUBLISH_UNPUBLISH_VOLUME,
 	csi.ControllerServiceCapability_RPC_GET_CAPACITY,
 	csi.ControllerServiceCapability_RPC_EXPAND_VOLUME,
+	csi.ControllerServiceCapability_RPC_LIST_VOLUMES_PUBLISHED_NODES,
 	csi.ControllerServiceCapability_RPC_GET_VOLUME,
 	csi.ControllerServiceCapability_RPC_SINGLE_NODE_MULTI_WRITER,
 }
@@ -594,7 +595,7 @@ func (d *ControllerService) ControllerExpandVolume(_ context.Context, request *c
 	if err != nil {
 		klog.Errorf("failed to check if pvc exists: %v", err)
 
-		return nil, status.Error(codes.NotFound, err.Error())
+		return nil, status.Error(codes.Internal, err.Error())
 	}
 
 	if !exist {
@@ -668,11 +669,49 @@ func (d *ControllerService) ControllerExpandVolume(_ context.Context, request *c
 	return nil, status.Error(codes.Internal, "cannot resize unpublished volumeID")
 }
 
-// ControllerGetVolume get a volume
+// ControllerGetVolume get list nodes where the volume is currently published
 func (d *ControllerService) ControllerGetVolume(_ context.Context, request *csi.ControllerGetVolumeRequest) (*csi.ControllerGetVolumeResponse, error) {
 	klog.V(4).Infof("ControllerGetVolume: called with args %+v", protosanitizer.StripSecrets(*request))
 
-	return nil, status.Error(codes.Unimplemented, "")
+	volumeID := request.GetVolumeId()
+	if volumeID == "" {
+		return nil, status.Error(codes.InvalidArgument, "VolumeID must be provided")
+	}
+
+	vol, err := volume.NewVolumeFromVolumeID(volumeID)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+
+	cl, err := d.Cluster.GetProxmoxCluster(vol.Cluster())
+	if err != nil {
+		klog.Errorf("failed to get proxmox cluster: %v", err)
+
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	volumeSize, err := sizeVolume(cl, vol)
+	if err != nil {
+		klog.Errorf("failed to check if pvc exists: %v", err)
+
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	if volumeSize == 0 {
+		klog.Errorf("volume %s not found", volumeID)
+
+		return nil, status.Errorf(codes.NotFound, "volume %s not found", volumeID)
+	}
+
+	return &csi.ControllerGetVolumeResponse{
+		Volume: &csi.Volume{
+			VolumeId:      volumeID,
+			CapacityBytes: volumeSize,
+		},
+		Status: &csi.ControllerGetVolumeResponse_VolumeStatus{
+			PublishedNodeIds: []string{},
+		},
+	}, nil
 }
 
 // ControllerModifyVolume modify a volume
