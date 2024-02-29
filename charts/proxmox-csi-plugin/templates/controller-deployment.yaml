@@ -35,6 +35,8 @@ spec:
       serviceAccountName: {{ include "proxmox-csi-plugin.serviceAccountName" . }}-controller
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      hostAliases: {{- toYaml .Values.hostAliases | nindent 8 }}
+      initContainers: {{- toYaml .Values.initContainers | nindent 8 }}
       containers:
         - name: {{ include "proxmox-csi-plugin.fullname" . }}-controller
           securityContext:
