@@ -114,6 +114,9 @@ func renamePVC(
 	newPVC.ObjectMeta.UID = ""
 	newPVC.ObjectMeta.ResourceVersion = ""
 	newPVC.Status = corev1.PersistentVolumeClaimStatus{}
+	newPVC.Spec.Resources.Requests = corev1.ResourceList{
+		corev1.ResourceStorage: pvc.Status.Capacity[corev1.ResourceStorage],
+	}
 
 	patch := []byte(`{"spec":{"persistentVolumeReclaimPolicy":"` + corev1.PersistentVolumeReclaimRetain + `"}}`)
 

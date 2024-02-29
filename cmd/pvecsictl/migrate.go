@@ -65,7 +65,7 @@ func setMigrateCmdFlags(cmd *cobra.Command) {
 	flags.StringP("namespace", "n", "", "namespace of the persistentvolumeclaims")
 
 	flags.BoolP("force", "f", false, "force migration even if the persistentvolumeclaims is in use")
-	flags.Int("timeout", 3600, "task timeout in seconds")
+	flags.Int("timeout", 7200, "task timeout in seconds")
 }
 
 // nolint: cyclop, gocyclo
