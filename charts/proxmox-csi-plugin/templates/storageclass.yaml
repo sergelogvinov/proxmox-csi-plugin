@@ -1,14 +1,3 @@
-{{- define "storageClass.parameters" -}}
-csi.storage.k8s.io/fstype: {{ default "ext4" .fstype }}
-storage: {{ .storage | required "Proxmox Storage name must be provided." }}
-{{- with .cache }}
-cache: {{ . }}
-{{- end }}
-{{- if .ssd }}
-ssd: "true"
-{{- end }}
-{{- end }}
-
 {{- range $storage := .Values.storageClass }}
 apiVersion: storage.k8s.io/v1
 kind: StorageClass

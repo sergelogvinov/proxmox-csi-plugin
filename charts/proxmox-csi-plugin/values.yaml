@@ -74,8 +74,12 @@ storageClass: []
   #     csi.storage.k8s.io/node-stage-secret-namespace: "kube-system"
   #     csi.storage.k8s.io/node-expand-secret-name: "proxmox-csi-secret"
   #     csi.storage.k8s.io/node-expand-secret-namespace: "kube-system"
+  #
   #   mountOptions:
   #     - discard
+  #
+  #   # I am not recommending to use this option, but it is possible.
+  #   # You should use region and zone topology keys together.
   #   allowedTopologies:
   #   - matchLabelExpressions:
   #     - key: topology.kubernetes.io/region
@@ -85,6 +89,7 @@ storageClass: []
   #       values:
   #       - pve-1
   #       - pve-3
+
 controller:
   plugin:
     # -- Controller CSI Driver.
@@ -197,6 +202,36 @@ livenessprobe:
     requests:
       cpu: 10m
       memory: 16Mi
+
+# -- Add additional init containers for the CSI controller pods.
+# ref: https://kubernetes.io/docs/concepts/workloads/pods/init-containers/
+initContainers: []
+  # - name: loadbalancer
+  #   restartPolicy: Always
+  #   image: ghcr.io/sergelogvinov/haproxy:2.8.3-alpine3.18
+  #   imagePullPolicy: IfNotPresent
+  #   env:
+  #     - name: SVC
+  #       value: "proxmox.domain.com"
+  #     - name: PORT
+  #       value: "8006"
+  #   securityContext:
+  #     runAsUser: 99
+  #     runAsGroup: 99
+  #   resources:
+  #     limits:
+  #       cpu: 50m
+  #       memory: 64Mi
+  #     requests:
+  #       cpu: 50m
+  #       memory: 32Mi
+
+# -- hostAliases Deployment pod host aliases
+# ref: https://kubernetes.io/docs/tasks/network/customize-hosts-file-for-pods/
+hostAliases: []
+  # - ip: 127.0.0.1
+  #   hostnames:
+  #     - proxmox.domain.com
 
 # -- Annotations for controller pod.
 # ref: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
