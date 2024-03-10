@@ -108,12 +108,14 @@ func (n *NodeService) NodeStageVolume(_ context.Context, request *csi.NodeStageV
 		volumeContext = map[string]string{}
 	}
 
-	devicePath := request.GetPublishContext()["DevicePath"]
-	if len(devicePath) == 0 {
-		klog.Errorf("NodePublishVolume: DevicePath must be provided")
+	devicePath, err := getDevicePath(request.GetPublishContext())
+	if err != nil {
+		klog.Errorf("NodePublishVolume: failed to get device path, error: %v", err)
 
-		return nil, status.Error(codes.InvalidArgument, "DevicePath must be provided")
+		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
+
+	klog.V(4).Infof("NodeStageVolume: mount %s to %s", devicePath, stagingTarget)
 
 	if blk := volumeCapability.GetBlock(); blk != nil {
 		return &csi.NodeStageVolumeResponse{}, nil
