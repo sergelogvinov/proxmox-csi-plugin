@@ -17,6 +17,7 @@ Please use the following checklist:
 
 - [ ] you linked an issue (if applicable)
 - [ ] you included tests (if applicable)
+- [ ] you ran conformance (`make conformance`)
 - [ ] you linted your code (`make lint`)
 - [ ] you linted your code (`make unit`)
 
