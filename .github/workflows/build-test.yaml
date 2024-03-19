@@ -38,7 +38,9 @@ jobs:
         run: make unit
       - name: Build
         timeout-minutes: 10
-        run: make build
+        run: make images
+        env:
+          PLATFORM: linux/amd64
       - name: Check node tools
         timeout-minutes: 5
         run: make image-tools-check
