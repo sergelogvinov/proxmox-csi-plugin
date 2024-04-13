@@ -15,6 +15,14 @@
 * goreleaser ([04a40f4](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/04a40f40ebd6ef8904bdcc083ce028cf87544019))
 * pvc migration ([ddfc362](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/ddfc36229ccdf2fdc29e9fff9e59463f4b2da866))
 
+## [0.6.1](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.6.0...v0.6.1) (2024-04-13)
+
+
+### Bug Fixes
+
+* build release ([facdec5](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/facdec5be4f0335eb489fc600a175e63584953ba))
+* release doc ([215c366](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/215c366b5bb4bc86e7bee43fcf4a228193fcbbbe))
+
 ## [v0.5.0](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.4.1...v0.5.0) (2024-02-20)
 
 Welcome to the v0.5.0 release of Proxmox CSI Plugin!
