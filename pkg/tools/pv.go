@@ -50,14 +50,12 @@ func PVCPodUsage(ctx context.Context, clientset *clientkubernetes.Clientset, nam
 	}
 
 	for _, pod := range podList.Items {
-		if pod.Status.Phase == corev1.PodRunning {
-			for _, volume := range pod.Spec.Volumes {
-				if volume.PersistentVolumeClaim != nil && volume.PersistentVolumeClaim.ClaimName == pvcName {
-					pods = append(pods, pod.Name)
-					node = pod.Spec.NodeName
+		for _, volume := range pod.Spec.Volumes {
+			if volume.PersistentVolumeClaim != nil && volume.PersistentVolumeClaim.ClaimName == pvcName {
+				pods = append(pods, pod.Name)
+				node = pod.Spec.NodeName
 
-					break
-				}
+				break
 			}
 		}
 	}

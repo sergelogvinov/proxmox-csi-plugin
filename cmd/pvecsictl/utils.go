@@ -45,6 +45,9 @@ func replacePVTopology(
 	delete(newPVC.ObjectMeta.Annotations, csi.DriverName+"/migrate")
 	delete(newPVC.ObjectMeta.Annotations, csi.DriverName+"/migrate-node")
 	newPVC.Status = corev1.PersistentVolumeClaimStatus{}
+	newPVC.Spec.Resources.Requests = corev1.ResourceList{
+		corev1.ResourceStorage: pvc.Status.Capacity[corev1.ResourceStorage],
+	}
 
 	newPV := pv.DeepCopy()
 	newPV.ObjectMeta.UID = ""
