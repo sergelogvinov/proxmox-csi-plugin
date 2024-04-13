@@ -1,3 +1,19 @@
+## [0.6.0](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.5.0...v0.6.0) (2024-04-13)
+
+
+### Features
+
+* **chart:** add initContainers and hostAliases ([769c008](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/769c008bb5cbd2a21303f12171d16df78000473e))
+* **chart:** support setting annotations and labels on storageClasses ([a5f5add](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/a5f5adde7c3d533cae45660da312883b4ed1a24c))
+* remove udev dependency ([1810ec7](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/1810ec71f56a03a462219a58f81c3d24e9fb1714))
+
+
+### Bug Fixes
+
+* cli migration ([41b19bd](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/41b19bdd40db9f84c0d65fe41983e2c2ee0b4977))
+* deps update ([657ad00](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/657ad006c2e93f27ed08966c8e493cfb852a49ee))
+* goreleaser ([04a40f4](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/04a40f40ebd6ef8904bdcc083ce028cf87544019))
+* pvc migration ([ddfc362](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/ddfc36229ccdf2fdc29e9fff9e59463f4b2da866))
 
 ## [v0.5.0](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.4.1...v0.5.0) (2024-02-20)
 
@@ -176,4 +192,3 @@ Welcome to the v0.01 release of Proxmox CSI Plugin!
 ### Miscellaneous
 
 - release v0.0.1 (56b4297)
-
