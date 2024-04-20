@@ -18,11 +18,13 @@ package tools
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
 	clientkubernetes "k8s.io/client-go/kubernetes"
 )
@@ -63,6 +65,31 @@ func PVCPodUsage(ctx context.Context, clientset *clientkubernetes.Clientset, nam
 	}
 
 	return pods, node, nil
+}
+
+// PVCCreateOrUpdate creates or updates the specified PersistentVolumeClaim resource.
+func PVCCreateOrUpdate(
+	ctx context.Context,
+	clientset *clientkubernetes.Clientset,
+	pvc *corev1.PersistentVolumeClaim,
+) (*corev1.PersistentVolumeClaim, error) {
+	res, err := clientset.CoreV1().PersistentVolumeClaims(pvc.Namespace).Create(ctx, pvc, metav1.CreateOptions{})
+	if err != nil {
+		patch := corev1.PersistentVolumeClaim{
+			Spec: corev1.PersistentVolumeClaimSpec{
+				VolumeName: pvc.Spec.VolumeName,
+			},
+		}
+
+		patchBytes, err := json.Marshal(&patch)
+		if err != nil {
+			return nil, fmt.Errorf("failed to json.Marshal PVC: %w", err)
+		}
+
+		return clientset.CoreV1().PersistentVolumeClaims(pvc.Namespace).Patch(ctx, pvc.Name, types.MergePatchType, patchBytes, metav1.PatchOptions{})
+	}
+
+	return res, err
 }
 
 // PVWaitDelete waits for the specified PersistentVolume to be deleted.

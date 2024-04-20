@@ -30,6 +30,28 @@ import (
 	clientkubernetes "k8s.io/client-go/kubernetes"
 )
 
+func cordoneNodeWithPVs(
+	ctx context.Context,
+	kclient *clientkubernetes.Clientset,
+	pv *corev1.PersistentVolume,
+) ([]string, error) {
+	var (
+		err      error
+		csiNodes []string
+	)
+
+	csiNodes, err = tools.CSINodes(ctx, kclient, pv.Spec.CSI.Driver)
+	if err != nil {
+		return nil, err
+	}
+
+	if _, err = tools.CondonNodes(ctx, kclient, csiNodes); err != nil {
+		return nil, err
+	}
+
+	return csiNodes, nil
+}
+
 func replacePVTopology(
 	ctx context.Context,
 	clientset *clientkubernetes.Clientset,
@@ -125,25 +147,95 @@ func renamePVC(
 
 	if pv.Spec.PersistentVolumeReclaimPolicy == corev1.PersistentVolumeReclaimDelete {
 		if _, err := clientset.CoreV1().PersistentVolumes().Patch(ctx, pvc.Spec.VolumeName, types.MergePatchType, patch, metav1.PatchOptions{}); err != nil {
-			return fmt.Errorf("failed to patch PersistentVolumes: %v", err)
+			return fmt.Errorf("failed to patch PersistentVolume: %v", err)
 		}
 	}
 
 	policy := metav1.DeletePropagationForeground
 	if err := clientset.CoreV1().PersistentVolumeClaims(namespace).Delete(ctx, pvc.Name, metav1.DeleteOptions{PropagationPolicy: &policy}); err != nil {
-		return fmt.Errorf("failed to delete PersistentVolumeClaims: %v", err)
+		return fmt.Errorf("failed to delete PersistentVolumeClaim: %v", err)
 	}
 
 	patch = []byte(`{"spec":{"claimRef":null}}`)
 
 	if _, err := clientset.CoreV1().PersistentVolumes().Patch(ctx, pvc.Spec.VolumeName, types.MergePatchType, patch, metav1.PatchOptions{}); err != nil {
-		return fmt.Errorf("failed to patch PersistentVolumes: %v", err)
+		return fmt.Errorf("failed to patch PersistentVolume: %v", err)
 	}
 
-	if _, err := clientset.CoreV1().PersistentVolumeClaims(namespace).Create(ctx, newPVC, metav1.CreateOptions{}); err != nil {
-		if _, err := clientset.CoreV1().PersistentVolumeClaims(namespace).Update(ctx, newPVC, metav1.UpdateOptions{}); err != nil {
-			return fmt.Errorf("failed to create/update PersistentVolumeClaims: %v", err)
+	if _, err := tools.PVCCreateOrUpdate(ctx, clientset, newPVC); err != nil {
+		return fmt.Errorf("failed to create/update PersistentVolumeClaim %s: %v", newPVC.Name, err)
+	}
+
+	return nil
+}
+
+func swapPVC(
+	ctx context.Context,
+	clientset *clientkubernetes.Clientset,
+	namespace string,
+	srcPVC *corev1.PersistentVolumeClaim,
+	srcPV *corev1.PersistentVolume,
+	dstPVC *corev1.PersistentVolumeClaim,
+	dstPV *corev1.PersistentVolume,
+) error {
+	newSrcPVC := srcPVC.DeepCopy()
+	newSrcPVC.ObjectMeta.Name = dstPVC.ObjectMeta.Name
+	newSrcPVC.ObjectMeta.UID = ""
+	newSrcPVC.ObjectMeta.ResourceVersion = ""
+	newSrcPVC.Status = corev1.PersistentVolumeClaimStatus{}
+	newSrcPVC.Spec.Resources.Requests = corev1.ResourceList{
+		corev1.ResourceStorage: srcPVC.Status.Capacity[corev1.ResourceStorage],
+	}
+
+	newDstPVC := dstPVC.DeepCopy()
+	newDstPVC.ObjectMeta.Name = srcPVC.ObjectMeta.Name
+	newDstPVC.ObjectMeta.UID = ""
+	newDstPVC.ObjectMeta.ResourceVersion = ""
+	newDstPVC.Status = corev1.PersistentVolumeClaimStatus{}
+	newDstPVC.Spec.Resources.Requests = corev1.ResourceList{
+		corev1.ResourceStorage: dstPVC.Status.Capacity[corev1.ResourceStorage],
+	}
+
+	patch := []byte(`{"spec":{"persistentVolumeReclaimPolicy":"` + corev1.PersistentVolumeReclaimRetain + `"}}`)
+
+	if srcPV.Spec.PersistentVolumeReclaimPolicy == corev1.PersistentVolumeReclaimDelete {
+		if _, err := clientset.CoreV1().PersistentVolumes().Patch(ctx, srcPVC.Spec.VolumeName, types.MergePatchType, patch, metav1.PatchOptions{}); err != nil {
+			return fmt.Errorf("failed to patch PersistentVolume: %v", err)
 		}
+	}
+
+	if dstPV.Spec.PersistentVolumeReclaimPolicy == corev1.PersistentVolumeReclaimDelete {
+		if _, err := clientset.CoreV1().PersistentVolumes().Patch(ctx, dstPVC.Spec.VolumeName, types.MergePatchType, patch, metav1.PatchOptions{}); err != nil {
+			return fmt.Errorf("failed to patch PersistentVolume: %v", err)
+		}
+	}
+
+	policy := metav1.DeletePropagationForeground
+
+	if err := clientset.CoreV1().PersistentVolumeClaims(namespace).Delete(ctx, srcPVC.Name, metav1.DeleteOptions{PropagationPolicy: &policy}); err != nil {
+		return fmt.Errorf("failed to delete PersistentVolumeClaim: %v", err)
+	}
+
+	if err := clientset.CoreV1().PersistentVolumeClaims(namespace).Delete(ctx, dstPVC.Name, metav1.DeleteOptions{PropagationPolicy: &policy}); err != nil {
+		return fmt.Errorf("failed to delete PersistentVolumeClaim: %v", err)
+	}
+
+	patch = []byte(`{"spec":{"claimRef":null}}`)
+
+	if _, err := clientset.CoreV1().PersistentVolumes().Patch(ctx, srcPVC.Spec.VolumeName, types.MergePatchType, patch, metav1.PatchOptions{}); err != nil {
+		return fmt.Errorf("failed to patch PersistentVolume: %v", err)
+	}
+
+	if _, err := clientset.CoreV1().PersistentVolumes().Patch(ctx, dstPVC.Spec.VolumeName, types.MergePatchType, patch, metav1.PatchOptions{}); err != nil {
+		return fmt.Errorf("failed to patch PersistentVolume: %v", err)
+	}
+
+	if _, err := tools.PVCCreateOrUpdate(ctx, clientset, newSrcPVC); err != nil {
+		return fmt.Errorf("failed to create/update PersistentVolumeClaim %s: %v", newSrcPVC.Name, err)
+	}
+
+	if _, err := tools.PVCCreateOrUpdate(ctx, clientset, newDstPVC); err != nil {
+		return fmt.Errorf("failed to create/update PersistentVolumeClaim %s: %v", newDstPVC.Name, err)
 	}
 
 	return nil
