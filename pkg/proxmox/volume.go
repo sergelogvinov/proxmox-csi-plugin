@@ -90,7 +90,7 @@ func MoveQemuDisk(cluster *pxapi.Client, vol *volume.Volume, node string, taskTi
 		return fmt.Errorf("failed to parse response: %v", err)
 	}
 
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		if _, err = cluster.WaitForCompletion(taskResponse); err != nil {
 			time.Sleep(2 * time.Second)
 

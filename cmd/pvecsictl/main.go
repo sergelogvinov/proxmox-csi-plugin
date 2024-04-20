@@ -85,6 +85,7 @@ func run() int {
 
 	cmd.AddCommand(buildMigrateCmd())
 	cmd.AddCommand(buildRenameCmd())
+	cmd.AddCommand(buildSwapCmd())
 
 	err := cmd.ExecuteContext(ctx)
 	if err != nil {

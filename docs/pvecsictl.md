@@ -169,6 +169,53 @@ test-0   0/1     ContainerCreating   0          13s     <none>        kube-store
 test-0   1/1     Running             0          24s     10.32.19.17   kube-store-11   <none>           <none>
 ```
 
+### Swap
+
+Swap PersistentVolumeClaim between two PVCs.
+
+Check the current PVC:
+
+```shell
+# kubectl get pods,pvc
+NAME         READY   STATUS    RESTARTS   AGE
+pod/test-0   1/1     Running   0          2m58s
+pod/test-1   1/1     Running   0          2m58s
+
+NAME                                   STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS   VOLUMEATTRIBUTESCLASS   AGE
+persistentvolumeclaim/storage-test-0   Bound    pvc-e248bc56-dcf4-4145-93b9-a374a7c3b900   10Gi       RWO            proxmox-lvm    <unset>                 2m51s
+persistentvolumeclaim/storage-test-1   Bound    pvc-41b7078d-aa9f-4757-9056-8bd1e8e0697f   15Gi       RWO            proxmox-lvm    <unset>                 2m52s
+```
+
+Swap PVCs:
+
+```shell
+pvecsictl swap -n default storage-test-0 storage-test-1 -f
+
+INFO persistentvolumeclaims is using by pods: test-0 on node builder-03a, trying to force swap
+INFO persistentvolumeclaims is using by pods: test-1 on node builder-04b, trying to force swap
+INFO cordoned nodes: builder-03a,builder-03b,builder-04a,builder-04b
+INFO terminated pods: test-0,test-1
+INFO waiting pods: test-0
+INFO waiting pods: test-0
+INFO persistentvolumeclaims storage-test-0,storage-test-1 has been swapped
+INFO uncordoning nodes: builder-03a,builder-03b,builder-04a,builder-04b
+```
+
+Check the result:
+
+* storage-test-0 <-> storage-test-1
+
+```shell
+# kubectl get pods,pvc
+NAME         READY   STATUS    RESTARTS   AGE
+pod/test-0   1/1     Running   0          19s
+pod/test-1   1/1     Running   0          19s
+
+NAME                                   STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS   VOLUMEATTRIBUTESCLASS   AGE
+persistentvolumeclaim/storage-test-0   Bound    pvc-41b7078d-aa9f-4757-9056-8bd1e8e0697f   15Gi       RWO            proxmox-lvm    <unset>                 13s
+persistentvolumeclaim/storage-test-1   Bound    pvc-e248bc56-dcf4-4145-93b9-a374a7c3b900   10Gi       RWO            proxmox-lvm    <unset>                 13s
+```
+
 # Feedback
 
 Use the [github discussions](https://github.com/sergelogvinov/proxmox-csi-plugin/discussions) for feedback and questions.
