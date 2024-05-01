@@ -21,4 +21,4 @@ jobs:
         run: git fetch --no-tags origin main:main
 
       - name: Conform action
-        uses: talos-systems/conform@v0.1.0-alpha.27
+        uses: talos-systems/conform@v0.1.0-alpha.30
