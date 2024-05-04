@@ -30,10 +30,10 @@ jobs:
           go-version-file: 'go.mod'
 
       - name: Lint
-        uses: golangci/golangci-lint-action@v4
+        uses: golangci/golangci-lint-action@v5
         with:
-          version: v1.56.2
-          args: --config=.golangci.yml
+          version: v1.57.1
+          args: --timeout=5m --config=.golangci.yml
       - name: Unit
         run: make unit
       - name: Build
