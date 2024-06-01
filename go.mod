@@ -7,7 +7,7 @@ require (
 	github.com/container-storage-interface/spec v1.9.0
 	github.com/golang/protobuf v1.5.4
 	github.com/jarcoal/httpmock v1.3.1
-	github.com/kubernetes-csi/csi-lib-utils v0.17.0
+	github.com/kubernetes-csi/csi-lib-utils v0.18.1
 	github.com/sergelogvinov/proxmox-cloud-controller-manager v0.4.2
 	github.com/siderolabs/go-blockdevice v0.4.7
 	github.com/siderolabs/go-retry v0.3.3
@@ -15,9 +15,9 @@ require (
 	github.com/spf13/cobra v1.8.0
 	github.com/stretchr/testify v1.9.0
 	google.golang.org/grpc v1.62.2
-	k8s.io/api v0.29.4
-	k8s.io/apimachinery v0.29.4
-	k8s.io/client-go v0.29.4
+	k8s.io/api v0.30.0
+	k8s.io/apimachinery v0.30.0
+	k8s.io/client-go v0.30.0
 	k8s.io/cloud-provider-openstack v1.29.0
 	k8s.io/klog/v2 v2.120.1
 	k8s.io/mount-utils v0.30.0
