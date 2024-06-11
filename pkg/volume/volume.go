@@ -64,6 +64,11 @@ func (v *Volume) VolumeID() string {
 	return v.region + "/" + v.zone + "/" + v.storage + "/" + v.disk
 }
 
+// VolumeSharedID function returns the shared volume magic string.
+func (v *Volume) VolumeSharedID() string {
+	return v.region + "//" + v.storage + "/" + v.disk
+}
+
 // Region function returns the region in which the volume was created.
 func (v *Volume) Region() string {
 	return v.region

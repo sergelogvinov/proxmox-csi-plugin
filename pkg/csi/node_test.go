@@ -401,12 +401,12 @@ func TestNodeServiceNodeGetCapabilities(t *testing.T) {
 	assert.NotNil(t, resp.GetCapabilities())
 
 	for _, capability := range resp.GetCapabilities() {
-		switch capability.GetRpc().Type { //nolint:exhaustive
+		switch capability.GetRpc().GetType() { //nolint:exhaustive
 		case proto.NodeServiceCapability_RPC_STAGE_UNSTAGE_VOLUME:
 		case proto.NodeServiceCapability_RPC_EXPAND_VOLUME:
 		case proto.NodeServiceCapability_RPC_GET_VOLUME_STATS:
 		default:
-			t.Fatalf("Unknown capability: %v", capability.Type)
+			t.Fatalf("Unknown capability: %v", capability.GetType())
 		}
 	}
 }

@@ -45,8 +45,8 @@ func TestGetPluginInfo(t *testing.T) {
 	assert.Nil(t, err)
 	assert.NotNil(t, resp)
 
-	assert.Equal(t, resp.Name, csi.DriverName)
-	assert.Equal(t, resp.VendorVersion, csi.DriverVersion)
+	assert.Equal(t, resp.GetName(), csi.DriverName)
+	assert.Equal(t, resp.GetVendorVersion(), csi.DriverVersion)
 }
 
 func TestGetPluginCapabilities(t *testing.T) {

@@ -209,8 +209,13 @@ func (d *ControllerService) CreateVolume(_ context.Context, request *csi.CreateV
 		return nil, status.Error(codes.AlreadyExists, "volume already exists with same name and different capacity")
 	}
 
+	volID := vol.VolumeID()
+	if storageConfig["shared"] != nil && int(storageConfig["shared"].(float64)) == 1 {
+		volID = vol.VolumeSharedID()
+	}
+
 	volume := csi.Volume{
-		VolumeId:      vol.VolumeID(),
+		VolumeId:      volID,
 		VolumeContext: params,
 		ContentSource: request.GetVolumeContentSource(),
 		CapacityBytes: int64(volSizeGB * 1024 * 1024 * 1024),
@@ -256,9 +261,12 @@ func (d *ControllerService) DeleteVolume(_ context.Context, request *csi.DeleteV
 		return &csi.DeleteVolumeResponse{}, nil
 	}
 
-	vmr := pxapi.NewVmRef(vmID)
-	vmr.SetNode(vol.Node())
-	vmr.SetVmType("qemu")
+	vmr, err := getVMRefByVolume(cl, vol)
+	if err != nil {
+		klog.Errorf("failed to get vm ref by volume: %s, %v", vol.Disk(), err)
+
+		return nil, status.Error(codes.Internal, err.Error())
+	}
 
 	if _, err := cl.DeleteVolume(vmr, vol.Storage(), vol.Disk()); err != nil {
 		klog.Errorf("failed to delete volume: %s", vol.Disk())
@@ -305,7 +313,7 @@ func (d *ControllerService) ControllerPublishVolume(ctx context.Context, request
 		return nil, status.Error(codes.InvalidArgument, "NodeID must be provided")
 	}
 
-	if request.VolumeCapability == nil {
+	if request.GetVolumeCapability() == nil {
 		return nil, status.Error(codes.InvalidArgument, "VolumeCapability must be provided")
 	}
 
@@ -344,16 +352,18 @@ func (d *ControllerService) ControllerPublishVolume(ctx context.Context, request
 		vmr.SetVmType("qemu")
 	}
 
-	// if vmr.Node() != vol.Node() {
-	// 	return nil, status.Error(codes.InvalidArgument, fmt.Sprintf("volume %s does not exist on the node %s", volumeID, nodeID))
-	// }
+	if vol.Zone() == "" {
+		vol = volume.NewVolume(vol.Region(), vmr.Node(), vol.Storage(), vol.Disk())
+	}
+
+	klog.V(4).Infof("ControllerPublishVolume: vol=%+v vmrid=%+v", vol, vmr)
 
 	options := map[string]string{
 		"backup":   "0",
 		"iothread": "1",
 	}
 
-	if request.Readonly {
+	if request.GetReadonly() {
 		options["ro"] = "1"
 	}
 
@@ -485,8 +495,8 @@ func (d *ControllerService) GetCapacity(_ context.Context, request *csi.GetCapac
 
 	topology := request.GetAccessibleTopology()
 	if topology != nil {
-		region := topology.Segments[corev1.LabelTopologyRegion]
-		zone := topology.Segments[corev1.LabelTopologyZone]
+		region := topology.GetSegments()[corev1.LabelTopologyRegion]
+		zone := topology.GetSegments()[corev1.LabelTopologyZone]
 		storageName := request.GetParameters()[StorageIDKey]
 
 		if region == "" || zone == "" || storageName == "" {
@@ -629,12 +639,16 @@ func (d *ControllerService) ControllerExpandVolume(_ context.Context, request *c
 			continue
 		}
 
-		if vm["node"].(string) == vol.Node() {
+		if vm["node"].(string) == vol.Node() || vol.Node() == "" {
 			vmID := int(vm["vmid"].(float64))
 
 			vmr := pxapi.NewVmRef(vmID)
 			vmr.SetNode(vol.Node())
 			vmr.SetVmType("qemu")
+
+			if vmr.Node() == "" {
+				vmr.SetNode(vm["node"].(string))
+			}
 
 			config, err := cl.GetVmConfig(vmr)
 			if err != nil {
