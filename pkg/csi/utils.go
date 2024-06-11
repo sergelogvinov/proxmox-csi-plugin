@@ -74,10 +74,32 @@ func getNodeWithStorage(cl *pxapi.Client, storageName string) (string, error) {
 	return "", fmt.Errorf("failed to find node with storage %s", storageName)
 }
 
-func getStorageContent(cl *pxapi.Client, vol *volume.Volume) (*storageContent, error) {
-	vmr := pxapi.NewVmRef(vmID)
-	vmr.SetNode(vol.Node())
+func getVMRefByVolume(cl *pxapi.Client, vol *volume.Volume) (vmr *pxapi.VmRef, err error) {
+	vmr = pxapi.NewVmRef(vmID)
 	vmr.SetVmType("qemu")
+
+	node := vol.Node()
+	if node == "" {
+		node, err = getNodeWithStorage(cl, vol.Storage())
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if node == "" {
+		return nil, fmt.Errorf("failed to find node with storage %s", vol.Storage())
+	}
+
+	vmr.SetNode(node)
+
+	return vmr, nil
+}
+
+func getStorageContent(cl *pxapi.Client, vol *volume.Volume) (*storageContent, error) {
+	vmr, err := getVMRefByVolume(cl, vol)
+	if err != nil {
+		return nil, err
+	}
 
 	context, err := cl.GetStorageContent(vmr, vol.Storage())
 	if err != nil {

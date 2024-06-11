@@ -140,8 +140,8 @@ func (n *NodeService) NodeStageVolume(_ context.Context, request *csi.NodeStageV
 		fsType := FSTypeExt4
 
 		if mnt := volumeCapability.GetMount(); mnt != nil {
-			if mnt.FsType != "" {
-				fsType = mnt.FsType
+			if mnt.GetFsType() != "" {
+				fsType = mnt.GetFsType()
 			}
 
 			if volumeContext["ssd"] == "true" {
@@ -361,8 +361,8 @@ func (n *NodeService) NodePublishVolume(_ context.Context, request *csi.NodePubl
 		fsType := "ext4"
 
 		if mnt := volumeCapability.GetMount(); mnt != nil {
-			if mnt.FsType != "" {
-				fsType = mnt.FsType
+			if mnt.GetFsType() != "" {
+				fsType = mnt.GetFsType()
 			}
 		}
 
@@ -407,7 +407,7 @@ func (n *NodeService) NodeGetVolumeStats(_ context.Context, request *csi.NodeGet
 		return nil, status.Error(codes.InvalidArgument, "VolumePath must be provided")
 	}
 
-	exists, err := utilpath.Exists(utilpath.CheckFollowSymlink, request.VolumePath)
+	exists, err := utilpath.Exists(utilpath.CheckFollowSymlink, request.GetVolumePath())
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to check whether volumePath exists: %s", err)
 	}
@@ -561,7 +561,7 @@ func (n *NodeService) NodeGetInfo(ctx context.Context, request *csi.NodeGetInfoR
 func isValidVolumeCapabilities(volCaps []*csi.VolumeCapability) bool {
 	hasSupport := func(reqcap *csi.VolumeCapability) bool {
 		for _, c := range volumeCaps {
-			if c.GetMode() == reqcap.AccessMode.GetMode() {
+			if c.GetMode() == reqcap.GetAccessMode().GetMode() {
 				return true
 			}
 		}

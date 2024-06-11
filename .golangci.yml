@@ -7,7 +7,7 @@ run:
   # concurrency: 4
 
   # timeout for analysis, e.g. 30s, 5m, default is 1m
-  timeout: 10m
+  deadline: 10m
 
   # exit code when at least one issue was found, default is 1
   issues-exit-code: 1
@@ -58,7 +58,7 @@ linters-settings:
     simplify: true
   gocyclo:
     # minimal code complexity to report, 30 by default (but we recommend 10-20)
-    min-complexity: 20
+    min-complexity: 30
   maligned:
     # print struct with more effective memory layout or not, false by default
     suggest-new: true
@@ -125,7 +125,7 @@ linters-settings:
       - prefix(k8s.io) # Groups all imports with the specified Prefix.
   cyclop:
     # the maximal code complexity to report
-    max-complexity: 20
+    max-complexity: 30
   gomoddirectives:
     replace-local: true
     replace-allow-list: []
@@ -138,26 +138,24 @@ linters:
     - depguard
     - errorlint
     - exhaustruct
-    - exhaustivestruct
+    - err113
     - forbidigo
     - forcetypeassert
     - funlen
-    - gas
     - gochecknoglobals
     - gochecknoinits
     - gocognit
     - godox
     - godot
-    - goerr113
     - gomnd
-    - ifshort
+    - gosec
+    - mnd
     - ireturn # we return interfaces
     - maintidx
     - nestif
     - nilnil # we return "nil, nil"
     - nonamedreturns
     - nolintlint
-    - nosnakecase
     - paralleltest
     - promlinter # https://github.com/golangci/golangci-lint/issues/2222
     - tagliatelle # we have many different conventions
@@ -169,21 +167,14 @@ linters:
     - varnamelen # too annoying
     - wrapcheck
     - perfsprint
-    - protogetter
 
     # temporarily disabled linters
     - copyloopvar
+    - intrange
 
     # abandoned linters for which golangci shows the warning that the repo is archived by the owner
-    - golint
-    - interfacer
-    - maligned
-    - scopelint
-    - varcheck
-    - structcheck
-    - deadcode
-    - ifshort
     - perfsprint
+    - execinquery
 
   disable-all: false
   fast: false
