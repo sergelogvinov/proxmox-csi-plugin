@@ -84,7 +84,7 @@ func NewControllerService(kclient *clientkubernetes.Clientset, cloudConfig strin
 //
 //nolint:gocyclo,cyclop
 func (d *ControllerService) CreateVolume(_ context.Context, request *csi.CreateVolumeRequest) (*csi.CreateVolumeResponse, error) {
-	klog.V(4).Infof("CreateVolume: called with args %+v", protosanitizer.StripSecrets(*request))
+	klog.V(4).InfoS("CreateVolume: called", "args", protosanitizer.StripSecrets(*request))
 
 	pvc := request.GetName()
 	if len(pvc) == 0 {
@@ -129,40 +129,41 @@ func (d *ControllerService) CreateVolume(_ context.Context, request *csi.CreateV
 
 	region, zone := locationFromTopologyRequirement(accessibleTopology)
 	if region == "" {
-		klog.Errorf("CreateVolume: region is empty: accessibleTopology=%+v", accessibleTopology)
+		err := status.Error(codes.Internal, "cannot find best region")
+		klog.ErrorS(err, "CreateVolume: region is empty", "accessibleTopology", accessibleTopology)
 
-		return nil, status.Error(codes.Internal, "cannot find best region")
+		return nil, err
 	}
 
 	cl, err := d.Cluster.GetProxmoxCluster(region)
 	if err != nil {
-		klog.Errorf("CreateVolume: failed to get proxmox cluster: %v", err)
+		klog.ErrorS(err, "CreateVolume: failed to get proxmox cluster", "cluster", region)
 
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
 	if zone == "" {
 		if zone, err = getNodeWithStorage(cl, params[StorageIDKey]); err != nil {
-			klog.Errorf("CreateVolume: failed to get node with storage: %v", err)
+			klog.ErrorS(err, "CreateVolume: failed to get node with storage", "cluster", region, "storage", params[StorageIDKey])
 
 			return nil, status.Errorf(codes.Internal, "cannot find best region and zone: %v", err)
 		}
 	}
 
 	if region == "" || zone == "" {
-		klog.Errorf("CreateVolume: region or zone is empty: accessibleTopology=%+v", accessibleTopology)
+		klog.ErrorS(err, "CreateVolume: region or zone is empty", "cluster", region, "accessibleTopology", accessibleTopology)
 
 		return nil, status.Error(codes.Internal, "cannot find best region and zone")
 	}
 
 	storageConfig, err := cl.GetStorageConfig(params[StorageIDKey])
 	if err != nil {
-		klog.Errorf("CreateVolume: failed to get proxmox storage config: %v", err)
+		klog.ErrorS(err, "CreateVolume: failed to get proxmox storage config", "cluster", region, "storageID", params[StorageIDKey])
 
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
-	klog.V(4).Infof("CreateVolume: storage config: %+v", storageConfig)
+	klog.V(4).InfoS("CreateVolume", "storageConfig", storageConfig)
 
 	topology := &csi.Topology{
 		Segments: map[string]string{
@@ -194,7 +195,7 @@ func (d *ControllerService) CreateVolume(_ context.Context, request *csi.CreateV
 	size, err := getVolumeSize(cl, vol)
 	if err != nil {
 		if err.Error() != ErrorNotFound {
-			klog.Errorf("CreateVolume: failed to check if pvc exists: %v", err)
+			klog.ErrorS(err, "CreateVolume: failed to check if pvc exist", "cluster", region, "volumeID", vol.VolumeID())
 
 			return nil, status.Error(codes.Internal, err.Error())
 		}
@@ -204,7 +205,7 @@ func (d *ControllerService) CreateVolume(_ context.Context, request *csi.CreateV
 			return nil, status.Error(codes.Internal, err.Error())
 		}
 	} else if size != int64(volSizeGB*1024*1024*1024) {
-		klog.Errorf("CreateVolume: volume %s is already exists, volume size %d, expected %d", vol.VolumeID(), size, int64(volSizeGB*1024*1024*1024))
+		klog.ErrorS(err, "CreateVolume: volume is already exists", "cluster", region, "volumeID", vol.VolumeID(), "size", size)
 
 		return nil, status.Error(codes.AlreadyExists, "volume already exists with same name and different capacity")
 	}
@@ -213,6 +214,8 @@ func (d *ControllerService) CreateVolume(_ context.Context, request *csi.CreateV
 	if storageConfig["shared"] != nil && int(storageConfig["shared"].(float64)) == 1 {
 		volID = vol.VolumeSharedID()
 	}
+
+	klog.V(3).InfoS("CreateVolume: volume created", "cluster", vol.Cluster(), "volumeID", volID, "size", volSizeGB)
 
 	volume := csi.Volume{
 		VolumeId:      volID,
@@ -229,7 +232,7 @@ func (d *ControllerService) CreateVolume(_ context.Context, request *csi.CreateV
 
 // DeleteVolume deletes a volume.
 func (d *ControllerService) DeleteVolume(_ context.Context, request *csi.DeleteVolumeRequest) (*csi.DeleteVolumeResponse, error) {
-	klog.V(4).Infof("DeleteVolume: called with args %+v", protosanitizer.StripSecrets(*request))
+	klog.V(4).InfoS("DeleteVolume: called", "args", protosanitizer.StripSecrets(*request))
 
 	volumeID := request.GetVolumeId()
 	if len(volumeID) == 0 {
@@ -243,45 +246,45 @@ func (d *ControllerService) DeleteVolume(_ context.Context, request *csi.DeleteV
 
 	cl, err := d.Cluster.GetProxmoxCluster(vol.Cluster())
 	if err != nil {
-		klog.Errorf("failed to get proxmox cluster: %v", err)
+		klog.ErrorS(err, "DeleteVolume: failed to get proxmox cluster", "cluster", vol.Cluster())
 
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
 	exist, err := isPvcExists(cl, vol)
 	if err != nil {
-		klog.Errorf("failed to verify the existence of the PVC: %v", err)
+		klog.ErrorS(err, "DeleteVolume: failed to verify the existence of the PVC", "cluster", vol.Cluster(), "volumeID", vol.VolumeID())
 
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
 	if !exist {
-		klog.V(3).Infof("DeleteVolume: volume %s is already deleted.", volumeID)
+		klog.V(3).InfoS("DeleteVolume: is already deleted", "volumeID", vol.VolumeID())
 
 		return &csi.DeleteVolumeResponse{}, nil
 	}
 
 	vmr, err := getVMRefByVolume(cl, vol)
 	if err != nil {
-		klog.Errorf("failed to get vm ref by volume: %s, %v", vol.Disk(), err)
+		klog.ErrorS(err, "DeleteVolume: failed to get vm ref by volume", "cluster", vol.Cluster(), "volumeName", vol.Disk())
 
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
 	if _, err := cl.DeleteVolume(vmr, vol.Storage(), vol.Disk()); err != nil {
-		klog.Errorf("failed to delete volume: %s", vol.Disk())
+		klog.ErrorS(err, "DeleteVolume: failed to delete volume", "cluster", vol.Cluster(), "volumeName", vol.Disk())
 
 		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to delete volume: %s", vol.Disk()))
 	}
 
-	klog.V(4).Infof("DeleteVolume: successfully deleted volume %s", vol.Disk())
+	klog.V(3).InfoS("DeleteVolume: volume deleted", "cluster", vol.Cluster(), "volumeID", vol.VolumeID())
 
 	return &csi.DeleteVolumeResponse{}, nil
 }
 
 // ControllerGetCapabilities get controller capabilities.
-func (d *ControllerService) ControllerGetCapabilities(_ context.Context, request *csi.ControllerGetCapabilitiesRequest) (*csi.ControllerGetCapabilitiesResponse, error) {
-	klog.V(4).Infof("ControllerGetCapabilities: called with args %+v", protosanitizer.StripSecrets(*request))
+func (d *ControllerService) ControllerGetCapabilities(_ context.Context, _ *csi.ControllerGetCapabilitiesRequest) (*csi.ControllerGetCapabilitiesResponse, error) {
+	klog.V(4).InfoS("ControllerGetCapabilities: called")
 
 	caps := []*csi.ControllerServiceCapability{}
 
@@ -301,7 +304,7 @@ func (d *ControllerService) ControllerGetCapabilities(_ context.Context, request
 
 // ControllerPublishVolume publish a volume
 func (d *ControllerService) ControllerPublishVolume(ctx context.Context, request *csi.ControllerPublishVolumeRequest) (*csi.ControllerPublishVolumeResponse, error) {
-	klog.V(4).Infof("ControllerPublishVolume: called with args %+v", protosanitizer.StripSecrets(*request))
+	klog.V(4).InfoS("ControllerPublishVolume: called", "args", protosanitizer.StripSecrets(*request))
 
 	volumeID := request.GetVolumeId()
 	if volumeID == "" {
@@ -329,7 +332,7 @@ func (d *ControllerService) ControllerPublishVolume(ctx context.Context, request
 
 	cl, err := d.Cluster.GetProxmoxCluster(vol.Cluster())
 	if err != nil {
-		klog.Errorf("failed to get proxmox cluster: %v", err)
+		klog.ErrorS(err, "ControllerPublishVolume: failed to get proxmox cluster", "cluster", vol.Cluster())
 
 		return nil, status.Error(codes.Internal, err.Error())
 	}
@@ -338,11 +341,11 @@ func (d *ControllerService) ControllerPublishVolume(ctx context.Context, request
 
 	vmrid, zone, err := tools.ProxmoxVMID(ctx, d.Kclient, nodeID)
 	if err != nil {
-		klog.Warningf("failed to get proxmox vmid from ProviderID: %v", err)
+		klog.InfoS("ControllerPublishVolume: failed to get proxmox vmrID from ProviderID", "cluster", vol.Cluster(), "nodeID", nodeID)
 
 		vmr, err = cl.GetVmRefByName(nodeID)
 		if err != nil {
-			klog.Errorf("failed to get vm ref by name: %v", err)
+			klog.ErrorS(err, "ControllerPublishVolume: failed to get vm ref by nodeID", "cluster", vol.Cluster(), "nodeID", nodeID)
 
 			return nil, status.Error(codes.Internal, err.Error())
 		}
@@ -355,8 +358,6 @@ func (d *ControllerService) ControllerPublishVolume(ctx context.Context, request
 	if vol.Zone() == "" {
 		vol = volume.NewVolume(vol.Region(), vmr.Node(), vol.Storage(), vol.Disk())
 	}
-
-	klog.V(4).Infof("ControllerPublishVolume: vol=%+v vmrid=%+v", vol, vmr)
 
 	options := map[string]string{
 		"backup":   "0",
@@ -379,7 +380,7 @@ func (d *ControllerService) ControllerPublishVolume(ctx context.Context, request
 	if volCtx[StorageDiskIOPSKey] != "" {
 		iops, err := strconv.Atoi(volCtx[StorageDiskIOPSKey]) //nolint:govet
 		if err != nil {
-			klog.Errorf("failed %s must be a number: %v", StorageDiskIOPSKey, err)
+			klog.ErrorS(err, "ControllerPublishVolume: must be a number", StorageDiskIOPSKey, volCtx[StorageDiskIOPSKey])
 
 			return nil, status.Error(codes.InvalidArgument, fmt.Sprintf("failed %s must be a number: %v", StorageDiskIOPSKey, err))
 		}
@@ -390,7 +391,7 @@ func (d *ControllerService) ControllerPublishVolume(ctx context.Context, request
 	if volCtx[StorageDiskMBpsKey] != "" {
 		mbps, err := strconv.Atoi(volCtx[StorageDiskMBpsKey]) //nolint:govet
 		if err != nil {
-			klog.Errorf("failed %s must be a number: %v", StorageDiskMBpsKey, err)
+			klog.ErrorS(err, "ControllerPublishVolume: must be a number", StorageDiskMBpsKey, volCtx[StorageDiskMBpsKey])
 
 			return nil, status.Error(codes.InvalidArgument, fmt.Sprintf("failed %s must be a number: %v", StorageDiskMBpsKey, err))
 		}
@@ -400,13 +401,13 @@ func (d *ControllerService) ControllerPublishVolume(ctx context.Context, request
 
 	exist, err := isPvcExists(cl, vol)
 	if err != nil {
-		klog.Errorf("failed to verify the existence of the volume: %v", err)
+		klog.ErrorS(err, "ControllerPublishVolume: failed to verify the existence of the PVC", "cluster", vol.Cluster(), "volumeID", vol.VolumeID())
 
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
 	if !exist {
-		return nil, status.Error(codes.NotFound, "failed to find volume")
+		return nil, status.Error(codes.NotFound, "volume not found")
 	}
 
 	d.volumeLocks.Lock()
@@ -414,17 +415,19 @@ func (d *ControllerService) ControllerPublishVolume(ctx context.Context, request
 
 	pvInfo, err := attachVolume(cl, vmr, vol.Storage(), vol.Disk(), options)
 	if err != nil {
-		klog.Errorf("failed to attach volume: %v", err)
+		klog.ErrorS(err, "ControllerPublishVolume: failed to attach volume", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "vmID", vmr.VmId())
 
 		return nil, status.Error(codes.Internal, err.Error())
 	}
+
+	klog.V(3).InfoS("ControllerPublishVolume: volume published", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "vmID", vmr.VmId())
 
 	return &csi.ControllerPublishVolumeResponse{PublishContext: pvInfo}, nil
 }
 
 // ControllerUnpublishVolume unpublish a volume
 func (d *ControllerService) ControllerUnpublishVolume(ctx context.Context, request *csi.ControllerUnpublishVolumeRequest) (*csi.ControllerUnpublishVolumeResponse, error) {
-	klog.V(4).Infof("ControllerUnpublishVolume: called with args %+v", protosanitizer.StripSecrets(*request))
+	klog.V(4).InfoS("ControllerUnpublishVolume: called", "args", protosanitizer.StripSecrets(*request))
 
 	volumeID := request.GetVolumeId()
 	if volumeID == "" {
@@ -443,7 +446,7 @@ func (d *ControllerService) ControllerUnpublishVolume(ctx context.Context, reque
 
 	cl, err := d.Cluster.GetProxmoxCluster(vol.Cluster())
 	if err != nil {
-		klog.Errorf("failed to get proxmox cluster: %v", err)
+		klog.ErrorS(err, "ControllerUnpublishVolume: failed to get proxmox cluster", "cluster", vol.Cluster())
 
 		return nil, status.Error(codes.Internal, err.Error())
 	}
@@ -452,11 +455,11 @@ func (d *ControllerService) ControllerUnpublishVolume(ctx context.Context, reque
 
 	vmrid, zone, err := tools.ProxmoxVMID(ctx, d.Kclient, nodeID)
 	if err != nil {
-		klog.Warningf("failed to get proxmox vmid from ProviderID: %v", err)
+		klog.InfoS("ControllerUnpublishVolume: failed to get proxmox vmrID from ProviderID", "cluster", vol.Cluster(), "nodeID", nodeID)
 
 		vmr, err = cl.GetVmRefByName(nodeID)
 		if err != nil {
-			klog.Errorf("failed to get vm ref by name: %v", err)
+			klog.ErrorS(err, "ControllerUnpublishVolume: failed to get vm ref by nodeID", "cluster", vol.Cluster(), "nodeID", nodeID)
 
 			return nil, status.Error(codes.Internal, err.Error())
 		}
@@ -467,47 +470,49 @@ func (d *ControllerService) ControllerUnpublishVolume(ctx context.Context, reque
 	}
 
 	if err := detachVolume(cl, vmr, vol.Disk()); err != nil {
-		klog.Errorf("failed to detachVolume: %v", err)
+		klog.ErrorS(err, "ControllerUnpublishVolume: failed to detach volume", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "vmID", vmr.VmId())
 
 		return nil, status.Error(codes.Internal, err.Error())
 	}
+
+	klog.V(3).InfoS("ControllerUnpublishVolume: volume unpublished", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "vmID", vmr.VmId())
 
 	return &csi.ControllerUnpublishVolumeResponse{}, nil
 }
 
 // ValidateVolumeCapabilities validate volume capabilities
 func (d *ControllerService) ValidateVolumeCapabilities(_ context.Context, request *csi.ValidateVolumeCapabilitiesRequest) (*csi.ValidateVolumeCapabilitiesResponse, error) {
-	klog.V(4).Infof("ValidateVolumeCapabilities: called with args %+v", protosanitizer.StripSecrets(*request))
+	klog.V(4).InfoS("ValidateVolumeCapabilities: called", "args", protosanitizer.StripSecrets(*request))
 
 	return nil, status.Error(codes.Unimplemented, "")
 }
 
 // ListVolumes list volumes
 func (d *ControllerService) ListVolumes(_ context.Context, request *csi.ListVolumesRequest) (*csi.ListVolumesResponse, error) {
-	klog.V(4).Infof("ListVolumes: called with args %+v", protosanitizer.StripSecrets(*request))
+	klog.V(4).InfoS("ListVolumes: called", "args", protosanitizer.StripSecrets(*request))
 
 	return nil, status.Error(codes.Unimplemented, "")
 }
 
 // GetCapacity get capacity
 func (d *ControllerService) GetCapacity(_ context.Context, request *csi.GetCapacityRequest) (*csi.GetCapacityResponse, error) {
-	klog.V(4).Infof("GetCapacity: called with args %+v", protosanitizer.StripSecrets(*request))
+	klog.V(5).InfoS("GetCapacity: called", "args", protosanitizer.StripSecrets(*request))
 
 	topology := request.GetAccessibleTopology()
 	if topology != nil {
 		region := topology.GetSegments()[corev1.LabelTopologyRegion]
 		zone := topology.GetSegments()[corev1.LabelTopologyZone]
-		storageName := request.GetParameters()[StorageIDKey]
+		storageID := request.GetParameters()[StorageIDKey]
 
-		if region == "" || zone == "" || storageName == "" {
+		if region == "" || zone == "" || storageID == "" {
 			return nil, status.Error(codes.InvalidArgument, "region, zone and storageName must be provided")
 		}
 
-		klog.V(4).Infof("GetCapacity: region=%s, zone=%s, storageName=%s", region, zone, storageName)
+		klog.V(3).InfoS("GetCapacity", "region", region, "zone", zone, "storageID", storageID)
 
 		cl, err := d.Cluster.GetProxmoxCluster(region)
 		if err != nil {
-			klog.Errorf("failed to get proxmox cluster: %v", err)
+			klog.ErrorS(err, "GetCapacity: failed to get proxmox cluster", "cluster", region)
 
 			return nil, status.Error(codes.Internal, err.Error())
 		}
@@ -518,9 +523,9 @@ func (d *ControllerService) GetCapacity(_ context.Context, request *csi.GetCapac
 
 		availableCapacity := int64(0)
 
-		storage, err := cl.GetStorageStatus(vmr, storageName)
+		storage, err := cl.GetStorageStatus(vmr, storageID)
 		if err != nil {
-			klog.Errorf("GetCapacity: failed to get storage status: %v", err)
+			klog.ErrorS(err, "GetCapacity: failed to get storage status", "cluster", region, "storageID", storageID)
 
 			if !strings.Contains(err.Error(), "Parameter verification failed") {
 				return nil, status.Error(codes.Internal, err.Error())
@@ -540,28 +545,28 @@ func (d *ControllerService) GetCapacity(_ context.Context, request *csi.GetCapac
 
 // CreateSnapshot create a snapshot
 func (d *ControllerService) CreateSnapshot(_ context.Context, request *csi.CreateSnapshotRequest) (*csi.CreateSnapshotResponse, error) {
-	klog.V(4).Infof("CreateSnapshot: called with args %+v", protosanitizer.StripSecrets(*request))
+	klog.V(4).InfoS("CreateSnapshot: called", "args", protosanitizer.StripSecrets(*request))
 
 	return nil, status.Error(codes.Unimplemented, "")
 }
 
 // DeleteSnapshot delete a snapshot
 func (d *ControllerService) DeleteSnapshot(_ context.Context, request *csi.DeleteSnapshotRequest) (*csi.DeleteSnapshotResponse, error) {
-	klog.V(4).Infof("DeleteSnapshot: called with args %+v", protosanitizer.StripSecrets(*request))
+	klog.V(4).InfoS("DeleteSnapshot: called", "args", protosanitizer.StripSecrets(*request))
 
 	return nil, status.Error(codes.Unimplemented, "")
 }
 
 // ListSnapshots list snapshots
 func (d *ControllerService) ListSnapshots(_ context.Context, request *csi.ListSnapshotsRequest) (*csi.ListSnapshotsResponse, error) {
-	klog.V(4).Infof("ListSnapshots: called with args %+v", protosanitizer.StripSecrets(*request))
+	klog.V(4).InfoS("ListSnapshots: called", "args", protosanitizer.StripSecrets(*request))
 
 	return nil, status.Error(codes.Unimplemented, "")
 }
 
 // ControllerExpandVolume expand a volume
 func (d *ControllerService) ControllerExpandVolume(_ context.Context, request *csi.ControllerExpandVolumeRequest) (*csi.ControllerExpandVolumeResponse, error) {
-	klog.V(4).Infof("ControllerExpandVolume: called with args %+v", protosanitizer.StripSecrets(*request))
+	klog.V(4).InfoS("ControllerExpandVolume: called", "args", protosanitizer.StripSecrets(*request))
 
 	volumeID := request.GetVolumeId()
 	if volumeID == "" {
@@ -586,8 +591,6 @@ func (d *ControllerService) ControllerExpandVolume(_ context.Context, request *c
 		return nil, status.Error(codes.OutOfRange, "after round-up, volume size exceeds the limit specified")
 	}
 
-	klog.V(4).Infof("ControllerExpandVolume: resized volume %v to size %vG", volumeID, volSizeGB)
-
 	vol, err := volume.NewVolumeFromVolumeID(volumeID)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
@@ -595,27 +598,27 @@ func (d *ControllerService) ControllerExpandVolume(_ context.Context, request *c
 
 	cl, err := d.Cluster.GetProxmoxCluster(vol.Cluster())
 	if err != nil {
-		klog.Errorf("failed to get proxmox cluster: %v", err)
+		klog.ErrorS(err, "ControllerExpandVolume: failed to get proxmox cluster", "cluster", vol.Cluster())
 
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
 	exist, err := isPvcExists(cl, vol)
 	if err != nil {
-		klog.Errorf("failed to check if pvc exists: %v", err)
+		klog.ErrorS(err, "ControllerExpandVolume: failed to verify the existence of the PVC", "cluster", vol.Cluster(), "volumeID", vol.VolumeID())
 
 		return nil, status.Error(codes.NotFound, err.Error())
 	}
 
 	if !exist {
-		klog.Errorf("volume %s not found", volumeID)
+		klog.V(3).InfoS("ControllerExpandVolume: volume not found", "cluster", vol.Cluster(), "volumeID", vol.VolumeID())
 
 		return &csi.ControllerExpandVolumeResponse{}, nil
 	}
 
 	vmlist, err := cl.GetVmList()
 	if err != nil {
-		klog.Errorf("failed to get vm list: %v", err)
+		klog.ErrorS(err, "ControllerExpandVolume: failed to get vm list", "cluster", vol.Cluster())
 
 		return nil, status.Error(codes.Internal, err.Error())
 	}
@@ -634,7 +637,7 @@ func (d *ControllerService) ControllerExpandVolume(_ context.Context, request *c
 		}
 
 		if vm["type"].(string) != "qemu" {
-			klog.V(4).Infof("ControllerExpandVolume: skipping non-qemu VM %s", vm["name"].(string))
+			klog.V(5).InfoS("ControllerExpandVolume: skipping non-qemu VM", "VM", vm["name"].(string))
 
 			continue
 		}
@@ -652,7 +655,7 @@ func (d *ControllerService) ControllerExpandVolume(_ context.Context, request *c
 
 			config, err := cl.GetVmConfig(vmr)
 			if err != nil {
-				klog.Errorf("failed to get vm config: %v", err)
+				klog.ErrorS(err, "ControllerExpandVolume: failed to get vm config", "cluster", vol.Cluster(), "vmID", vmr.VmId())
 
 				return nil, status.Error(codes.Internal, err.Error())
 			}
@@ -665,10 +668,12 @@ func (d *ControllerService) ControllerExpandVolume(_ context.Context, request *c
 			device := deviceNamePrefix + strconv.Itoa(lun)
 
 			if _, err := cl.ResizeQemuDiskRaw(vmr, device, fmt.Sprintf("%dG", volSizeGB)); err != nil {
-				klog.Errorf("failed to resize vm disk: %s, %v", vol.Disk(), err)
+				klog.ErrorS(err, "ControllerExpandVolume: failed to resize vm disk", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "vmID", vmr.VmId())
 
 				return nil, status.Error(codes.Internal, err.Error())
 			}
+
+			klog.V(3).InfoS("ControllerExpandVolume: volume expanded", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "vmID", vmr.VmId(), "size", volSizeGB)
 
 			return &csi.ControllerExpandVolumeResponse{
 				CapacityBytes:         volSizeBytes,
@@ -677,21 +682,19 @@ func (d *ControllerService) ControllerExpandVolume(_ context.Context, request *c
 		}
 	}
 
-	klog.Errorf("cannot resize unpublished volumeID %s", volumeID)
-
 	return nil, status.Error(codes.Internal, "cannot resize unpublished volumeID")
 }
 
 // ControllerGetVolume get a volume
 func (d *ControllerService) ControllerGetVolume(_ context.Context, request *csi.ControllerGetVolumeRequest) (*csi.ControllerGetVolumeResponse, error) {
-	klog.V(4).Infof("ControllerGetVolume: called with args %+v", protosanitizer.StripSecrets(*request))
+	klog.V(4).InfoS("ControllerGetVolume: called", "args", protosanitizer.StripSecrets(*request))
 
 	return nil, status.Error(codes.Unimplemented, "")
 }
 
 // ControllerModifyVolume modify a volume
 func (d *ControllerService) ControllerModifyVolume(_ context.Context, request *csi.ControllerModifyVolumeRequest) (*csi.ControllerModifyVolumeResponse, error) {
-	klog.V(4).Infof("ControllerModifyVolume: called with args %+v", protosanitizer.StripSecrets(*request))
+	klog.V(4).InfoS("ControllerModifyVolume: called", "args", protosanitizer.StripSecrets(*request))
 
 	return nil, status.Error(codes.Unimplemented, "")
 }

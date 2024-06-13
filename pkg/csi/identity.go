@@ -35,7 +35,7 @@ func NewIdentityService() *IdentityService {
 
 // GetPluginInfo returns the name and version of the plugin
 func (d *IdentityService) GetPluginInfo(context.Context, *csi.GetPluginInfoRequest) (*csi.GetPluginInfoResponse, error) {
-	klog.V(5).Infof("GetPluginInfo: called")
+	klog.V(5).InfoS("GetPluginInfo: called")
 
 	return &csi.GetPluginInfoResponse{
 		Name:          DriverName,
@@ -45,7 +45,7 @@ func (d *IdentityService) GetPluginInfo(context.Context, *csi.GetPluginInfoReque
 
 // GetPluginCapabilities returns the capabilities of the plugin
 func (d *IdentityService) GetPluginCapabilities(context.Context, *csi.GetPluginCapabilitiesRequest) (*csi.GetPluginCapabilitiesResponse, error) {
-	klog.V(5).Infof("GetPluginCapabilities: called")
+	klog.V(5).InfoS("GetPluginCapabilities: called")
 
 	resp := &csi.GetPluginCapabilitiesResponse{
 		Capabilities: []*csi.PluginCapability{
@@ -78,7 +78,7 @@ func (d *IdentityService) GetPluginCapabilities(context.Context, *csi.GetPluginC
 
 // Probe returns the health and readiness of the plugin
 func (d *IdentityService) Probe(_ context.Context, _ *csi.ProbeRequest) (*csi.ProbeResponse, error) {
-	klog.V(5).Infof("Probe: called")
+	klog.V(5).InfoS("Probe: called")
 
 	return &csi.ProbeResponse{
 		Ready: &wrappers.BoolValue{Value: true},
