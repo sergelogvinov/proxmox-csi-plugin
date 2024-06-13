@@ -211,6 +211,8 @@ func (n *NodeService) NodeStageVolume(_ context.Context, request *csi.NodeStageV
 		}
 	}
 
+	klog.V(3).InfoS("NodeStageVolume: volume mounted", "device", devicePath)
+
 	return &csi.NodeStageVolumeResponse{}, nil
 }
 
@@ -270,6 +272,8 @@ func (n *NodeService) NodeUnstageVolume(_ context.Context, request *csi.NodeUnst
 			klog.InfoS("NodeUnstageVolume: failed to offline device, ignored", "device", devicePath)
 		}
 	}
+
+	klog.V(3).InfoS("NodeUnstageVolume: volume unmouned", "device", devicePath)
 
 	return &csi.NodeUnstageVolumeResponse{}, nil
 }
@@ -372,6 +376,10 @@ func (n *NodeService) NodePublishVolume(_ context.Context, request *csi.NodePubl
 		}
 	}
 
+	klog.V(3).InfoS("NodePublishVolume: volume published for pod", "device", devicePath,
+		"pod", klog.KRef(request.GetVolumeContext()["csi.storage.k8s.io/pod.namespace"], request.GetVolumeContext()["csi.storage.k8s.io/pod.name"]),
+	)
+
 	return &csi.NodePublishVolumeResponse{}, nil
 }
 
@@ -392,6 +400,8 @@ func (n *NodeService) NodeUnpublishVolume(_ context.Context, request *csi.NodeUn
 
 		return nil, status.Errorf(codes.Internal, "Unmount of targetpath %s failed with error %v", targetPath, err)
 	}
+
+	klog.V(3).InfoS("NodePublishVolume: volume unpublished", "path", targetPath)
 
 	return &csi.NodeUnpublishVolumeResponse{}, nil
 }
@@ -504,8 +514,8 @@ func (n *NodeService) NodeExpandVolume(_ context.Context, request *csi.NodeExpan
 }
 
 // NodeGetCapabilities get the node capabilities
-func (n *NodeService) NodeGetCapabilities(_ context.Context, request *csi.NodeGetCapabilitiesRequest) (*csi.NodeGetCapabilitiesResponse, error) {
-	klog.V(4).InfoS("NodeGetCapabilities: called", "args", stripSecrets(*request))
+func (n *NodeService) NodeGetCapabilities(_ context.Context, _ *csi.NodeGetCapabilitiesRequest) (*csi.NodeGetCapabilitiesResponse, error) {
+	klog.V(4).InfoS("NodeGetCapabilities: called")
 
 	caps := []*csi.NodeServiceCapability{}
 
@@ -524,8 +534,8 @@ func (n *NodeService) NodeGetCapabilities(_ context.Context, request *csi.NodeGe
 }
 
 // NodeGetInfo get the node info
-func (n *NodeService) NodeGetInfo(ctx context.Context, request *csi.NodeGetInfoRequest) (*csi.NodeGetInfoResponse, error) {
-	klog.V(4).InfoS("NodeGetInfo: called", "args", stripSecrets(*request))
+func (n *NodeService) NodeGetInfo(ctx context.Context, _ *csi.NodeGetInfoRequest) (*csi.NodeGetInfoResponse, error) {
+	klog.V(4).InfoS("NodeGetInfo: called")
 
 	node, err := n.kclient.CoreV1().Nodes().Get(ctx, n.nodeID, metav1.GetOptions{})
 	if err != nil {
