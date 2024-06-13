@@ -188,8 +188,24 @@ func waitForVolumeAttach(cl *pxapi.Client, vmr *pxapi.VmRef, lun int) error {
 	return fmt.Errorf("timeout waiting for disk to attach")
 }
 
-func waitForVolumeDetach(_ *pxapi.Client, _ *pxapi.VmRef, _ int) error {
-	return nil
+func waitForVolumeDetach(cl *pxapi.Client, vmr *pxapi.VmRef, lun int) error {
+	waited := 0
+	for waited < TaskTimeout {
+		config, err := cl.GetVmConfig(vmr)
+		if err != nil {
+			return fmt.Errorf("failed to get vm config: %v", err)
+		}
+
+		device := fmt.Sprintf("%s%d", deviceNamePrefix, lun)
+		if config[device] == nil {
+			return nil
+		}
+
+		time.Sleep(TaskStatusCheckInterval * time.Second)
+		waited += TaskStatusCheckInterval
+	}
+
+	return fmt.Errorf("timeout waiting for disk to detach")
 }
 
 func createVolume(cl *pxapi.Client, vol *volume.Volume, sizeGB int) error {
