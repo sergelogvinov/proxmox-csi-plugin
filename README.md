@@ -20,20 +20,36 @@ This project aims to address this concept. All persistent volumes (PVs) will be 
 This CSI plugin was designed to support multiple independent Proxmox clusters within a single Kubernetes cluster.
 It enables the use of a single storage class to deploy one or many deployments/statefulsets across different regions, leveraging region/zone anti-affinity or topology spread constraints
 
+## In Scope
+
+* [Dynamic provisioning](https://kubernetes-csi.github.io/docs/external-provisioner.html): Volumes are created dynamically when `PersistentVolumeClaim` objects are created.
+* [Topology](https://kubernetes-csi.github.io/docs/topology.html): feature to schedule Pod to Node where disk volume pool exists.
+* Volume metrics: usage stats are exported as Prometheus metrics from `kubelet`.
+* [Volume expansion](https://kubernetes-csi.github.io/docs/volume-expansion.html): Volumes can be expanded by editing `PersistentVolumeClaim` objects.
+* [Storage capacity](https://kubernetes.io/docs/concepts/storage/storage-capacity/): Controller expose the Proxmox storade capacity.
+* [Encrypted volumes](https://kubernetes-csi.github.io/docs/secrets-and-credentials-storage-class.html): Encryption with LUKS.
+* [Volume bandwidth](https://pve.proxmox.com/wiki/Manual:_qm.conf): Maximum read/write limits.
+* [Volume migration](docs/pvecsictl.md): Offline migration of PV to another Proxmox node (region).
+
 ## Overview
+
+Proxmox cluster with local storage like: lvm, lvm-thin, zfs, xfs, ext4, etc.
 
 ![ProxmoxClusers!](/docs/proxmox-regions.jpeg)
 
 - Each Proxmox cluster has predefined in cloud-config the region name (see `clusters[].region` below).
 - Each Proxmox Cluster has many Proxmox Nodes. In kubernetes scope it is called as `zone`. The name of `zone` is the name of Proxmox node.
 - The Pods can easyly migrade inside the Proxmox node with PV. PV will reattache to anothe VM by CSI Plugin.
-- The Pod `cannot` migrate to another zone (another Proxmox node)
+- The Pod with PVC `cannot` migrate to another zone (another Proxmox node)
+- You can use cli tool [pvecsictl](docs/pvecsictl.md) to migrate PV to another Proxmox node.
 
 ### Proxmox VM config:
 
+Result of the VM config, when you create Pod with PVC:
+
 ![VM](/docs/vm-disks.png)
 
-`scsi2` disk on VM - is kubernetes PVC.
+`scsi2` disk on VM - is kubernetes PV.
 
 It is very important to use disk controller `VirtIO SCSI single` with `iothread`.
 
@@ -42,11 +58,39 @@ CSI Plugin uses the well-known node labels/spec to define the location
 * topology.kubernetes.io/zone
 * Spec.ProviderID
 
-**Caution**: set the labels `topology.kubernetes.io/region` and `topology.kubernetes.io/zone` are very important.
+**Caution**: set the labels `topology.kubernetes.io/region` and `topology.kubernetes.io/zone` are very important. Region is a Proxmox cluster name, and zone is a Proxmox node name. Cluster name can be human readable and shuld be the same as in Cloud config.
+
 You can set it by `kubectl` or use [Proxmox CCM](https://github.com/sergelogvinov/proxmox-cloud-controller-manager).
 It uses the same Proxmox Cloud config.
 And it labels the node properly.
 I recommend using the CCM (Cloud Controller Manager).
+
+## Storage Class Definition
+
+Storage Class resource:
+
+```yaml
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: proxmox-data-xfs
+parameters:
+  csi.storage.k8s.io/fstype: xfs|ext4
+  storage: data
+  cache: directsync|none|writeback|writethrough
+  ssd: "true|false"
+provisioner: csi.proxmox.sinextra.dev
+allowVolumeExpansion: true
+reclaimPolicy: Delete
+volumeBindingMode: WaitForFirstConsumer
+```
+
+Storage parameters:
+* `storage` - proxmox storage ID
+* `cache` - qemu cache param: `directsync`, `none`, `writeback`, `writethrough` [Official documentation](https://pve.proxmox.com/wiki/Performance_Tweaks)
+* `ssd` - true if SSD/NVME disk
+
+For more detailed options and a comprehensive understanding, refer to the following link [StorageClass options](docs/options.md)
 
 ## Install CSI Driver
 
@@ -251,7 +295,8 @@ NAME                        ATTACHREQUIRED   PODINFOONMOUNT   STORAGECAPACITY   
 csi.proxmox.sinextra.dev    true             true             true              <unset>         false               Persistent             47h
 ```
 
-Check Proxmox pool capacity
+Check Proxmox pool capacity.
+Available capacity should be non zero size.
 
 ```shell
 $ kubectl get csistoragecapacities -ocustom-columns=CLASS:.storageClassName,AVAIL:.capacity,ZONE:.nodeTopology.matchLabels -A
@@ -279,47 +324,6 @@ spec:
     - topology.kubernetes.io/zone
 ```
 
-## Definition
-
-Storage Class resource:
-
-```yaml
-apiVersion: storage.k8s.io/v1
-kind: StorageClass
-metadata:
-  name: proxmox-data-xfs
-parameters:
-  csi.storage.k8s.io/fstype: xfs|ext4
-  storage: data
-  cache: directsync|none|writeback|writethrough
-  ssd: "true|false"
-provisioner: csi.proxmox.sinextra.dev
-allowVolumeExpansion: true
-reclaimPolicy: Delete
-volumeBindingMode: WaitForFirstConsumer
-```
-
-Storage parameters:
-* `storage` - proxmox storage ID
-* `cache` - qemu cache param: `directsync`, `none`, `writeback`, `writethrough` [Official documentation](https://pve.proxmox.com/wiki/Performance_Tweaks)
-* `ssd` - true if SSD/NVME disk
-
-For more detailed options and a comprehensive understanding, refer to the following link [StorageClass options](docs/options.md)
-
-## In Scope
-
-* [Dynamic provisioning](https://kubernetes-csi.github.io/docs/external-provisioner.html): Volumes are created dynamically when `PersistentVolumeClaim` objects are created.
-* [Topology](https://kubernetes-csi.github.io/docs/topology.html): feature to schedule Pod to Node where disk volume exists.
-* Volume metrics: usage stats are exported as Prometheus metrics from `kubelet`.
-* [Volume expansion](https://kubernetes-csi.github.io/docs/volume-expansion.html): Volumes can be expanded by editing `PersistentVolumeClaim` objects.
-* [Storage capacity](https://kubernetes.io/docs/concepts/storage/storage-capacity/): Controller expose the Proxmox storade capacity.
-* [Encrypted volumes](https://kubernetes-csi.github.io/docs/secrets-and-credentials-storage-class.html): Encryption with LUKS.
-* [Volume bandwidth](https://pve.proxmox.com/wiki/Manual:_qm.conf): Maximum read/write limits.
-
-### Planned features
-
-* [Volume snapshot](https://kubernetes-csi.github.io/docs/snapshot-restore-feature.html): Create snapshots of volumes.
-
 ## Resources
 
 * https://arslan.io/2018/06/21/how-to-write-a-container-storage-interface-csi-plugin/
@@ -327,6 +331,8 @@ For more detailed options and a comprehensive understanding, refer to the follow
 * https://pve.proxmox.com/wiki/Manual:_qm.conf
 * https://pve.proxmox.com/wiki/Performance_Tweaks
 * https://kb.blockbridge.com/guide/proxmox/
+* https://github.com/sergelogvinov/ansible-role-proxmox
+* https://github.com/sergelogvinov/terraform-talos/tree/main/proxmox
 
 ## Contributing
 

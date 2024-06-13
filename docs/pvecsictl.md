@@ -14,6 +14,7 @@ Usage:
 Available Commands:
   migrate     Migrate data from one Proxmox node to another
   rename      Rename PersistentVolumeClaim
+  swap        Swap PersistentVolumes between two PersistentVolumeClaims
 ```
 
 ## Commands
