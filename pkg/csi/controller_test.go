@@ -866,7 +866,7 @@ func (ts *csiTestSuite) TestControllerPublishVolumeError() {
 				VolumeCapability: volcap,
 				VolumeContext:    volCtx,
 			},
-			expectedError: status.Error(codes.NotFound, "failed to find volume"),
+			expectedError: status.Error(codes.NotFound, "volume not found"),
 		},
 		{
 			msg: "VolumeAlreadyAttached",
