@@ -15,6 +15,20 @@
 * goreleaser ([04a40f4](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/04a40f40ebd6ef8904bdcc083ce028cf87544019))
 * pvc migration ([ddfc362](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/ddfc36229ccdf2fdc29e9fff9e59463f4b2da866))
 
+## [0.7.0](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.6.1...v0.7.0) (2024-06-14)
+
+
+### Features
+
+* swap pv in already created pvc ([76c899e](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/76c899e4e1c8f2287854a4e08fbbdd8a1c7360a9))
+* wait volume to be detached ([3683d96](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/3683d96136a52d06274788006e0c5c67d9818c93))
+
+
+### Bug Fixes
+
+* implement structured logging ([cb5fb4e](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/cb5fb4e0339fa714e13e421e557252ab348dbe25))
+* pv force migration ([8ecf990](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/8ecf990a9b746358a505c25c0c728fd77d776b00))
+
 ## [0.6.1](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.6.0...v0.6.1) (2024-04-13)
 
 
