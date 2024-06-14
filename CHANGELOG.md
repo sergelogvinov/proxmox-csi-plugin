@@ -1,41 +1,64 @@
-## [0.6.0](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.5.0...v0.6.0) (2024-04-13)
 
+## [v0.7.0](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.6.1...v0.7.0) (2024-06-14)
+
+Welcome to the v0.7.0 release of Proxmox CSI Plugin!
+
+### Bug Fixes
+
+- implement structured logging (cb5fb4e)
+- pv force migration (8ecf990)
 
 ### Features
 
-* **chart:** add initContainers and hostAliases ([769c008](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/769c008bb5cbd2a21303f12171d16df78000473e))
-* **chart:** support setting annotations and labels on storageClasses ([a5f5add](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/a5f5adde7c3d533cae45660da312883b4ed1a24c))
-* remove udev dependency ([1810ec7](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/1810ec71f56a03a462219a58f81c3d24e9fb1714))
+- wait volume to be detached (3683d96)
+- swap pv in already created pvc (76c899e)
 
+### Miscellaneous
+
+- release v0.7.0 (50d8c3a)
+- bump deps (5bf0677)
+- bump deps (89adec9)
+- release v0.6.1 (ac1ef92)
+
+
+## [v0.6.1](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.6.0...v0.6.1) (2024-04-13)
+
+Welcome to the v0.6.1 release of Proxmox CSI Plugin!
 
 ### Bug Fixes
 
-* cli migration ([41b19bd](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/41b19bdd40db9f84c0d65fe41983e2c2ee0b4977))
-* deps update ([657ad00](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/657ad006c2e93f27ed08966c8e493cfb852a49ee))
-* goreleaser ([04a40f4](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/04a40f40ebd6ef8904bdcc083ce028cf87544019))
-* pvc migration ([ddfc362](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/ddfc36229ccdf2fdc29e9fff9e59463f4b2da866))
+- build release (facdec5)
+- release doc (215c366)
 
-## [0.7.0](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.6.1...v0.7.0) (2024-06-14)
+### Miscellaneous
 
+- release v0.6.1 (e7dfde2)
+
+
+## [v0.6.0](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.5.0...v0.6.0) (2024-04-13)
+
+Welcome to the v0.6.0 release of Proxmox CSI Plugin!
+
+### Bug Fixes
+
+- pvc migration (ddfc362)
+- deps update (657ad00)
+- cli migration (41b19bd)
+- goreleaser (04a40f4)
 
 ### Features
 
-* swap pv in already created pvc ([76c899e](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/76c899e4e1c8f2287854a4e08fbbdd8a1c7360a9))
-* wait volume to be detached ([3683d96](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/3683d96136a52d06274788006e0c5c67d9818c93))
+- remove udev dependency (1810ec7)
+- **chart:** support setting annotations and labels on storageClasses (a5f5add)
+- **chart:** add initContainers and hostAliases (769c008)
 
+### Miscellaneous
 
-### Bug Fixes
+- release v0.6.0 (0b13bd0)
+- bump deps (67dc34c)
+- bump deps (2f9f17a)
+- **chart:** update sidecar deps (5f16e6b)
 
-* implement structured logging ([cb5fb4e](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/cb5fb4e0339fa714e13e421e557252ab348dbe25))
-* pv force migration ([8ecf990](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/8ecf990a9b746358a505c25c0c728fd77d776b00))
-
-## [0.6.1](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.6.0...v0.6.1) (2024-04-13)
-
-
-### Bug Fixes
-
-* build release ([facdec5](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/facdec5be4f0335eb489fc600a175e63584953ba))
-* release doc ([215c366](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/215c366b5bb4bc86e7bee43fcf4a228193fcbbbe))
 
 ## [v0.5.0](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.4.1...v0.5.0) (2024-02-20)
 
@@ -58,7 +81,7 @@ Welcome to the v0.5.0 release of Proxmox CSI Plugin!
 
 ### Miscellaneous
 
-- release v0.5.0 (be05e11)
+- release v0.5.0 (a361ce9)
 - bump deps (ac4ddd0)
 
 
@@ -214,3 +237,4 @@ Welcome to the v0.01 release of Proxmox CSI Plugin!
 ### Miscellaneous
 
 - release v0.0.1 (56b4297)
+
