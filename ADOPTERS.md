@@ -10,6 +10,9 @@ This is a list of organizations or projects that have adopted the Proxmox CSI dr
 * **[Serge Logvinov](https://github.com/sergelogvinov/terraform-talos/tree/main/proxmox)**
    Terraform example for Talos on Proxmox. I am using the Proxmox CSI plugin for GitHub Actions (for ephemeral storage) and databases on Proxmox. _Not so well documented_.
 
+* **[Vegard Hagen](https://blog.stonegarden.dev/articles/2024/06/k8s-proxmox-csi/)**
+  Article explaining of to get Proxmox CSI Plugin working along with some testing. 
+
 ### Template
 
 * **[Project/User name](Project URL)**
