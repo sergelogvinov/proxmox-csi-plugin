@@ -39,33 +39,135 @@ Proxmox cluster with local storage like: lvm, lvm-thin, zfs, xfs, ext4, etc.
 
 - Each Proxmox cluster has predefined in cloud-config the region name (see `clusters[].region` below).
 - Each Proxmox Cluster has many Proxmox Nodes. In kubernetes scope it is called as `zone`. The name of `zone` is the name of Proxmox node.
-- The Pods can easyly migrade inside the Proxmox node with PV. PV will reattache to anothe VM by CSI Plugin.
-- The Pod with PVC `cannot` migrate to another zone (another Proxmox node)
-- You can use cli tool [pvecsictl](docs/pvecsictl.md) to migrate PV to another Proxmox node.
+- Pods can easily migrate between Kubernetes nodes on the same physical Proxmox node (`zone`). 
+  The PV will automatically be moved by the CSI Plugin.
+- Pods with PVC `cannot` automatically migrate across zones (Proxmox nodes).
+  You can manually move PVs across zones using [pvecsictl](docs/pvecsictl.md) to migrate Pods across zones.
 
-### Proxmox VM config:
 
-Result of the VM config, when you create Pod with PVC:
+```mermaid
+---
+title: Automatic Pod migration within zone
+---
+flowchart LR
+    subgraph cluster1["Proxmox Cluster (Region 1)"]
+        subgraph node11["Proxmox Node (zone 1)"]
+                direction BT
+                subgraph vm1["VM (worker 1)"]
+                        pod11(["Pod (pv-1)"])
+                end
+                subgraph vm2["VM (worker 2)"]
+                        pod12(["Pod (pv-1)"])
+                end
+                pv11[("Disk (pv-1)")]
+        end
+        subgraph node12["Proxmox Node (zone 2)"]
+                direction BT
+                subgraph vm3["VM (worker 3)"]
+                    pod22(["Pod (pv-2)"])
+                end
+            pv22[("Disk (pv-2)")]
+        end
+    end
+pv11 .-> vm1
+pv11 -->|automatic| vm2
+pod11 -->|migrate| pod12
+
+pv22 --> vm3
+```
+```mermaid
+---
+title: Manual migration usign pvecsictl across zones
+---
+flowchart
+    subgraph cluster1["Proxmox Cluster (Region 1)"]
+    direction BT
+        subgraph node11["Proxmox Node (zone 1)"]
+                subgraph vm1["VM (worker 1)"]
+                        pod11["Pod (pv-1)"]
+                end
+                subgraph vm2["VM (worker 2)"]
+                        pod21["Pod (pv-2)"]
+                end
+                pv11[("Disk (pv-1)")]
+                pv21[("Disk (pv-2)")]
+        end
+        subgraph node12["Proxmox Node (zone 2)"]
+            direction TB
+                subgraph vm3["VM (worker 3)"]
+                    pod22["Pod (pv-2)"]
+                end
+            pv22[("Disk (pv-2)")]
+        end
+    end
+pv11 --> vm1
+pv21 .-> vm2
+
+pv22 --> vm3
+pod21 -->|migrate| pod22
+pv21 -->|pvecsictl| pv22
+```
+
+## Installation
+
+To make use of the Proxmox CSI Plugin you need to correctly configure your Proxmox installation as well as your Kubernetes instance.
+
+Requirements for Proxmox CSI Plugin
+* Proxmox must be clustered
+* Proxmox CSI Plugin must have privileges in your Proxmox instance
+* Kubernetes must be labelled with the correct topology
+* A StoreClass referencing teh CSI plugin exists
+
+How to configure the above is detailed below
+
+### Proxmox Config:
+
+For the Proxmox CSI Plugin to work you need to cluster your Proxmox nodes.
+You can cluster a single Proxmox node with itself.
+Read more about Proxmox clustering [here](https://pve.proxmox.com/wiki/Cluster_Manager).
+
+VM config after creating a Pod with PVC:
 
 ![VM](/docs/vm-disks.png)
 
-`scsi2` disk on VM - is kubernetes PV.
+`scsi2` disk on VM is a Kubernetes PV created by this CSI plugin.
 
 It is very important to use disk controller `VirtIO SCSI single` with `iothread`.
 
-CSI Plugin uses the well-known node labels/spec to define the location
+### Proxmox CSI Plugin User
+
+Proxmox CSI Plugin requires the correct privileges in order to allocate and attach disks.
+
+Create CSI role in Proxmox:
+
+```shell
+pveum role add CSI -privs "VM.Audit VM.Config.Disk Datastore.Allocate Datastore.AllocateSpace Datastore.Audit"
+```
+
+Next create a user for the CSI plugin and grant it the above role
+
+```shell
+pveum user add kubernetes-csi@pve
+pveum aclmod / -user kubernetes-csi@pve -role CSI
+pveum user token add kubernetes-csi@pve csi -privsep 0
+```
+
+### Kubernetes Topology Labels
+
+Proxmox CSI Plugin uses the well-known node labels/spec to define the disk location
 * topology.kubernetes.io/region
 * topology.kubernetes.io/zone
 * Spec.ProviderID
 
-**Caution**: set the labels `topology.kubernetes.io/region` and `topology.kubernetes.io/zone` are very important. Region is a Proxmox cluster name, and zone is a Proxmox node name. Cluster name can be human readable and shuld be the same as in Cloud config.
+**Important**: The `topology.kubernetes.io/region` and `topology.kubernetes.io/zone` labels _must_ be set.
+Region is the Proxmox cluster name, and zone is the Proxmox node name.
+Cluster name can be human-readable and should be the same as in Cloud config.
 
-You can set it by `kubectl` or use [Proxmox CCM](https://github.com/sergelogvinov/proxmox-cloud-controller-manager).
-It uses the same Proxmox Cloud config.
-And it labels the node properly.
+The labels can be set manually using `kubectl`,
+or automatically through a tool like [Proxmox CCM](https://github.com/sergelogvinov/proxmox-cloud-controller-manager).
 I recommend using the CCM (Cloud Controller Manager).
 
-## Storage Class Definition
+### Storage Class Definition
 
 Storage Class resource:
 
@@ -92,23 +194,9 @@ Storage parameters:
 
 For more detailed options and a comprehensive understanding, refer to the following link [StorageClass options](docs/options.md)
 
-## Install CSI Driver
+### Install CSI Driver
 
-Create CSI role in Proxmox:
-
-```shell
-pveum role add CSI -privs "VM.Audit VM.Config.Disk Datastore.Allocate Datastore.AllocateSpace Datastore.Audit"
-```
-
-Create user and grant permissions:
-
-```shell
-pveum user add kubernetes-csi@pve
-pveum aclmod / -user kubernetes-csi@pve -role CSI
-pveum user token add kubernetes-csi@pve csi -privsep 0
-```
-
-Proxmox cloud config (the same as Proxmox CCM config):
+Create a Proxmox cloud config to connect to your cluster with the Proxmox user you just created
 
 ```yaml
 # config.yaml
@@ -125,13 +213,13 @@ clusters:
     region: Region-2
 ```
 
-Upload it to the kubernetes:
+Upload the configuration to the Kubernetes as a secret
 
 ```shell
 kubectl -n csi-proxmox create secret generic proxmox-csi-plugin --from-file=config.yaml
 ```
 
-### Method 1: By Kubectl
+#### Method 1: By Kubectl
 
 Latest stable version (edge)
 
@@ -139,7 +227,7 @@ Latest stable version (edge)
 kubectl apply -f https://raw.githubusercontent.com/sergelogvinov/proxmox-csi-plugin/main/docs/deploy/proxmox-csi-plugin.yml
 ```
 
-### Method 2: By Helm
+#### Method 2: By Helm
 
 Create the config file:
 
@@ -167,13 +255,21 @@ storageClass:
 
 ```shell
 kubectl create ns csi-proxmox
-# We have to label the namespace to allow the plugin to run as privileged
-kubectl label ns/csi-proxmox pod-security.kubernetes.io/enforce=privileged
+```
 
+We have to label the namespace to allow the plugin to run as privileged
+
+```shell
+kubectl label ns/csi-proxmox pod-security.kubernetes.io/enforce=privileged
+```
+
+```shell
 helm upgrade -i -n csi-proxmox -f proxmox-csi.yaml proxmox-csi-plugin oci://ghcr.io/sergelogvinov/charts/proxmox-csi-plugin
 ```
 
-### Method 3: Talos machine config
+#### Method 3: Talos machine config
+
+If you're running [Talos](https://www.talos.dev/) you can install Proxmox CSI Plugin using the machine config
 
 ```yaml
 cluster:
@@ -187,13 +283,13 @@ cluster:
 
 ### Pod with ephemeral storage
 
-Deploy the pod
+Deploy a test Pod
 
 ```shell
 kubectl apply -f https://raw.githubusercontent.com/sergelogvinov/proxmox-csi-plugin/main/docs/deploy/test-pod-ephemeral.yaml
 ```
 
-Check status of PV,PVC
+Check status of PV and PVC
 
 ```shell
 $ kubectl -n default get pods,pvc
@@ -233,13 +329,13 @@ Source:
                            storage=data
 ```
 
-### Statefulset with persistent storage
+### StatefulSet with persistent storage
 
 ```shell
 kubectl apply -f https://raw.githubusercontent.com/sergelogvinov/proxmox-csi-plugin/main/docs/deploy/test-statefulset.yaml
 ```
 
-Check status of PV,PVC
+Check status of PV and PVC
 
 ```shell
 $ kubectl -n default get pods,pvc -owide
@@ -296,7 +392,7 @@ csi.proxmox.sinextra.dev    true             true             true              
 ```
 
 Check Proxmox pool capacity.
-Available capacity should be non zero size.
+Available capacity should be non-zero size.
 
 ```shell
 $ kubectl get csistoragecapacities -ocustom-columns=CLASS:.storageClassName,AVAIL:.capacity,ZONE:.nodeTopology.matchLabels -A
@@ -305,7 +401,7 @@ proxmox-data-xfs   470268Mi    map[topology.kubernetes.io/region:Region-2 topolo
 proxmox-data-xfs   5084660Mi   map[topology.kubernetes.io/region:Region-1 topology.kubernetes.io/zone:pve-1]
 ```
 
-Check node CSI drivers on the node
+Check node CSI drivers on a node
 
 ```shell
 $ kubectl get CSINode worker-11 -oyaml

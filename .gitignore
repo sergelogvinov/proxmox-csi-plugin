@@ -34,3 +34,5 @@ kubeconfig
 # cosign
 /cosign.key
 /cosign.pub
+
+.idea

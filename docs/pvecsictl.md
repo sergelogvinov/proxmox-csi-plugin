@@ -3,7 +3,7 @@
 `pvecsictl` is a command line tool for managing the Proxmox CSI PV/PVC resources.
 
 **Warning**: This tool is under development and should be used with caution.
-The commands and  flags may change in the future.
+The commands and flags may change in the future.
 
 ## Usage
 
@@ -21,8 +21,8 @@ Available Commands:
 
 ### Migrate
 
-Migration requires the root privileges on the Proxmox cluster.
-You need to provide the cloud-config file with the root credentials (username/password) to the Proxmox cluster.
+Migration requires root privileges on the Proxmox cluster.
+You need to provide the cloud-config file with root credentials (username/password) to the Proxmox cluster.
 
 ```yaml
 clusters:
@@ -32,37 +32,50 @@ clusters:
     ...
 ```
 
-Migrate data from one Proxmox node to another.
+To migrate the data for PVC `storage-test-0` first find the backing PV by running
 
 ```shell
-# kubectl -n default get pvc storage-test-0 -ojsonpath='{.spec.volumeName}'
-pvc-0d79713b-6d0b-41e5-b387-42af370d083f
+kubectl -n default get pvc storage-test-0 -ojsonpath='{.spec.volumeName}'
+```
 
-# kubectl -n default get pv pvc-0d79713b-6d0b-41e5-b387-42af370d083f -ojsonpath='{.spec.nodeAffinity}'
+which in our case is `pvc-0d79713b-6d0b-41e5-b387-42af370d083f`.
+
+Next find the PV topology by inspecting its `nodeAffinity`
+
+```shell
+kubectl -n default get pv pvc-0d79713b-6d0b-41e5-b387-42af370d083f -ojsonpath='{.spec.nodeAffinity}'
+```
+
+which gives us
+
+```json
 {"required":{"nodeSelectorTerms":[{"matchExpressions":[{"key":"topology.kubernetes.io/region","operator":"In","values":["fsn1"]},{"key":"topology.kubernetes.io/zone","operator":"In","values":["hvm-1"]}]}]}}
 ```
 
-It has zone `hvm-1` and region `fsn1` affinity.
-Now we want to move it to another node:
+By looking at the above `topology.kubernetes.io` fields we see that the PV is located in zone (node) `hvm-1` in region (cluster) `fsn1`.
+
+To move the PVC from zone `hvm-1` to `hvm-2` we can run
 
 ```shell
 pvecsictl migrate --config=hack/cloud-config.yaml -n default storage-test-0 hvm-2
+````
 
+If you're met with 
+
+```shell
 ERROR Error: persistentvolumeclaims is using by pods: test-0 on node kube-store-11, cannot move volume
+```
 
-# Force process
+you can force the process by adding the `--force` flag
+
+```shell
 pvecsictl migrate --config=hack/cloud-config.yaml -n default storage-test-0 hvm-2 --force
 
 INFO persistentvolumeclaims is using by pods: test-0 on node kube-store-11, trying to force migration
 INFO cordoning nodes: kube-11,kube-12,kube-21,kube-22,kube-store-11,kube-store-21
 INFO terminated pods: test-0
 INFO waiting pods: test-0
-INFO waiting pods: test-0
-INFO waiting pods: test-0
-INFO waiting pods: test-0
-INFO waiting pods: test-0
-INFO waiting pods: test-0
-INFO waiting pods: test-0
+...
 INFO waiting pods: test-0
 INFO moving disk vm-9999-pvc-0d79713b-6d0b-41e5-b387-42af370d083f to proxmox node hvm-2
 INFO replacing persistentvolume topology
@@ -70,43 +83,46 @@ INFO uncordoning nodes: kube-11,kube-12,kube-21,kube-22,kube-store-11,kube-store
 INFO persistentvolumeclaims storage-test-0 has been migrated to proxmox node hvm-2
 ```
 
-Check the result:
-
-`topology.kubernetes.io/zone` was changed from hvm-1 to hvm-2
-
+To check that the zone has changed run
 ```shell
-# kubectl -n default get pv pvc-0d79713b-6d0b-41e5-b387-42af370d083f -ojsonpath='{.spec.nodeAffinity}'
+kubectl -n default get pv pvc-0d79713b-6d0b-41e5-b387-42af370d083f -ojsonpath='{.spec.nodeAffinity}'
+```
+
+again
+
+```json
 {"required":{"nodeSelectorTerms":[{"matchExpressions":[{"key":"topology.kubernetes.io/region","operator":"In","values":["fsn1"]},{"key":"topology.kubernetes.io/zone","operator":"In","values":["hvm-2"]}]}]}}
 ```
 
-What was with the pod (force mode):
+to verify that the zone is now `hvm-2`.
+
+Pod lifetime when running `pvecsictl` with the `--force` flag
 
 ```shell
 # kubectl -n default get pods -owide -w
-test-0   1/1     Running   0          4m28s   10.32.19.119   kube-store-11   <none>           <none>
-test-1   1/1     Running   0          4m28s   10.32.4.232    kube-store-21   <none>           <none>
-test-0   1/1     Terminating   0          6m44s   10.32.19.119   kube-store-11   <none>           <none>
-test-0   0/1     Terminating   0          7m      <none>         kube-store-11   <none>           <none>
-test-0   0/1     Terminating   0          7m      10.32.19.119   kube-store-11   <none>           <none>
-test-0   0/1     Terminating   0          7m      10.32.19.119   kube-store-11   <none>           <none>
-test-0   0/1     Terminating   0          7m      10.32.19.119   kube-store-11   <none>           <none>
-test-0   0/1     Pending       0          0s      <none>         <none>          <none>           <none>
-test-0   0/1     Pending       0          0s      <none>         <none>          <none>           <none>
-test-0   0/1     Pending       0          62s     <none>         <none>          <none>           <none>
-test-0   0/1     Pending       0          71s     <none>         kube-21         <none>           <none>
-test-0   0/1     ContainerCreating   0          71s     <none>         kube-21         <none>           <none>
-test-0   1/1     Running             0          85s     10.32.11.96    kube-21         <none>           <none>
+test-0   1/1     Running            0          4m28s   10.32.19.119   kube-store-11   <none>           <none>
+test-0   1/1     Terminating        0          6m44s   10.32.19.119   kube-store-11   <none>           <none>
+test-0   0/1     Terminating        0          7m      <none>         kube-store-11   <none>           <none>
+test-0   0/1     Terminating        0          7m      10.32.19.119   kube-store-11   <none>           <none>
+test-0   0/1     Terminating        0          7m      10.32.19.119   kube-store-11   <none>           <none>
+test-0   0/1     Terminating        0          7m      10.32.19.119   kube-store-11   <none>           <none>
+test-0   0/1     Pending            0          0s      <none>         <none>          <none>           <none>
+test-0   0/1     Pending            0          0s      <none>         <none>          <none>           <none>
+test-0   0/1     Pending            0          62s     <none>         <none>          <none>           <none>
+test-0   0/1     Pending            0          71s     <none>         kube-21         <none>           <none>
+test-0   0/1     ContainerCreating  0          71s     <none>         kube-21         <none>           <none>
+test-0   1/1     Running            0          85s     10.32.11.96    kube-21         <none>           <none>
 ```
 
-So we migrated the Statefulset pod with PVC to another node.
-Force mode helps to migrate statefulset deployment to another node without scaling down all replicas.
-It cordoned all nodes which have csi-proxmox plugin. Migrated the disk to another node and uncordoned all nodes.
+Here we've migrated the StatefulSet Pod with PVC to another node.
+Force mode helps to migrate StatefulSet deployment to another node without scaling down all replicas.
+It cordoned all nodes which have csi-proxmox plugin. Migrated the disk to another node and un-cordoned all nodes.
 
 ### Rename
 
 Rename PersistentVolumeClaim.
 
-Check the current PVC:
+Check the current PVCs:
 
 ```shell
 # kubectl -n default get pvc
@@ -114,26 +130,28 @@ storage-test-0   Bound    pvc-0d79713b-6d0b-41e5-b387-42af370d083f   5Gi        
 storage-test-1   Bound    pvc-2727795f-680c-410a-b130-2e5dc85efcb3   5Gi        RWO            proxmox-xfs    <unset>                 15m
 ```
 
-Rename one of them:
+Rename the `storage-test-0` PVC by running 
 
 ```shell
 pvecsictl rename -n default storage-test-0 storage-test-2
+```
 
+If you're met with
+
+```shell
 ERROR Error: persistentvolumeclaims is using by pods: test-0 on node kube-21, cannot move volume
+```
 
-# Force process
+You can force the process by adding the `--force` flag
+
+```shell
 pvecsictl rename -n default storage-test-0 storage-test-2 --force
 
 INFO persistentvolumeclaims is using by pods: test-0 on node kube-21, trying to force migration
 INFO cordoning nodes: kube-11,kube-12,kube-21,kube-22,kube-store-11,kube-store-21
 INFO terminated pods: test-0
 INFO waiting pods: test-0
-INFO waiting pods: test-0
-INFO waiting pods: test-0
-INFO waiting pods: test-0
-INFO waiting pods: test-0
-INFO waiting pods: test-0
-INFO waiting pods: test-0
+...
 INFO waiting pods: test-0
 INFO uncordoning nodes: kube-11,kube-12,kube-21,kube-22,kube-store-11,kube-store-21
 INFO persistentvolumeclaims storage-test-0 has been renamed
@@ -151,21 +169,21 @@ storage-test-1   Bound    pvc-2727795f-680c-410a-b130-2e5dc85efcb3   5Gi        
 storage-test-2   Bound    pvc-0d79713b-6d0b-41e5-b387-42af370d083f   5Gi        RWO            proxmox-xfs    <unset>                 102s
 ```
 
-What was with the pod:
+Pod lifetime during rename
 
 ```shell
 # kubectl -n default get pods -owide -w
-test-0   1/1     Running   0          9m37s   10.32.11.96   kube-21       <none>           <none>
-test-1   1/1     Running   0          16m     10.32.4.232   kube-store-21 <none>           <none>
-test-0   1/1     Terminating   0          10m     10.32.11.96   kube-21      <none>           <none>
-test-0   0/1     Terminating   0          11m     <none>        kube-21      <none>           <none>
-test-0   0/1     Terminating   0          11m     10.32.11.96   kube-21      <none>           <none>
-test-0   0/1     Terminating   0          11m     10.32.11.96   kube-21      <none>           <none>
-test-0   0/1     Terminating   0          11m     10.32.11.96   kube-21      <none>           <none>
-test-0   0/1     Pending       0          0s      <none>        <none>       <none>           <none>
-test-0   0/1     Pending       0          0s      <none>        <none>       <none>           <none>
-test-0   0/1     Pending       0          8s      <none>        <none>       <none>           <none>
-test-0   0/1     Pending       0          13s     <none>        kube-store-11   <none>           <none>
+test-0   1/1     Running             0          9m37s   10.32.11.96   kube-21         <none>           <none>
+test-1   1/1     Running             0          16m     10.32.4.232   kube-store-21   <none>           <none>
+test-0   1/1     Terminating         0          10m     10.32.11.96   kube-21         <none>           <none>
+test-0   0/1     Terminating         0          11m     <none>        kube-21         <none>           <none>
+test-0   0/1     Terminating         0          11m     10.32.11.96   kube-21         <none>           <none>
+test-0   0/1     Terminating         0          11m     10.32.11.96   kube-21         <none>           <none>
+test-0   0/1     Terminating         0          11m     10.32.11.96   kube-21         <none>           <none>
+test-0   0/1     Pending             0          0s      <none>        <none>          <none>           <none>
+test-0   0/1     Pending             0          0s      <none>        <none>          <none>           <none>
+test-0   0/1     Pending             0          8s      <none>        <none>          <none>           <none>
+test-0   0/1     Pending             0          13s     <none>        kube-store-11   <none>           <none>
 test-0   0/1     ContainerCreating   0          13s     <none>        kube-store-11   <none>           <none>
 test-0   1/1     Running             0          24s     10.32.19.17   kube-store-11   <none>           <none>
 ```
@@ -219,4 +237,4 @@ persistentvolumeclaim/storage-test-1   Bound    pvc-e248bc56-dcf4-4145-93b9-a374
 
 # Feedback
 
-Use the [github discussions](https://github.com/sergelogvinov/proxmox-csi-plugin/discussions) for feedback and questions.
+Use the [GitHub discussions](https://github.com/sergelogvinov/proxmox-csi-plugin/discussions) for feedback and questions.
