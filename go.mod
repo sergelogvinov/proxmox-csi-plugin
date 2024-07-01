@@ -12,7 +12,7 @@ require (
 	github.com/siderolabs/go-blockdevice v0.4.7
 	github.com/siderolabs/go-retry v0.3.3
 	github.com/sirupsen/logrus v1.9.3
-	github.com/spf13/cobra v1.8.0
+	github.com/spf13/cobra v1.8.1
 	github.com/stretchr/testify v1.9.0
 	google.golang.org/grpc v1.64.0
 	k8s.io/api v0.30.1
