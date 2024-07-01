@@ -1,9 +1,9 @@
 module github.com/sergelogvinov/proxmox-csi-plugin
 
-go 1.22.3
+go 1.22.4
 
 require (
-	github.com/Telmate/proxmox-api-go v0.0.0-20240608213934-9d245a204c42
+	github.com/Telmate/proxmox-api-go v0.0.0-20240624063742-b5ee3f5af00b
 	github.com/container-storage-interface/spec v1.9.0
 	github.com/golang/protobuf v1.5.4
 	github.com/jarcoal/httpmock v1.3.1
@@ -12,15 +12,15 @@ require (
 	github.com/siderolabs/go-blockdevice v0.4.7
 	github.com/siderolabs/go-retry v0.3.3
 	github.com/sirupsen/logrus v1.9.3
-	github.com/spf13/cobra v1.8.0
+	github.com/spf13/cobra v1.8.1
 	github.com/stretchr/testify v1.9.0
 	google.golang.org/grpc v1.64.0
-	k8s.io/api v0.30.1
-	k8s.io/apimachinery v0.30.1
-	k8s.io/client-go v0.30.1
+	k8s.io/api v0.30.2
+	k8s.io/apimachinery v0.30.2
+	k8s.io/client-go v0.30.2
 	k8s.io/cloud-provider-openstack v1.30.0
-	k8s.io/klog/v2 v2.120.1
-	k8s.io/mount-utils v0.30.1
+	k8s.io/klog/v2 v2.130.1
+	k8s.io/mount-utils v0.30.2
 	k8s.io/utils v0.0.0-20240502163921-fe8a2dddb1d0
 )
 
@@ -57,12 +57,12 @@ require (
 	golang.org/x/term v0.21.0 // indirect
 	golang.org/x/text v0.16.0 // indirect
 	golang.org/x/time v0.5.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20240520151616-dc85e6b867a5 // indirect
-	google.golang.org/protobuf v1.34.1 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20240701130421-f6361c86f094 // indirect
+	google.golang.org/protobuf v1.34.2 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	k8s.io/kube-openapi v0.0.0-20240521193020-835d969ad83a // indirect
+	k8s.io/kube-openapi v0.0.0-20240620174524-b456828f718b // indirect
 	sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.4.1 // indirect
 	sigs.k8s.io/yaml v1.4.0 // indirect

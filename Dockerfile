@@ -9,7 +9,7 @@ RUN go mod download
 
 ########################################
 
-FROM --platform=${BUILDPLATFORM} golang:1.22.3-alpine3.20 AS builder
+FROM --platform=${BUILDPLATFORM} golang:1.22.4-alpine3.20 AS builder
 RUN apk update && apk add --no-cache make
 ENV GO111MODULE on
 WORKDIR /src
