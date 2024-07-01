@@ -77,7 +77,7 @@ jobs:
           go-version-file: 'go.mod'
 
       - name: Generate token
-        uses: actions/create-github-app-token@c8f55efbd427e7465d6da1106e7979bc8aaee856 # v1.10.1
+        uses: actions/create-github-app-token@ad38cffc07bac6e3857755914c4c88bfd2db4da4 # v1.10.2
         id: token
         with:
           app-id: "${{ secrets.BOT_APP_ID }}"
@@ -85,7 +85,7 @@ jobs:
           owner: "${{ github.repository_owner }}"
           repositories: homebrew-tap
       - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v5
+        uses: goreleaser/goreleaser-action@v6
         with:
           version: latest
           args: release --clean
