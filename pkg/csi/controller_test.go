@@ -37,8 +37,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clientkubernetes "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/fake"
-
-	"github.com/leahcimic/proxmox-csi-plugin/pkg/csi"
 )
 
 var _ proto.ControllerServer = (*csi.ControllerService)(nil)
