@@ -20,9 +20,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/csi"
-	tools "github.com/sergelogvinov/proxmox-csi-plugin/pkg/tools"
-	volume "github.com/sergelogvinov/proxmox-csi-plugin/pkg/volume"
+	"github.com/leahcimic/proxmox-csi-plugin/pkg/csi"
+	tools "github.com/leahcimic/proxmox-csi-plugin/pkg/tools"
+	volume "github.com/leahcimic/proxmox-csi-plugin/pkg/volume"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

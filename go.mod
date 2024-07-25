@@ -1,4 +1,4 @@
-module github.com/sergelogvinov/proxmox-csi-plugin
+module github.com/leahcimic/proxmox-csi-plugin
 
 go 1.22.4
 

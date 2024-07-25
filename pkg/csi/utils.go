@@ -28,7 +28,7 @@ import (
 	pxapi "github.com/Telmate/proxmox-api-go/proxmox"
 	"github.com/siderolabs/go-retry/retry"
 
-	volume "github.com/sergelogvinov/proxmox-csi-plugin/pkg/volume"
+	volume "github.com/leahcimic/proxmox-csi-plugin/pkg/volume"
 )
 
 const (

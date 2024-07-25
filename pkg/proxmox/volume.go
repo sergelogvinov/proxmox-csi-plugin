@@ -25,7 +25,7 @@ import (
 
 	pxapi "github.com/Telmate/proxmox-api-go/proxmox"
 
-	volume "github.com/sergelogvinov/proxmox-csi-plugin/pkg/volume"
+	volume "github.com/leahcimic/proxmox-csi-plugin/pkg/volume"
 )
 
 // WaitForVolumeDetach waits for the volume to be detached from the VM.

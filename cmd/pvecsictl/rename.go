@@ -24,7 +24,7 @@ import (
 
 	cobra "github.com/spf13/cobra"
 
-	tools "github.com/sergelogvinov/proxmox-csi-plugin/pkg/tools"
+	tools "github.com/leahcimic/proxmox-csi-plugin/pkg/tools"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clientkubernetes "k8s.io/client-go/kubernetes"

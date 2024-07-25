@@ -24,11 +24,11 @@ import (
 
 	cobra "github.com/spf13/cobra"
 
+	"github.com/leahcimic/proxmox-csi-plugin/pkg/csi"
+	vm "github.com/leahcimic/proxmox-csi-plugin/pkg/proxmox"
+	tools "github.com/leahcimic/proxmox-csi-plugin/pkg/tools"
+	volume "github.com/leahcimic/proxmox-csi-plugin/pkg/volume"
 	proxmox "github.com/sergelogvinov/proxmox-cloud-controller-manager/pkg/cluster"
-	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/csi"
-	vm "github.com/sergelogvinov/proxmox-csi-plugin/pkg/proxmox"
-	tools "github.com/sergelogvinov/proxmox-csi-plugin/pkg/tools"
-	volume "github.com/sergelogvinov/proxmox-csi-plugin/pkg/volume"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clientkubernetes "k8s.io/client-go/kubernetes"

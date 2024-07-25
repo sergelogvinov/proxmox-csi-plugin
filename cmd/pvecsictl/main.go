@@ -26,7 +26,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	cobra "github.com/spf13/cobra"
 
-	clilog "github.com/sergelogvinov/proxmox-csi-plugin/pkg/log"
+	clilog "github.com/leahcimic/proxmox-csi-plugin/pkg/log"
 )
 
 var (

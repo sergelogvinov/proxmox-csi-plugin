@@ -107,7 +107,7 @@ func (n *NodeService) NodeStageVolume(_ context.Context, request *csi.NodeStageV
 	if volumeContext == nil {
 		volumeContext = map[string]string{}
 	}
-
+	// NOTE(leahciMic): Publish Context comes from us in ControllerPublishVolumeResponse
 	devicePath, err := getDevicePath(request.GetPublishContext())
 	if err != nil {
 		klog.ErrorS(err, "NodePublishVolume: failed to get device path", "context", request.GetPublishContext())

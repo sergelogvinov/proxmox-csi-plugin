@@ -26,8 +26,8 @@ import (
 	proto "github.com/container-storage-interface/spec/lib/go/csi"
 	"google.golang.org/grpc"
 
-	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/csi"
-	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/tools"
+	"github.com/leahcimic/proxmox-csi-plugin/pkg/csi"
+	"github.com/leahcimic/proxmox-csi-plugin/pkg/tools"
 
 	clientkubernetes "k8s.io/client-go/kubernetes"
 	"k8s.io/klog/v2"

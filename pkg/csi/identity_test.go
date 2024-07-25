@@ -23,7 +23,7 @@ import (
 	proto "github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/csi"
+	"github.com/leahcimic/proxmox-csi-plugin/pkg/csi"
 )
 
 var _ proto.IdentityServer = (*csi.IdentityService)(nil)
