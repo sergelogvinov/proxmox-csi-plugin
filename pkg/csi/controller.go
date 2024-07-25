@@ -352,7 +352,7 @@ func (d *ControllerService) ControllerPublishVolume(ctx context.Context, request
 	} else {
 		vmr = pxapi.NewVmRef(vmrid)
 		vmr.SetNode(zone)
-		vmr.SetVmType("qemu")
+		vmr.SetVmType("lxc")
 	}
 
 	if vol.Zone() == "" {
@@ -360,45 +360,10 @@ func (d *ControllerService) ControllerPublishVolume(ctx context.Context, request
 	}
 
 	options := map[string]string{
-		"backup":   "0",
-		"iothread": "1",
+		"backup": "0",
 	}
 
-	if request.GetReadonly() {
-		options["ro"] = "1"
-	}
-
-	if volCtx[StorageSSDKey] == "true" {
-		options["ssd"] = "1"
-		options["discard"] = "on"
-	}
-
-	if volCtx[StorageCacheKey] != "" {
-		options["cache"] = volCtx[StorageCacheKey]
-	}
-
-	if volCtx[StorageDiskIOPSKey] != "" {
-		iops, err := strconv.Atoi(volCtx[StorageDiskIOPSKey]) //nolint:govet
-		if err != nil {
-			klog.ErrorS(err, "ControllerPublishVolume: must be a number", StorageDiskIOPSKey, volCtx[StorageDiskIOPSKey])
-
-			return nil, status.Error(codes.InvalidArgument, fmt.Sprintf("failed %s must be a number: %v", StorageDiskIOPSKey, err))
-		}
-
-		options["iops"] = strconv.Itoa(iops)
-	}
-
-	if volCtx[StorageDiskMBpsKey] != "" {
-		mbps, err := strconv.Atoi(volCtx[StorageDiskMBpsKey]) //nolint:govet
-		if err != nil {
-			klog.ErrorS(err, "ControllerPublishVolume: must be a number", StorageDiskMBpsKey, volCtx[StorageDiskMBpsKey])
-
-			return nil, status.Error(codes.InvalidArgument, fmt.Sprintf("failed %s must be a number: %v", StorageDiskMBpsKey, err))
-		}
-
-		options["mbps"] = strconv.Itoa(mbps)
-	}
-
+	// TODO(leahciMic) - will this work for LXC?
 	exist, err := isPvcExists(cl, vol)
 	if err != nil {
 		klog.ErrorS(err, "ControllerPublishVolume: failed to verify the existence of the PVC", "cluster", vol.Cluster(), "volumeID", vol.VolumeID())
@@ -410,6 +375,7 @@ func (d *ControllerService) ControllerPublishVolume(ctx context.Context, request
 		return nil, status.Error(codes.NotFound, "volume not found")
 	}
 
+	// Need to understand this as well...
 	d.volumeLocks.Lock()
 	defer d.volumeLocks.Unlock()
 
@@ -466,7 +432,7 @@ func (d *ControllerService) ControllerUnpublishVolume(ctx context.Context, reque
 	} else {
 		vmr = pxapi.NewVmRef(vmrid)
 		vmr.SetNode(zone)
-		vmr.SetVmType("qemu")
+		vmr.SetVmType("lxc")
 	}
 
 	if err := detachVolume(cl, vmr, vol.Disk()); err != nil {
@@ -519,7 +485,7 @@ func (d *ControllerService) GetCapacity(_ context.Context, request *csi.GetCapac
 
 		vmr := pxapi.NewVmRef(vmID)
 		vmr.SetNode(zone)
-		vmr.SetVmType("qemu")
+		vmr.SetVmType("lxc")
 
 		availableCapacity := int64(0)
 
@@ -636,9 +602,8 @@ func (d *ControllerService) ControllerExpandVolume(_ context.Context, request *c
 			return nil, status.Errorf(codes.Internal, "failed to cast response to map, vm: %v", vm)
 		}
 
-		if vm["type"].(string) != "qemu" {
-			klog.V(5).InfoS("ControllerExpandVolume: skipping non-qemu VM", "VM", vm["name"].(string))
-
+		if vm["type"].(string) == "qemu" {
+			klog.V(5).InfoS("ControllerExpandVolume: skipping qemu VM", "VM", vm["name"].(string))
 			continue
 		}
 
@@ -647,7 +612,7 @@ func (d *ControllerService) ControllerExpandVolume(_ context.Context, request *c
 
 			vmr := pxapi.NewVmRef(vmID)
 			vmr.SetNode(vol.Node())
-			vmr.SetVmType("qemu")
+			vmr.SetVmType(vm["type"].(string))
 
 			if vmr.Node() == "" {
 				vmr.SetNode(vm["node"].(string))
@@ -660,13 +625,13 @@ func (d *ControllerService) ControllerExpandVolume(_ context.Context, request *c
 				return nil, status.Error(codes.Internal, err.Error())
 			}
 
+			// TODO(leahciMic): Check volume attached code
 			lun, exist := isVolumeAttached(config, vol.Disk())
 			if !exist {
 				continue
 			}
 
 			device := deviceNamePrefix + strconv.Itoa(lun)
-
 			if _, err := cl.ResizeQemuDiskRaw(vmr, device, fmt.Sprintf("%dG", volSizeGB)); err != nil {
 				klog.ErrorS(err, "ControllerExpandVolume: failed to resize vm disk", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "vmID", vmr.VmId())
 

@@ -53,7 +53,7 @@ func getNodeWithStorage(cl *pxapi.Client, storageName string) (string, error) {
 	}
 
 	if data["data"] == nil {
-		return "", fmt.Errorf("failed to parce node list: %v", err)
+		return "", fmt.Errorf("failed to parse node list: %v", err)
 	}
 
 	for _, item := range data["data"].([]interface{}) {
@@ -64,7 +64,7 @@ func getNodeWithStorage(cl *pxapi.Client, storageName string) (string, error) {
 
 		vmr := pxapi.NewVmRef(vmID)
 		vmr.SetNode(node["node"].(string))
-		vmr.SetVmType("qemu")
+		vmr.SetVmType("lxc")
 
 		if _, err := cl.GetStorageStatus(vmr, storageName); err == nil {
 			return vmr.Node(), nil
@@ -76,7 +76,7 @@ func getNodeWithStorage(cl *pxapi.Client, storageName string) (string, error) {
 
 func getVMRefByVolume(cl *pxapi.Client, vol *volume.Volume) (vmr *pxapi.VmRef, err error) {
 	vmr = pxapi.NewVmRef(vmID)
-	vmr.SetVmType("qemu")
+	vmr.SetVmType("lxc")
 
 	node := vol.Node()
 	if node == "" {
@@ -289,8 +289,8 @@ func detachVolume(cl *pxapi.Client, vmr *pxapi.VmRef, pvc string) error {
 	vmParams := map[string]interface{}{
 		"idlist": fmt.Sprintf("%s%d", deviceNamePrefix, lun),
 	}
-
-	err = cl.Put(vmParams, "/nodes/"+vmr.Node()+"/qemu/"+strconv.Itoa(vmr.VmId())+"/unlink")
+	// TODO(leahciMic): How to remove lxc disk?
+	err = cl.Put(vmParams, "/nodes/"+vmr.Node()+"/"+vmr.GetVmType()+"/"+strconv.Itoa(vmr.VmId())+"/unlink")
 	if err != nil {
 		return fmt.Errorf("failed to set vm config: %v, vmParams=%+v", err, vmParams)
 	}
