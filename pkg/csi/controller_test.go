@@ -73,7 +73,7 @@ clusters:
 				"data": []interface{}{
 					map[string]interface{}{
 						"node":   "pve-1",
-						"type":   "qemu",
+						"type":   "lxc",
 						"vmid":   100,
 						"name":   "cluster-1-node-1",
 						"maxcpu": 4,
@@ -81,7 +81,7 @@ clusters:
 					},
 					map[string]interface{}{
 						"node":   "pve-2",
-						"type":   "qemu",
+						"type":   "lxc",
 						"vmid":   101,
 						"name":   "cluster-1-node-2",
 						"maxcpu": 2,
@@ -98,7 +98,7 @@ clusters:
 				"data": []interface{}{
 					map[string]interface{}{
 						"node":   "pve-3",
-						"type":   "qemu",
+						"type":   "lxc",
 						"vmid":   100,
 						"name":   "cluster-2-node-1",
 						"maxcpu": 1,
@@ -126,7 +126,7 @@ clusters:
 		},
 	)
 
-	httpmock.RegisterResponder("GET", "https://127.0.0.1:8006/api2/json/nodes/pve-1/qemu/100/config",
+	httpmock.RegisterResponder("GET", "https://127.0.0.1:8006/api2/json/nodes/pve-1/lxc/100/config",
 		func(_ *http.Request) (*http.Response, error) {
 			return httpmock.NewJsonResponse(200, map[string]interface{}{
 				"data": map[string]interface{}{
@@ -138,7 +138,7 @@ clusters:
 		},
 	)
 
-	httpmock.RegisterResponder("GET", "https://127.0.0.1:8006/api2/json/nodes/pve-2/qemu/101/config",
+	httpmock.RegisterResponder("GET", "https://127.0.0.1:8006/api2/json/nodes/pve-2/lxc/101/config",
 		func(_ *http.Request) (*http.Response, error) {
 			return httpmock.NewJsonResponse(200, map[string]interface{}{
 				"data": map[string]interface{}{
@@ -151,7 +151,7 @@ clusters:
 		},
 	)
 
-	httpmock.RegisterResponder("GET", "https://127.0.0.1:8006/api2/json/nodes/cluster-1-node-2/qemu/101/config",
+	httpmock.RegisterResponder("GET", "https://127.0.0.1:8006/api2/json/nodes/cluster-1-node-2/lxc/101/config",
 		func(_ *http.Request) (*http.Response, error) {
 			return httpmock.NewJsonResponse(200, map[string]interface{}{
 				"data": map[string]interface{}{
@@ -162,7 +162,7 @@ clusters:
 		},
 	)
 
-	httpmock.RegisterResponder("PUT", "https://127.0.0.1:8006/api2/json/nodes/pve-1/qemu/100/resize",
+	httpmock.RegisterResponder("PUT", "https://127.0.0.1:8006/api2/json/nodes/pve-1/lxc/100/resize",
 		func(_ *http.Request) (*http.Response, error) {
 			return httpmock.NewJsonResponse(200, map[string]interface{}{})
 		},
