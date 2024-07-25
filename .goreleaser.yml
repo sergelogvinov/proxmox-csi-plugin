@@ -56,7 +56,7 @@ snapshot:
 brews:
   - name: pvecsictl
     folder: Formula
-    homepage: https://github.com/sergelogvinov/proxmox-csi-plugin
+    homepage: https://github.com/leahcimic/proxmox-csi-plugin
     description: "Proxmox VE CSI Mutate tool"
     license: Apache-2.0
 

@@ -25,7 +25,7 @@ RUN make build-all-archs
 ########################################
 
 FROM --platform=${TARGETARCH} scratch AS proxmox-csi-controller
-LABEL org.opencontainers.image.source="https://github.com/sergelogvinov/proxmox-csi-plugin" \
+LABEL org.opencontainers.image.source="https://github.com/leahcimic/proxmox-csi-plugin" \
       org.opencontainers.image.licenses="Apache-2.0" \
       org.opencontainers.image.description="Proxmox VE CSI plugin"
 
@@ -40,14 +40,14 @@ ENTRYPOINT ["/bin/proxmox-csi-controller"]
 FROM --platform=${TARGETARCH} debian:12.5 AS tools
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    bash \
-    mount \
-    udev \
-    e2fsprogs \
-    xfsprogs \
-    util-linux \
-    cryptsetup \
-    rsync
+      bash \
+      mount \
+      udev \
+      e2fsprogs \
+      xfsprogs \
+      util-linux \
+      cryptsetup \
+      rsync
 
 COPY tools /tools
 RUN /tools/deps.sh
@@ -66,7 +66,7 @@ RUN /tools/deps-check.sh
 ########################################
 
 FROM --platform=${TARGETARCH} scratch AS proxmox-csi-node
-LABEL org.opencontainers.image.source="https://github.com/sergelogvinov/proxmox-csi-plugin" \
+LABEL org.opencontainers.image.source="https://github.com/leahcimic/proxmox-csi-plugin" \
       org.opencontainers.image.licenses="Apache-2.0" \
       org.opencontainers.image.description="Proxmox VE CSI plugin"
 
@@ -81,7 +81,7 @@ ENTRYPOINT ["/bin/proxmox-csi-node"]
 ########################################
 
 FROM alpine:3.20 AS pvecsictl
-LABEL org.opencontainers.image.source="https://github.com/sergelogvinov/proxmox-csi-plugin" \
+LABEL org.opencontainers.image.source="https://github.com/leahcimic/proxmox-csi-plugin" \
       org.opencontainers.image.licenses="Apache-2.0" \
       org.opencontainers.image.description="Proxmox VE CSI tools"
 
@@ -93,7 +93,7 @@ ENTRYPOINT ["/bin/pvecsictl"]
 ########################################
 
 FROM alpine:3.20 AS pvecsictl-goreleaser
-LABEL org.opencontainers.image.source="https://github.com/sergelogvinov/proxmox-csi-plugin" \
+LABEL org.opencontainers.image.source="https://github.com/leahcimic/proxmox-csi-plugin" \
       org.opencontainers.image.licenses="Apache-2.0" \
       org.opencontainers.image.description="Proxmox VE CSI tools"
 
