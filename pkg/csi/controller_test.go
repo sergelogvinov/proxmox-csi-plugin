@@ -25,13 +25,12 @@ import (
 
 	proto "github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/jarcoal/httpmock"
+	proxmox "github.com/sergelogvinov/proxmox-cloud-controller-manager/pkg/cluster"
+	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/csi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-
-	proxmox "github.com/sergelogvinov/proxmox-cloud-controller-manager/pkg/cluster"
-	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/csi"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

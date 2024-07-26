@@ -22,13 +22,13 @@ import (
 	"strings"
 	"time"
 
+	proxmox "github.com/sergelogvinov/proxmox-cloud-controller-manager/pkg/cluster"
 	cobra "github.com/spf13/cobra"
 
 	"github.com/leahcimic/proxmox-csi-plugin/pkg/csi"
 	vm "github.com/leahcimic/proxmox-csi-plugin/pkg/proxmox"
 	tools "github.com/leahcimic/proxmox-csi-plugin/pkg/tools"
 	volume "github.com/leahcimic/proxmox-csi-plugin/pkg/volume"
-	proxmox "github.com/sergelogvinov/proxmox-cloud-controller-manager/pkg/cluster"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clientkubernetes "k8s.io/client-go/kubernetes"

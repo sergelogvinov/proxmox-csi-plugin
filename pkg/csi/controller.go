@@ -26,12 +26,12 @@ import (
 	pxapi "github.com/Telmate/proxmox-api-go/proxmox"
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/kubernetes-csi/csi-lib-utils/protosanitizer"
+	proxmox "github.com/sergelogvinov/proxmox-cloud-controller-manager/pkg/cluster"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
 	"github.com/leahcimic/proxmox-csi-plugin/pkg/tools"
 	volume "github.com/leahcimic/proxmox-csi-plugin/pkg/volume"
-	proxmox "github.com/sergelogvinov/proxmox-cloud-controller-manager/pkg/cluster"
 
 	corev1 "k8s.io/api/core/v1"
 	clientkubernetes "k8s.io/client-go/kubernetes"
@@ -604,6 +604,7 @@ func (d *ControllerService) ControllerExpandVolume(_ context.Context, request *c
 
 		if vm["type"].(string) == "qemu" {
 			klog.V(5).InfoS("ControllerExpandVolume: skipping qemu VM", "VM", vm["name"].(string))
+
 			continue
 		}
 
