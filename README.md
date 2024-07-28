@@ -116,7 +116,7 @@ Requirements for Proxmox CSI Plugin
 * Proxmox must be clustered
 * Proxmox CSI Plugin must have privileges in your Proxmox instance
 * Kubernetes must be labelled with the correct topology
-* A StoreClass referencing teh CSI plugin exists
+* A StoreClass referencing the CSI plugin exists
 
 How to configure the above is detailed below
 
