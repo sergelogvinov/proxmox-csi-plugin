@@ -5,6 +5,9 @@ HELMREPO ?= $(REGISTRY)/$(USERNAME)/charts
 PLATFORM ?= linux/arm64,linux/amd64
 PUSH ?= false
 
+# lowercase username
+USERNAME = $(echo $(USERNAME) | tr '[:upper:]' '[:lower:]')
+
 SHA ?= $(shell git describe --match=none --always --abbrev=7 --dirty)
 TAG ?= $(shell git describe --tag --always --match v[0-9]\*)
 GO_LDFLAGS := -ldflags "-w -s -X main.version=$(TAG) -X main.commit=$(SHA)"
