@@ -401,7 +401,7 @@ spec:
           volumeMounts:
             - name: socket-dir
               mountPath: /csi
-          resources: 
+          resources:
             requests:
               cpu: 10m
               memory: 16Mi
@@ -437,7 +437,7 @@ spec:
           volumeMounts:
             - name: socket-dir
               mountPath: /csi
-          resources: 
+          resources:
             requests:
               cpu: 10m
               memory: 16Mi
@@ -461,7 +461,7 @@ spec:
           volumeMounts:
             - name: socket-dir
               mountPath: /csi
-          resources: 
+          resources:
             requests:
               cpu: 10m
               memory: 16Mi
@@ -482,7 +482,7 @@ spec:
           volumeMounts:
             - name: socket-dir
               mountPath: /csi
-          resources: 
+          resources:
             requests:
               cpu: 10m
               memory: 16Mi

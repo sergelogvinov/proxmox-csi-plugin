@@ -9,6 +9,7 @@ require (
 	github.com/jarcoal/httpmock v1.3.1
 	github.com/kubernetes-csi/csi-lib-utils v0.18.1
 	github.com/sergelogvinov/proxmox-cloud-controller-manager v0.4.2
+	github.com/sergelogvinov/proxmox-csi-plugin v0.7.0
 	github.com/siderolabs/go-blockdevice v0.4.7
 	github.com/siderolabs/go-retry v0.3.3
 	github.com/sirupsen/logrus v1.9.3

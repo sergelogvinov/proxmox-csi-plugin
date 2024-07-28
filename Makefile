@@ -1,5 +1,5 @@
 REGISTRY ?= ghcr.io
-USERNAME ?= sergelogvinov
+USERNAME ?= leahcimic
 OCIREPO ?= $(REGISTRY)/$(USERNAME)
 HELMREPO ?= $(REGISTRY)/$(USERNAME)/charts
 PLATFORM ?= linux/arm64,linux/amd64
