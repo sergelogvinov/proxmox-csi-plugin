@@ -42,7 +42,7 @@ import (
 const (
 	vmID = 9999
 
-	deviceNamePrefix = "scsi"
+	deviceNamePrefix = "mp"
 )
 
 var controllerCaps = []csi.ControllerServiceCapability_RPC_Type{
@@ -143,6 +143,8 @@ func (d *ControllerService) CreateVolume(_ context.Context, request *csi.CreateV
 	}
 
 	if zone == "" {
+		// Note(leahciMic): I don't think this code path gets exercised. At least it seems like it would fail
+		// as getNodeWithStorage looks for a hardcoded vm with id 9999
 		if zone, err = getNodeWithStorage(cl, params[StorageIDKey]); err != nil {
 			klog.ErrorS(err, "CreateVolume: failed to get node with storage", "cluster", region, "storage", params[StorageIDKey])
 
@@ -186,9 +188,10 @@ func (d *ControllerService) CreateVolume(_ context.Context, request *csi.CreateV
 		}
 	}
 
+	// TODO(leahciMic): You're here in the audit
 	vol := volume.NewVolume(region, zone, params[StorageIDKey], fmt.Sprintf("vm-%d-%s", vmID, pvc))
 	if storageConfig["path"] != nil && storageConfig["path"].(string) != "" {
-		vol = volume.NewVolume(region, zone, params[StorageIDKey], fmt.Sprintf("%d/vm-%d-%s.raw", vmID, vmID, pvc))
+		vol = volume.NewVolume(region, zone, params[StorageIDKey], fmt.Sprintf("%d/subvol-%d-%s.raw", vmID, vmID, pvc), volume.FormatSubvol)
 	}
 
 	// Check if volume already exists, and use it if it has the same size, otherwise create a new one
@@ -305,6 +308,10 @@ func (d *ControllerService) ControllerGetCapabilities(_ context.Context, _ *csi.
 // ControllerPublishVolume publish a volume
 func (d *ControllerService) ControllerPublishVolume(ctx context.Context, request *csi.ControllerPublishVolumeRequest) (*csi.ControllerPublishVolumeResponse, error) {
 	klog.V(4).InfoS("ControllerPublishVolume: called", "args", protosanitizer.StripSecrets(*request))
+
+	if blk := request.VolumeCapability.GetBlock(); blk != nil {
+		return nil, status.Error(codes.Unimplemented, "Block volume is not supported")
+	}
 
 	volumeID := request.GetVolumeId()
 	if volumeID == "" {

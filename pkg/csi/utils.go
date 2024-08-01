@@ -20,7 +20,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -230,28 +229,35 @@ func attachVolume(cl *pxapi.Client, vmr *pxapi.VmRef, storageName string, pvc st
 		return nil, fmt.Errorf("failed to get vm config: %v", err)
 	}
 
-	wwm := ""
+	path := ""
 
 	lun, exist := isVolumeAttached(config, pvc)
 	if exist {
-		wwm = hex.EncodeToString([]byte(fmt.Sprintf("PVC-ID%02d", lun)))
+		path = hex.EncodeToString([]byte(fmt.Sprintf("PVC-ID%02d", lun)))
 	} else {
 		for lun = 1; lun < 30; lun++ {
 			if config[deviceNamePrefix+strconv.Itoa(lun)] == nil {
-				wwm = hex.EncodeToString([]byte(fmt.Sprintf("PVC-ID%02d", lun)))
+				path = hex.EncodeToString([]byte(fmt.Sprintf("PVC-ID%02d", lun)))
 
-				options["wwn"] = "0x" + wwm
+				options["mp"] = "/disks/" + path
 
 				opt := make([]string, 0, len(options))
 				for k := range options {
 					opt = append(opt, fmt.Sprintf("%s=%s", k, options[k]))
 				}
 
+				// Example JSON:
+				// {
+				// 	"mp0": "disks:1,mp=/test"
+				// }
+
 				vmParams := map[string]interface{}{
 					deviceNamePrefix + strconv.Itoa(lun): fmt.Sprintf("%s:%s,%s", storageName, pvc, strings.Join(opt, ",")),
 				}
 
-				_, err = cl.SetVmConfig(vmr, vmParams)
+				// mediavault:subvol-101-disk-2,mp=/mnt/media,size=35000G
+
+				_, err = cl.SetLxcConfig(vmr, vmParams)
 				if err != nil {
 					return nil, fmt.Errorf("failed to attach disk: %v, vmParams=%+v", err, vmParams)
 				}
@@ -265,9 +271,9 @@ func attachVolume(cl *pxapi.Client, vmr *pxapi.VmRef, storageName string, pvc st
 		}
 	}
 
-	if wwm != "" {
+	if path != "" {
 		return map[string]string{
-			"DevicePath": "/dev/disk/by-id/wwn-0x" + wwm,
+			"DevicePath": "/disks/" + path,
 			"lun":        strconv.Itoa(lun),
 		}, nil
 	}
@@ -281,16 +287,20 @@ func detachVolume(cl *pxapi.Client, vmr *pxapi.VmRef, pvc string) error {
 		return fmt.Errorf("failed to get vm config: %v", err)
 	}
 
+	// TODO(leahciMic) Does it make sense to check pending config in isVolumeAttached (and in other things)
 	lun, exist := isVolumeAttached(config, pvc)
 	if !exist {
 		return nil
 	}
 
 	vmParams := map[string]interface{}{
-		"idlist": fmt.Sprintf("%s%d", deviceNamePrefix, lun),
+		"delete": deviceNamePrefix + strconv.Itoa(lun),
 	}
+
+	// need to save new config...
+	_, err = cl.SetLxcConfig(vmr, vmParams)
+
 	// TODO(leahciMic): How to remove lxc disk?
-	err = cl.Put(vmParams, "/nodes/"+vmr.Node()+"/"+vmr.GetVmType()+"/"+strconv.Itoa(vmr.VmId())+"/unlink")
 	if err != nil {
 		return fmt.Errorf("failed to set vm config: %v, vmParams=%+v", err, vmParams)
 	}
@@ -303,68 +313,14 @@ func detachVolume(cl *pxapi.Client, vmr *pxapi.VmRef, pvc string) error {
 }
 
 func getDevicePath(deviceContext map[string]string) (string, error) {
-	sysPath := "/sys/bus/scsi/devices"
-
 	devicePath := deviceContext["DevicePath"]
+
 	if len(devicePath) == 0 {
 		return "", fmt.Errorf("DevicePath must be provided")
 	}
 
-	deviceWWN := ""
-	if strings.HasPrefix(devicePath, "/dev/disk/by-id/wwn-0x") {
-		deviceWWN = devicePath[len("/dev/disk/by-id/wwn-0x"):]
-	}
-
-	if deviceWWN != "" {
-		if dirs, err := os.ReadDir(sysPath); err == nil {
-			for _, f := range dirs {
-				device := f.Name()
-
-				// /sys/bus/scsi/devices/0:0:0:0
-				arr := strings.Split(device, ":")
-				if len(arr) < 4 {
-					continue
-				}
-
-				_, err := strconv.Atoi(arr[3])
-				if err != nil {
-					continue
-				}
-
-				vendorBytes, err := os.ReadFile(filepath.Join(sysPath, device, "vendor"))
-				if err != nil {
-					continue
-				}
-
-				vendor := strings.TrimSpace(string(vendorBytes))
-				if strings.ToUpper(vendor) != "QEMU" {
-					continue
-				}
-
-				wwidBytes, err := os.ReadFile(filepath.Join(sysPath, device, "wwid"))
-				if err != nil {
-					continue
-				}
-
-				wwid := strings.TrimSpace(string(wwidBytes))
-				if !strings.HasPrefix(wwid, "naa.") {
-					continue
-				}
-
-				wwn := wwid[len("naa."):]
-				if wwn == deviceWWN {
-					if dev, err := os.ReadDir(filepath.Join(sysPath, device, "block")); err == nil {
-						if len(dev) > 0 {
-							devName := dev[0].Name()
-
-							return fmt.Sprintf("/dev/%s", devName), nil
-						}
-
-						return "", fmt.Errorf("no block device found")
-					}
-				}
-			}
-		}
+	if !strings.HasPrefix(devicePath, "/disks/") {
+		return "", fmt.Errorf("DevicePath must start with /disks/")
 	}
 
 	err := retry.Constant(10*time.Second, retry.WithUnits(50*time.Millisecond)).Retry(func() error {
@@ -378,6 +334,7 @@ func getDevicePath(deviceContext map[string]string) (string, error) {
 
 		return nil
 	})
+
 	if err != nil {
 		if retry.IsTimeout(err) {
 			return "", fmt.Errorf("device %s is not found", devicePath)

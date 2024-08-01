@@ -85,7 +85,7 @@ func NewNodeService(nodeID string, clientSet kubernetes.Interface) *NodeService 
 // NodeStageVolume is called by the CO when a workload that wants to use the specified volume is placed (scheduled) on a node.
 //
 //nolint:cyclop,gocyclo
-func (n *NodeService) NodeStageVolume(_ context.Context, request *csi.NodeStageVolumeRequest) (*csi.NodeStageVolumeResponse, error) {
+func (nodeService *NodeService) NodeStageVolume(_ context.Context, request *csi.NodeStageVolumeRequest) (*csi.NodeStageVolumeResponse, error) {
 	klog.V(4).InfoS("NodeStageVolume: called", "args", stripSecrets(*request))
 
 	volumeID := request.GetVolumeId()
@@ -99,6 +99,7 @@ func (n *NodeService) NodeStageVolume(_ context.Context, request *csi.NodeStageV
 	}
 
 	volumeCapability := request.GetVolumeCapability()
+
 	if volumeCapability == nil {
 		return nil, status.Error(codes.InvalidArgument, "VolumeCapability must be provided")
 	}
@@ -117,23 +118,22 @@ func (n *NodeService) NodeStageVolume(_ context.Context, request *csi.NodeStageV
 
 	if blk := volumeCapability.GetBlock(); blk != nil {
 		klog.V(3).InfoS("NodeStageVolume: raw device, skipped", "device", devicePath)
-
 		return &csi.NodeStageVolumeResponse{}, nil
 	}
 
 	klog.V(3).InfoS("NodeStageVolume: mount device", "device", devicePath, "path", stagingTarget)
 
-	n.volumeLocks.Lock()
-	defer n.volumeLocks.Unlock()
+	nodeService.volumeLocks.Lock()
+	defer nodeService.volumeLocks.Unlock()
 
-	m := n.Mount
+	m := nodeService.Mount
 
-	notMnt, err := m.IsLikelyNotMountPointAttach(stagingTarget)
+	notMounted, err := m.IsLikelyNotMountPointAttach(stagingTarget)
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
-	if notMnt {
+	if notMounted {
 		var (
 			options       []string
 			formatOptions []string
@@ -153,6 +153,7 @@ func (n *NodeService) NodeStageVolume(_ context.Context, request *csi.NodeStageV
 			mountFlags := mnt.GetMountFlags()
 			options = append(options, collectMountOptions(fsType, mountFlags)...)
 		}
+		// TODO(leahciMic): We wont use a BLOCK device. Check what needs to be done just for FILESYSTEM
 
 		blockSize := volumeContext[StorageBlockSizeKey]
 		if blockSize != "" {
