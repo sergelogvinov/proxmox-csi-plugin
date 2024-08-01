@@ -15,12 +15,12 @@ require (
 	github.com/spf13/cobra v1.8.1
 	github.com/stretchr/testify v1.9.0
 	google.golang.org/grpc v1.64.0
-	k8s.io/api v0.30.2
-	k8s.io/apimachinery v0.30.2
-	k8s.io/client-go v0.30.2
+	k8s.io/api v0.30.3
+	k8s.io/apimachinery v0.30.3
+	k8s.io/client-go v0.30.3
 	k8s.io/cloud-provider-openstack v1.30.0
 	k8s.io/klog/v2 v2.130.1
-	k8s.io/mount-utils v0.30.2
+	k8s.io/mount-utils v0.30.3
 	k8s.io/utils v0.0.0-20240502163921-fe8a2dddb1d0
 )
 
