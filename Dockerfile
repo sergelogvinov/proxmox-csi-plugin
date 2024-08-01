@@ -37,7 +37,7 @@ ENTRYPOINT ["/bin/proxmox-csi-controller"]
 
 ########################################
 
-FROM --platform=${TARGETARCH} debian:12.5 AS tools
+FROM --platform=${TARGETARCH} debian:12.6 AS tools
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     bash \
