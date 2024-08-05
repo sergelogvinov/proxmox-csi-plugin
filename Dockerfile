@@ -9,7 +9,7 @@ RUN go mod download
 
 ########################################
 
-FROM --platform=${BUILDPLATFORM} golang:1.22.4-alpine3.20 AS builder
+FROM --platform=${BUILDPLATFORM} golang:1.22.5-alpine3.20 AS builder
 RUN apk update && apk add --no-cache make
 ENV GO111MODULE on
 WORKDIR /src
@@ -37,7 +37,7 @@ ENTRYPOINT ["/bin/proxmox-csi-controller"]
 
 ########################################
 
-FROM --platform=${TARGETARCH} debian:12.5 AS tools
+FROM --platform=${TARGETARCH} debian:12.6 AS tools
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     bash \
