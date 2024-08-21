@@ -26,7 +26,9 @@ import (
 )
 
 // IdentityService is the identity service for the CSI driver
-type IdentityService struct{}
+type IdentityService struct {
+	csi.UnimplementedIdentityServer
+}
 
 // NewIdentityService returns a new identity service
 func NewIdentityService() *IdentityService {

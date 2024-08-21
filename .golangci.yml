@@ -167,6 +167,7 @@ linters:
     - varnamelen # too annoying
     - wrapcheck
     - perfsprint
+    - exportloopref
 
     # temporarily disabled linters
     - copyloopvar

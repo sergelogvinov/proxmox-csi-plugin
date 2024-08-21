@@ -18,6 +18,7 @@ package csi
 
 import (
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -146,7 +147,7 @@ func getVolumeSize(cl *pxapi.Client, vol *volume.Volume) (int64, error) {
 	}
 
 	if st == nil {
-		return 0, fmt.Errorf(ErrorNotFound)
+		return 0, errors.New(ErrorNotFound)
 	}
 
 	return st.size, nil

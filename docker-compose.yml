@@ -9,6 +9,7 @@ services:
     environment:
       # NODE_NAME: worker-11
       KUBECONFIG: /etc/kubernetes/kubeconfig
+      # UNSAFEMOUNT: "true"
     command:
       - "make"
       - "run"
@@ -39,7 +40,7 @@ services:
         source: ./hack
         target: /etc/kubernetes
   csi-resizer:
-    image: registry.k8s.io/sig-storage/csi-resizer:v1.11.1
+    image: registry.k8s.io/sig-storage/csi-resizer:v1.11.2
     network_mode: "service:base"
     command:
       - "--v=5"
@@ -55,7 +56,7 @@ services:
         source: ./hack
         target: /etc/kubernetes
   csi-provisioner:
-    image: registry.k8s.io/sig-storage/csi-provisioner:v5.0.1
+    image: registry.k8s.io/sig-storage/csi-provisioner:v5.0.2
     network_mode: "service:base"
     command:
       - "--v=5"
@@ -81,7 +82,7 @@ services:
         source: ./hack
         target: /etc/kubernetes
   # csi-node-driver-registrar:
-  #   image: registry.k8s.io/sig-storage/csi-node-driver-registrar:v2.9.3
+  #   image: registry.k8s.io/sig-storage/csi-node-driver-registrar:v2.11.1
   #   network_mode: "service:base"
   #   command:
   #     - "--v=5"
