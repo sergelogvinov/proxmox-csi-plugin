@@ -19,6 +19,7 @@ package csi
 import (
 	"context"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -60,6 +61,8 @@ type ControllerService struct {
 	Kclient clientkubernetes.Interface
 
 	volumeLocks sync.Mutex
+
+	csi.UnimplementedControllerServer
 }
 
 // NewControllerService returns a new controller service
@@ -84,7 +87,7 @@ func NewControllerService(kclient *clientkubernetes.Clientset, cloudConfig strin
 //
 //nolint:gocyclo,cyclop
 func (d *ControllerService) CreateVolume(_ context.Context, request *csi.CreateVolumeRequest) (*csi.CreateVolumeResponse, error) {
-	klog.V(4).InfoS("CreateVolume: called", "args", protosanitizer.StripSecrets(*request))
+	klog.V(4).InfoS("CreateVolume: called", "args", protosanitizer.StripSecrets(request))
 
 	pvc := request.GetName()
 	if len(pvc) == 0 {
@@ -232,7 +235,7 @@ func (d *ControllerService) CreateVolume(_ context.Context, request *csi.CreateV
 
 // DeleteVolume deletes a volume.
 func (d *ControllerService) DeleteVolume(_ context.Context, request *csi.DeleteVolumeRequest) (*csi.DeleteVolumeResponse, error) {
-	klog.V(4).InfoS("DeleteVolume: called", "args", protosanitizer.StripSecrets(*request))
+	klog.V(4).InfoS("DeleteVolume: called", "args", protosanitizer.StripSecrets(request))
 
 	volumeID := request.GetVolumeId()
 	if len(volumeID) == 0 {
@@ -304,7 +307,7 @@ func (d *ControllerService) ControllerGetCapabilities(_ context.Context, _ *csi.
 
 // ControllerPublishVolume publish a volume
 func (d *ControllerService) ControllerPublishVolume(ctx context.Context, request *csi.ControllerPublishVolumeRequest) (*csi.ControllerPublishVolumeResponse, error) {
-	klog.V(4).InfoS("ControllerPublishVolume: called", "args", protosanitizer.StripSecrets(*request))
+	klog.V(4).InfoS("ControllerPublishVolume: called", "args", protosanitizer.StripSecrets(request))
 
 	volumeID := request.GetVolumeId()
 	if volumeID == "" {
@@ -362,6 +365,14 @@ func (d *ControllerService) ControllerPublishVolume(ctx context.Context, request
 	options := map[string]string{
 		"backup":   "0",
 		"iothread": "1",
+	}
+
+	// Temporary workaround for unsafe mount, better to use a VolumeAttributesClass resource
+	unsafeEnv := os.Getenv("UNSAFEMOUNT")
+	if unsafeEnv == "true" { // nolint: goconst
+		options = map[string]string{
+			"iothread": "1",
+		}
 	}
 
 	if request.GetReadonly() {
@@ -427,7 +438,7 @@ func (d *ControllerService) ControllerPublishVolume(ctx context.Context, request
 
 // ControllerUnpublishVolume unpublish a volume
 func (d *ControllerService) ControllerUnpublishVolume(ctx context.Context, request *csi.ControllerUnpublishVolumeRequest) (*csi.ControllerUnpublishVolumeResponse, error) {
-	klog.V(4).InfoS("ControllerUnpublishVolume: called", "args", protosanitizer.StripSecrets(*request))
+	klog.V(4).InfoS("ControllerUnpublishVolume: called", "args", protosanitizer.StripSecrets(request))
 
 	volumeID := request.GetVolumeId()
 	if volumeID == "" {
@@ -482,21 +493,21 @@ func (d *ControllerService) ControllerUnpublishVolume(ctx context.Context, reque
 
 // ValidateVolumeCapabilities validate volume capabilities
 func (d *ControllerService) ValidateVolumeCapabilities(_ context.Context, request *csi.ValidateVolumeCapabilitiesRequest) (*csi.ValidateVolumeCapabilitiesResponse, error) {
-	klog.V(4).InfoS("ValidateVolumeCapabilities: called", "args", protosanitizer.StripSecrets(*request))
+	klog.V(4).InfoS("ValidateVolumeCapabilities: called", "args", protosanitizer.StripSecrets(request))
 
 	return nil, status.Error(codes.Unimplemented, "")
 }
 
 // ListVolumes list volumes
 func (d *ControllerService) ListVolumes(_ context.Context, request *csi.ListVolumesRequest) (*csi.ListVolumesResponse, error) {
-	klog.V(4).InfoS("ListVolumes: called", "args", protosanitizer.StripSecrets(*request))
+	klog.V(4).InfoS("ListVolumes: called", "args", protosanitizer.StripSecrets(request))
 
 	return nil, status.Error(codes.Unimplemented, "")
 }
 
 // GetCapacity get capacity
 func (d *ControllerService) GetCapacity(_ context.Context, request *csi.GetCapacityRequest) (*csi.GetCapacityResponse, error) {
-	klog.V(5).InfoS("GetCapacity: called", "args", protosanitizer.StripSecrets(*request))
+	klog.V(5).InfoS("GetCapacity: called", "args", protosanitizer.StripSecrets(request))
 
 	topology := request.GetAccessibleTopology()
 	if topology != nil {
@@ -545,28 +556,28 @@ func (d *ControllerService) GetCapacity(_ context.Context, request *csi.GetCapac
 
 // CreateSnapshot create a snapshot
 func (d *ControllerService) CreateSnapshot(_ context.Context, request *csi.CreateSnapshotRequest) (*csi.CreateSnapshotResponse, error) {
-	klog.V(4).InfoS("CreateSnapshot: called", "args", protosanitizer.StripSecrets(*request))
+	klog.V(4).InfoS("CreateSnapshot: called", "args", protosanitizer.StripSecrets(request))
 
 	return nil, status.Error(codes.Unimplemented, "")
 }
 
 // DeleteSnapshot delete a snapshot
 func (d *ControllerService) DeleteSnapshot(_ context.Context, request *csi.DeleteSnapshotRequest) (*csi.DeleteSnapshotResponse, error) {
-	klog.V(4).InfoS("DeleteSnapshot: called", "args", protosanitizer.StripSecrets(*request))
+	klog.V(4).InfoS("DeleteSnapshot: called", "args", protosanitizer.StripSecrets(request))
 
 	return nil, status.Error(codes.Unimplemented, "")
 }
 
 // ListSnapshots list snapshots
 func (d *ControllerService) ListSnapshots(_ context.Context, request *csi.ListSnapshotsRequest) (*csi.ListSnapshotsResponse, error) {
-	klog.V(4).InfoS("ListSnapshots: called", "args", protosanitizer.StripSecrets(*request))
+	klog.V(4).InfoS("ListSnapshots: called", "args", protosanitizer.StripSecrets(request))
 
 	return nil, status.Error(codes.Unimplemented, "")
 }
 
 // ControllerExpandVolume expand a volume
 func (d *ControllerService) ControllerExpandVolume(_ context.Context, request *csi.ControllerExpandVolumeRequest) (*csi.ControllerExpandVolumeResponse, error) {
-	klog.V(4).InfoS("ControllerExpandVolume: called", "args", protosanitizer.StripSecrets(*request))
+	klog.V(4).InfoS("ControllerExpandVolume: called", "args", protosanitizer.StripSecrets(request))
 
 	volumeID := request.GetVolumeId()
 	if volumeID == "" {
@@ -687,14 +698,14 @@ func (d *ControllerService) ControllerExpandVolume(_ context.Context, request *c
 
 // ControllerGetVolume get a volume
 func (d *ControllerService) ControllerGetVolume(_ context.Context, request *csi.ControllerGetVolumeRequest) (*csi.ControllerGetVolumeResponse, error) {
-	klog.V(4).InfoS("ControllerGetVolume: called", "args", protosanitizer.StripSecrets(*request))
+	klog.V(4).InfoS("ControllerGetVolume: called", "args", protosanitizer.StripSecrets(request))
 
 	return nil, status.Error(codes.Unimplemented, "")
 }
 
 // ControllerModifyVolume modify a volume
 func (d *ControllerService) ControllerModifyVolume(_ context.Context, request *csi.ControllerModifyVolumeRequest) (*csi.ControllerModifyVolumeResponse, error) {
-	klog.V(4).InfoS("ControllerModifyVolume: called", "args", protosanitizer.StripSecrets(*request))
+	klog.V(4).InfoS("ControllerModifyVolume: called", "args", protosanitizer.StripSecrets(request))
 
 	return nil, status.Error(codes.Unimplemented, "")
 }

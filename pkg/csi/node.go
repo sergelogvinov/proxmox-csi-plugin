@@ -71,6 +71,8 @@ type NodeService struct {
 
 	Mount       mount.IMount
 	volumeLocks sync.Mutex
+
+	csi.UnimplementedNodeServer
 }
 
 // NewNodeService returns a new NodeService
@@ -86,7 +88,7 @@ func NewNodeService(nodeID string, clientSet kubernetes.Interface) *NodeService 
 //
 //nolint:cyclop,gocyclo
 func (n *NodeService) NodeStageVolume(_ context.Context, request *csi.NodeStageVolumeRequest) (*csi.NodeStageVolumeResponse, error) {
-	klog.V(4).InfoS("NodeStageVolume: called", "args", stripSecrets(*request))
+	klog.V(4).InfoS("NodeStageVolume: called", "args", stripSecrets(request))
 
 	volumeID := request.GetVolumeId()
 	if len(volumeID) == 0 {
@@ -220,7 +222,7 @@ func (n *NodeService) NodeStageVolume(_ context.Context, request *csi.NodeStageV
 //
 //nolint:dupl
 func (n *NodeService) NodeUnstageVolume(_ context.Context, request *csi.NodeUnstageVolumeRequest) (*csi.NodeUnstageVolumeResponse, error) {
-	klog.V(4).InfoS("NodeUnstageVolume: called", "args", stripSecrets(*request))
+	klog.V(4).InfoS("NodeUnstageVolume: called", "args", stripSecrets(request))
 
 	stagingTargetPath := request.GetStagingTargetPath()
 	if len(stagingTargetPath) == 0 {
@@ -282,7 +284,7 @@ func (n *NodeService) NodeUnstageVolume(_ context.Context, request *csi.NodeUnst
 //
 //nolint:dupl
 func (n *NodeService) NodePublishVolume(_ context.Context, request *csi.NodePublishVolumeRequest) (*csi.NodePublishVolumeResponse, error) {
-	klog.V(4).InfoS("NodePublishVolume: called", "args", stripSecrets(*request))
+	klog.V(4).InfoS("NodePublishVolume: called", "args", stripSecrets(request))
 
 	stagingTargetPath := request.GetStagingTargetPath()
 	if len(stagingTargetPath) == 0 {
@@ -387,7 +389,7 @@ func (n *NodeService) NodePublishVolume(_ context.Context, request *csi.NodePubl
 //
 //nolint:dupl
 func (n *NodeService) NodeUnpublishVolume(_ context.Context, request *csi.NodeUnpublishVolumeRequest) (*csi.NodeUnpublishVolumeResponse, error) {
-	klog.V(4).InfoS("NodeUnpublishVolume: called", "args", stripSecrets(*request))
+	klog.V(4).InfoS("NodeUnpublishVolume: called", "args", stripSecrets(request))
 
 	targetPath := request.GetTargetPath()
 	if len(targetPath) == 0 {
@@ -408,7 +410,7 @@ func (n *NodeService) NodeUnpublishVolume(_ context.Context, request *csi.NodeUn
 
 // NodeGetVolumeStats get the volume stats
 func (n *NodeService) NodeGetVolumeStats(_ context.Context, request *csi.NodeGetVolumeStatsRequest) (*csi.NodeGetVolumeStatsResponse, error) {
-	klog.V(4).InfoS("NodeGetVolumeStats: called", "args", stripSecrets(*request))
+	klog.V(4).InfoS("NodeGetVolumeStats: called", "args", stripSecrets(request))
 
 	volumePath := request.GetVolumePath()
 	if len(volumePath) == 0 {
@@ -450,7 +452,7 @@ func (n *NodeService) NodeGetVolumeStats(_ context.Context, request *csi.NodeGet
 
 // NodeExpandVolume expand the volume
 func (n *NodeService) NodeExpandVolume(_ context.Context, request *csi.NodeExpandVolumeRequest) (*csi.NodeExpandVolumeResponse, error) {
-	klog.V(4).InfoS("NodeExpandVolume: called", "args", stripSecrets(*request))
+	klog.V(4).InfoS("NodeExpandVolume: called", "args", stripSecrets(request))
 
 	volumeID := request.GetVolumeId()
 	if len(volumeID) == 0 {
@@ -566,7 +568,7 @@ func (n *NodeService) NodeGetInfo(ctx context.Context, _ *csi.NodeGetInfoRequest
 
 func isValidVolumeCapabilities(volCaps []*csi.VolumeCapability) bool {
 	hasSupport := func(reqcap *csi.VolumeCapability) bool {
-		for _, c := range volumeCaps {
+		for _, c := range volumeCaps { // nolint: govet
 			if c.GetMode() == reqcap.GetAccessMode().GetMode() {
 				return true
 			}

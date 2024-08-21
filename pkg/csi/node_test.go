@@ -139,7 +139,7 @@ func TestNodeStageVolumeErrors(t *testing.T) {
 			} else {
 				assert.Nil(t, err)
 				assert.NotNil(t, resp)
-				assert.Equal(t, *resp, proto.NodeStageVolumeResponse{})
+				assert.Equal(t, resp, &proto.NodeStageVolumeResponse{})
 			}
 		})
 	}

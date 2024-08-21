@@ -94,7 +94,7 @@ func locationFromTopologyRequirement(tr *proto.TopologyRequirement) (region, zon
 }
 
 func stripSecrets(msg interface{}) string {
-	reqValue := reflect.ValueOf(msg)
+	reqValue := reflect.ValueOf(&msg)
 	reqType := reqValue.Type()
 
 	if reqType.Kind() == reflect.Struct {
