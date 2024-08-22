@@ -21,6 +21,7 @@ import (
 	"context"
 	"flag"
 	"net"
+	"net/http"
 	"os"
 
 	proto "github.com/container-storage-interface/spec/lib/go/csi"
@@ -30,6 +31,7 @@ import (
 	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/tools"
 
 	clientkubernetes "k8s.io/client-go/kubernetes"
+	"k8s.io/component-base/metrics/legacyregistry"
 	"k8s.io/klog/v2"
 )
 
@@ -40,6 +42,9 @@ var (
 	showVersion = flag.Bool("version", false, "Print the version and exit.")
 	csiEndpoint = flag.String("csi-address", "unix:///csi/csi.sock", "CSI Endpoint")
 
+	metricsAddress = flag.String("metrics-address", "", "The TCP network address where the HTTP server for metrics, will listen (example: `:8080`). By default the server is disabled.")
+	metricsPath    = flag.String("metrics-path", "/metrics", "The HTTP path where prometheus metrics will be exposed.")
+
 	cloudconfig = flag.String("cloud-config", "", "The path to the CSI driver cloud config.")
 	kubeconfig  = flag.String("kubeconfig", "", "Absolute path to the kubeconfig file. Either this or master needs to be set if the provisioner is being run out of cluster.")
 )
@@ -49,8 +54,7 @@ func main() {
 	flag.Set("logtostderr", "true") //nolint: errcheck
 	flag.Parse()
 
-	klog.V(2).Infof("Driver version %v, GitVersion %s, GitCommit %s", csi.DriverVersion, version, commit)
-	klog.V(2).Info("Driver CSI Spec version: ", csi.DriverSpecVersion)
+	klog.V(2).InfoS("Version", "version", csi.DriverVersion, "csiVersion", csi.DriverSpecVersion, "gitVersion", version, "gitCommit", commit)
 
 	if *showVersion {
 		klog.Infof("Driver version %v, GitVersion %s", csi.DriverVersion, version)
@@ -58,37 +62,43 @@ func main() {
 	}
 
 	if *csiEndpoint == "" {
-		klog.Fatalln("csi-address must be provided")
+		klog.Error("csi-address must be provided")
+		klog.FlushAndExit(klog.ExitFlushTimeout, 1)
 	}
 
 	if *cloudconfig == "" {
-		klog.Fatalln("cloud-config must be provided")
+		klog.Error("cloud-config must be provided")
+		klog.FlushAndExit(klog.ExitFlushTimeout, 1)
 	}
 
 	kconfig, _, err := tools.BuildConfig(*kubeconfig, "")
 	if err != nil {
-		klog.Fatalf("failed to create kubernetes config: %v", err)
+		klog.Error(err, "Failed to build a Kubernetes config")
+		klog.FlushAndExit(klog.ExitFlushTimeout, 1)
 	}
 
 	clientset, err := clientkubernetes.NewForConfig(kconfig)
 	if err != nil {
-		klog.Fatalf("failed to create kubernetes client: %v", err)
+		klog.Error(err, "Failed to create a Clientset")
+		klog.FlushAndExit(klog.ExitFlushTimeout, 1)
 	}
 
 	scheme, addr, err := csi.ParseEndpoint(*csiEndpoint)
 	if err != nil {
-		klog.Fatalf("Failed to parse endpoint: %v", err)
+		klog.Error(err, "Failed to parse endpoint")
+		klog.FlushAndExit(klog.ExitFlushTimeout, 1)
 	}
 
 	listener, err := net.Listen(scheme, addr)
 	if err != nil {
-		klog.Fatalf("Failed to listen on %s: %v", *csiEndpoint, err)
+		klog.ErrorS(err, "Failed to listen", "address", *csiEndpoint)
+		klog.FlushAndExit(klog.ExitFlushTimeout, 1)
 	}
 
 	logErr := func(ctx context.Context, req interface{}, _ *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 		resp, rpcerr := handler(ctx, req)
 		if rpcerr != nil {
-			klog.Errorf("GRPC error: %v", rpcerr)
+			klog.ErrorS(rpcerr, "GRPC error")
 		}
 
 		return resp, rpcerr
@@ -98,21 +108,38 @@ func main() {
 		grpc.UnaryInterceptor(logErr),
 	}
 
+	// Prepare http endpoint for metrics
+	mux := http.NewServeMux()
+	if *metricsAddress != "" {
+		mux.Handle("/metrics", legacyregistry.Handler())
+
+		go func() {
+			klog.V(2).InfoS("Metrics listening", "address", *metricsAddress, "metricsPath", *metricsPath)
+
+			err := http.ListenAndServe(*metricsAddress, mux)
+			if err != nil {
+				klog.ErrorS(err, "Failed to start HTTP server at specified address and metrics path", "address", addr, "metricsPath", *metricsPath)
+			}
+		}()
+	}
+
 	srv := grpc.NewServer(opts...)
 
 	identityService := csi.NewIdentityService()
 
 	controllerService, err := csi.NewControllerService(clientset, *cloudconfig)
 	if err != nil {
-		klog.Fatalf("Failed to create controller service: %v", err)
+		klog.ErrorS(err, "Failed to create controller service")
+		klog.FlushAndExit(klog.ExitFlushTimeout, 1)
 	}
 
 	proto.RegisterControllerServer(srv, controllerService)
 	proto.RegisterIdentityServer(srv, identityService)
 
-	klog.Infof("Listening for connection on address: %#v", listener.Addr())
+	klog.InfoS("Listening for connection on address", "address", listener.Addr())
 
 	if err := srv.Serve(listener); err != nil {
-		klog.Fatalf("Failed to serve: %v", err)
+		klog.ErrorS(err, "Failed to run driver")
+		klog.FlushAndExit(klog.ExitFlushTimeout, 1)
 	}
 }

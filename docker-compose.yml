@@ -1,6 +1,8 @@
 services:
   base:
     image: k8s.gcr.io/pause:3.6
+    ports:
+      - "8080:8080"
   plugin:
     build:
       context: .

@@ -47,6 +47,11 @@ spec:
             - "-v={{ .Values.logVerbosityLevel }}"
             - "--csi-address=unix:///csi/csi.sock"
             - "--cloud-config={{ .Values.configFile }}"
+            - "--metrics-address=:8080"
+          ports:
+            - name: metrics
+              containerPort: 8080
+              protocol: TCP
           resources:
             {{- toYaml .Values.controller.plugin.resources | nindent 12 }}
           volumeMounts:

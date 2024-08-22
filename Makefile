@@ -69,7 +69,7 @@ build: build-controller build-node build-pvecsictl ## Build
 
 .PHONY: run
 run: build-controller ## Run
-	./bin/proxmox-csi-controller-$(ARCH) --cloud-config=hack/cloud-config.yaml -v=5
+	./bin/proxmox-csi-controller-$(ARCH) --cloud-config=hack/cloud-config.yaml -v=5 --metrics-address=:8080
 
 .PHONY: lint
 lint: ## Lint Code
