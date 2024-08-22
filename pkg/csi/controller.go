@@ -31,6 +31,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	proxmox "github.com/sergelogvinov/proxmox-cloud-controller-manager/pkg/cluster"
+	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/metrics"
 	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/tools"
 	volume "github.com/sergelogvinov/proxmox-csi-plugin/pkg/volume"
 
@@ -203,8 +204,10 @@ func (d *ControllerService) CreateVolume(_ context.Context, request *csi.CreateV
 			return nil, status.Error(codes.Internal, err.Error())
 		}
 
+		mc := metrics.NewMetricContext("createVolume")
+
 		err = createVolume(cl, vol, volSizeGB)
-		if err != nil {
+		if mc.ObserveRequest(err) != nil {
 			return nil, status.Error(codes.Internal, err.Error())
 		}
 	} else if size != int64(volSizeGB*1024*1024*1024) {
@@ -274,7 +277,8 @@ func (d *ControllerService) DeleteVolume(_ context.Context, request *csi.DeleteV
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
-	if _, err := cl.DeleteVolume(vmr, vol.Storage(), vol.Disk()); err != nil {
+	mc := metrics.NewMetricContext("deleteVolume")
+	if _, err := cl.DeleteVolume(vmr, vol.Storage(), vol.Disk()); mc.ObserveRequest(err) != nil {
 		klog.ErrorS(err, "DeleteVolume: failed to delete volume", "cluster", vol.Cluster(), "volumeName", vol.Disk())
 
 		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to delete volume: %s", vol.Disk()))
@@ -424,8 +428,10 @@ func (d *ControllerService) ControllerPublishVolume(ctx context.Context, request
 	d.volumeLocks.Lock()
 	defer d.volumeLocks.Unlock()
 
+	mc := metrics.NewMetricContext("attachVolume")
+
 	pvInfo, err := attachVolume(cl, vmr, vol.Storage(), vol.Disk(), options)
-	if err != nil {
+	if mc.ObserveRequest(err) != nil {
 		klog.ErrorS(err, "ControllerPublishVolume: failed to attach volume", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "vmID", vmr.VmId())
 
 		return nil, status.Error(codes.Internal, err.Error())
@@ -480,7 +486,9 @@ func (d *ControllerService) ControllerUnpublishVolume(ctx context.Context, reque
 		vmr.SetVmType("qemu")
 	}
 
-	if err := detachVolume(cl, vmr, vol.Disk()); err != nil {
+	mc := metrics.NewMetricContext("detachVolume")
+
+	if err := detachVolume(cl, vmr, vol.Disk()); mc.ObserveRequest(err) != nil {
 		klog.ErrorS(err, "ControllerUnpublishVolume: failed to detach volume", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "vmID", vmr.VmId())
 
 		return nil, status.Error(codes.Internal, err.Error())
@@ -534,8 +542,10 @@ func (d *ControllerService) GetCapacity(_ context.Context, request *csi.GetCapac
 
 		availableCapacity := int64(0)
 
+		mc := metrics.NewMetricContext("storageStatus")
+
 		storage, err := cl.GetStorageStatus(vmr, storageID)
-		if err != nil {
+		if mc.ObserveRequest(err) != nil {
 			klog.ErrorS(err, "GetCapacity: failed to get storage status", "cluster", region, "storageID", storageID)
 
 			if !strings.Contains(err.Error(), "Parameter verification failed") {
@@ -678,7 +688,9 @@ func (d *ControllerService) ControllerExpandVolume(_ context.Context, request *c
 
 			device := deviceNamePrefix + strconv.Itoa(lun)
 
-			if _, err := cl.ResizeQemuDiskRaw(vmr, device, fmt.Sprintf("%dG", volSizeGB)); err != nil {
+			mc := metrics.NewMetricContext("expandVolume")
+
+			if _, err := cl.ResizeQemuDiskRaw(vmr, device, fmt.Sprintf("%dG", volSizeGB)); mc.ObserveRequest(err) != nil {
 				klog.ErrorS(err, "ControllerExpandVolume: failed to resize vm disk", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "vmID", vmr.VmId())
 
 				return nil, status.Error(codes.Internal, err.Error())
