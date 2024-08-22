@@ -16,9 +16,10 @@ proxmox-csi-controller
 The following values can be set in the Helm chart to expose the metrics of the Talos CCM.
 
 ```yaml
-podAnnotations:
-  prometheus.io/scrape: "true"
-  prometheus.io/port: "8080"
+controller:
+  podAnnotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8080"
 ```
 
 ## Metrics exposed by the CSI controller

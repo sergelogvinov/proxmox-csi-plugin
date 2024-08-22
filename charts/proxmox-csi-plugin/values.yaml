@@ -91,6 +91,12 @@ storageClass: []
   #       - pve-3
 
 controller:
+  # -- Annotations for controller pod.
+  # ref: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
+  podAnnotations: {}
+    # prometheus.io/scrape: "true"
+    # prometheus.io/port: "8080"
+
   plugin:
     # -- Controller CSI Driver.
     image:
@@ -236,8 +242,6 @@ hostAliases: []
 # -- Annotations for controller pod.
 # ref: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
 podAnnotations: {}
-  # prometheus.io/scrape: "true"
-  # prometheus.io/port: "8080"
 
 # -- Controller Security Context.
 # ref: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-pod
