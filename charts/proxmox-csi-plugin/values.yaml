@@ -270,6 +270,16 @@ updateStrategy:
   rollingUpdate:
     maxUnavailable: 1
 
+# -- Prometheus metrics
+metrics:
+  # -- Enable Prometheus metrics.
+  enabled: false
+  # -- Prometheus metrics port.
+  port: 8080
+
+  type: annotation
+
+
 # -- Node labels for controller assignment.
 # ref: https://kubernetes.io/docs/user-guide/node-selection/
 nodeSelector: {}
