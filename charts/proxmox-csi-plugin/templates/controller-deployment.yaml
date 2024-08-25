@@ -21,6 +21,10 @@ spec:
       {{- with default .Values.podAnnotations .Values.controller.podAnnotations }}
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- if and .Values.metrics.enabled (eq .Values.metrics.type "annotation") }}
+        prometheus.io/scrape: "true"
+        prometheus.io/port: {{ .Values.metrics.port | quote }}
+      {{- end }}
       labels:
         {{- include "proxmox-csi-plugin.selectorLabels" . | nindent 8 }}
     spec:
@@ -47,11 +51,15 @@ spec:
             - "-v={{ .Values.logVerbosityLevel }}"
             - "--csi-address=unix:///csi/csi.sock"
             - "--cloud-config={{ .Values.configFile }}"
-            # - "--metrics-address=:8080"
-          # ports:
-          #   - name: metrics
-          #     containerPort: 8080
-          #     protocol: TCP
+            {{- if .Values.metrics.enabled }}
+            - "--metrics-address=:{{ .Values.metrics.port }}"
+            {{- end }}
+          ports:
+            {{- if .Values.metrics.enabled }}
+            - name: metrics
+              containerPort: {{ .Values.metrics.port }}
+              protocol: TCP
+            {{- end }}
           resources:
             {{- toYaml .Values.controller.plugin.resources | nindent 12 }}
           volumeMounts:
