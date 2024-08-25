@@ -179,8 +179,8 @@ func (d *ControllerService) CreateVolume(_ context.Context, request *csi.CreateV
 	if storageConfig["shared"] != nil && int(storageConfig["shared"].(float64)) == 1 {
 		// https://pve.proxmox.com/wiki/Storage only block/local storage are supported
 		switch storageConfig["type"].(string) {
-		case "nfs", "cifs", "pbs":
-			return nil, status.Error(codes.Internal, "error: shared storage type nfs,cifs,pbs are not supported")
+		case "cifs", "pbs":
+			return nil, status.Error(codes.Internal, "error: shared storage type cifs, pbs are not supported")
 		}
 
 		topology = &csi.Topology{

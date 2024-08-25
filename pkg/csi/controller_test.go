@@ -530,7 +530,7 @@ func (ts *csiTestSuite) TestCreateVolume() {
 					},
 				},
 			},
-			expectedError: status.Error(codes.Internal, "error: shared storage type nfs,cifs,pbs are not supported"),
+			expectedError: status.Error(codes.Internal, "error: shared storage type cifs, pbs are not supported"),
 		},
 		{
 			msg: "WrongClusterNotFound",
