@@ -1,6 +1,6 @@
 module github.com/sergelogvinov/proxmox-csi-plugin
 
-go 1.22.6
+go 1.23.1
 
 require (
 	github.com/Telmate/proxmox-api-go v0.0.0-20240820050914-b6deb236b502

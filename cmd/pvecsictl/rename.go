@@ -26,6 +26,7 @@ import (
 
 	tools "github.com/sergelogvinov/proxmox-csi-plugin/pkg/tools"
 
+	rbacv1 "k8s.io/api/authorization/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clientkubernetes "k8s.io/client-go/kubernetes"
 )
@@ -148,6 +149,7 @@ func (c *renameCmd) runRename(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
+// nolint: dupl
 func (c *renameCmd) renameValidate(cmd *cobra.Command, _ []string) error {
 	flags := cmd.Flags()
 
@@ -165,5 +167,14 @@ func (c *renameCmd) renameValidate(cmd *cobra.Command, _ []string) error {
 
 	c.namespace = namespace
 
-	return nil
+	accessCheck := []rbacv1.ResourceAttributes{
+		{Group: "", Namespace: "", Resource: "persistentvolumeclaims", Verb: "create"},
+		{Group: "", Namespace: "", Resource: "persistentvolumeclaims", Verb: "delete"},
+		{Group: "", Namespace: "", Resource: "persistentvolumes", Verb: "create"},
+		{Group: "", Namespace: "", Resource: "persistentvolumes", Verb: "delete"},
+		{Group: "", Namespace: "", Resource: "pods", Verb: "delete"},
+		{Group: "", Namespace: "", Resource: "nodes", Verb: "patch"},
+	}
+
+	return checkPermissions(context.TODO(), c.kclient, accessCheck)
 }
