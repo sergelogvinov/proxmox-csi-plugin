@@ -1,0 +1,49 @@
+# Create a PersistentVolumeClaim resource of already existing Disk Volume
+#
+#   Cluster name:       region-1
+#   Proxmox Node name:  hvm-1
+#   Data Storage name:  data
+#   Existing Volume:    vm-9999-pvc-369fec02-bb4a-4d2f-853c-507dc4ff131e
+#   Storage Class:      proxmox
+#
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: pvc-369fec02-bb4a-4d2f-853c-507dc4ff131e
+spec:
+  accessModes:
+    - ReadWriteOnce
+  capacity:
+    storage: 250Gi
+  csi:
+    driver: csi.proxmox.sinextra.dev
+    fsType: xfs
+    volumeHandle: region-1/hvm-1/data/vm-9999-pvc-369fec02-bb4a-4d2f-853c-507dc4ff131e
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: topology.kubernetes.io/region
+          operator: In
+          values:
+          - region-1
+        - key: topology.kubernetes.io/zone
+          operator: In
+          values:
+          - hvm-1
+  storageClassName: proxmox
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: data-clickhouse-0
+  namespace: clickhouse
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 250Gi
+  storageClassName: proxmox
+  volumeName: pvc-369fec02-bb4a-4d2f-853c-507dc4ff131e

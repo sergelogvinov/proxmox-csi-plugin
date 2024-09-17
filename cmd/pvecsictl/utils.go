@@ -24,6 +24,7 @@ import (
 	tools "github.com/sergelogvinov/proxmox-csi-plugin/pkg/tools"
 	volume "github.com/sergelogvinov/proxmox-csi-plugin/pkg/volume"
 
+	rbacv1 "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -236,6 +237,27 @@ func swapPVC(
 
 	if _, err := tools.PVCCreateOrUpdate(ctx, clientset, newDstPVC); err != nil {
 		return fmt.Errorf("failed to create/update PersistentVolumeClaim %s: %v", newDstPVC.Name, err)
+	}
+
+	return nil
+}
+
+func checkPermissions(ctx context.Context, clientset *clientkubernetes.Clientset, perms []rbacv1.ResourceAttributes) error {
+	for _, a := range perms {
+		sar := &rbacv1.SelfSubjectAccessReview{
+			Spec: rbacv1.SelfSubjectAccessReviewSpec{
+				ResourceAttributes: &a,
+			},
+		}
+
+		res, err := clientset.AuthorizationV1().SelfSubjectAccessReviews().Create(ctx, sar, metav1.CreateOptions{})
+		if err != nil {
+			return fmt.Errorf("failed to send SubjectAccessReview request: %v", err)
+		}
+
+		if !res.Status.Allowed {
+			return fmt.Errorf("rbac: you are not allowed to %s %s", a.Verb, a.Resource)
+		}
 	}
 
 	return nil

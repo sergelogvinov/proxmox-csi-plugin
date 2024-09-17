@@ -5,6 +5,42 @@
 **Warning**: This tool is under development and should be used with caution.
 The commands and flags may change in the future.
 
+## Installation
+
+It works on macOS (Intel/ARM) and Linux (amd64/arm64)
+
+```shell
+brew install sergelogvinov/tap/pvecsictl
+```
+
+RBAC permissions required for the tool
+
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: pvecsictl
+rules:
+  # Get list of pods with PVCs
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch", "delete"]
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["csinodes"]
+    verbs: ["get", "list"]
+  # Create and delete PV/PVC
+  - apiGroups: [""]
+    resources: ["persistentvolumes"]
+    verbs: ["get", "list", "watch", "create", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims"]
+    verbs: ["get", "list", "watch", "create", "patch", "delete"]
+  # Node cordoning/uncordoning
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list", "watch", "patch"]
+```
+
 ## Usage
 
 ```shell
@@ -60,7 +96,7 @@ To move the PVC from zone `hvm-1` to `hvm-2` we can run
 pvecsictl migrate --config=hack/cloud-config.yaml -n default storage-test-0 hvm-2
 ````
 
-If you're met with 
+If you're met with
 
 ```shell
 ERROR Error: persistentvolumeclaims is using by pods: test-0 on node kube-store-11, cannot move volume
@@ -130,7 +166,7 @@ storage-test-0   Bound    pvc-0d79713b-6d0b-41e5-b387-42af370d083f   5Gi        
 storage-test-1   Bound    pvc-2727795f-680c-410a-b130-2e5dc85efcb3   5Gi        RWO            proxmox-xfs    <unset>                 15m
 ```
 
-Rename the `storage-test-0` PVC by running 
+Rename the `storage-test-0` PVC by running
 
 ```shell
 pvecsictl rename -n default storage-test-0 storage-test-2
