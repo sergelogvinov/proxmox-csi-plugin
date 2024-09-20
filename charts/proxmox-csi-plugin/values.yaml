@@ -58,7 +58,7 @@ config:
   #     token_secret: "secret"
   #     region: cluster-1
 
-# -- Storage class defenition.
+# -- Storage class definition.
 storageClass: []
   # - name: proxmox-data-xfs
   #   storage: data
@@ -263,7 +263,7 @@ securityContext:
     type: RuntimeDefault
   readOnlyRootFilesystem: true
 
-# -- Controller deployment update stategy type.
+# -- Controller deployment update strategy type.
 # ref: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/#updating-a-deployment
 updateStrategy:
   type: RollingUpdate

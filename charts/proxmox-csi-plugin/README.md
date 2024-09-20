@@ -1,8 +1,19 @@
 # proxmox-csi-plugin
 
-![Version: 0.2.9](https://img.shields.io/badge/Version-0.2.9-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: v0.7.0](https://img.shields.io/badge/AppVersion-v0.7.0-informational?style=flat-square)
+![Version: 0.2.10](https://img.shields.io/badge/Version-0.2.10-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: v0.7.0](https://img.shields.io/badge/AppVersion-v0.7.0-informational?style=flat-square)
 
-A CSI plugin for Proxmox
+Container Storage Interface plugin for Proxmox
+
+The Container Storage Interface (CSI) plugin is a specification designed to standardize the way container orchestration systems like Kubernetes, interact with different storage systems. The CSI plugin abstracts the underlying storage, enabling the seamless integration of different storage solutions (such as local block devices, file systems, or cloud-based storage) with containerized applications.
+
+This plugin allows Kubernetes to use `Proxmox VE` storage as a persistent storage solution for stateful applications.
+Supported storage types:
+- Directory
+- LVM
+- LVM-thin
+- ZFS
+- NFS
+- Ceph
 
 **Homepage:** <https://github.com/sergelogvinov/proxmox-csi-plugin>
 
@@ -16,7 +27,18 @@ A CSI plugin for Proxmox
 
 * <https://github.com/sergelogvinov/proxmox-csi-plugin>
 
-Example:
+## Proxmox permissions
+
+```shell
+# Create role CSI
+pveum role add CSI -privs "VM.Audit VM.Config.Disk Datastore.Allocate Datastore.AllocateSpace Datastore.Audit"
+# Create user and grant permissions
+pveum user add kubernetes-csi@pve
+pveum aclmod / -user kubernetes-csi@pve -role CSI
+pveum user token add kubernetes-csi@pve csi -privsep 0
+```
+
+## Helm values example
 
 ```yaml
 # proxmox-csi.yaml
@@ -58,11 +80,15 @@ storageClass:
     cache: writethrough
 ```
 
-Deploy chart:
+## Deploy
 
 ```shell
+# Prepare namespace
+kubectl create ns csi-proxmox
+kubectl label ns csi-proxmox pod-security.kubernetes.io/enforce=privileged
+# Install Proxmox CSI plugin
 helm upgrade -i --namespace=csi-proxmox -f proxmox-csi.yaml \
-		proxmox-csi-plugin charts/proxmox-csi-plugin/
+    proxmox-csi-plugin oci://ghcr.io/sergelogvinov/charts/proxmox-csi-plugin
 ```
 
 ## Values
@@ -84,7 +110,7 @@ helm upgrade -i --namespace=csi-proxmox -f proxmox-csi.yaml \
 | existingConfigSecretKey | string | `"config.yaml"` | Proxmox cluster config stored in secrets key. |
 | configFile | string | `"/etc/proxmox/config.yaml"` | Proxmox cluster config path. |
 | config | object | `{"clusters":[]}` | Proxmox cluster config. |
-| storageClass | list | `[]` | Storage class defenition. |
+| storageClass | list | `[]` | Storage class definition. |
 | controller.podAnnotations | object | `{}` | Annotations for controller pod. ref: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/ |
 | controller.plugin.image | object | `{"pullPolicy":"IfNotPresent","repository":"ghcr.io/sergelogvinov/proxmox-csi-controller","tag":""}` | Controller CSI Driver. |
 | controller.plugin.resources | object | `{"requests":{"cpu":"10m","memory":"16Mi"}}` | Controller resource requests and limits. ref: https://kubernetes.io/docs/user-guide/compute-resources/ |
@@ -112,7 +138,7 @@ helm upgrade -i --namespace=csi-proxmox -f proxmox-csi.yaml \
 | podAnnotations | object | `{}` | Annotations for controller pod. ref: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/ |
 | podSecurityContext | object | `{"fsGroup":65532,"fsGroupChangePolicy":"OnRootMismatch","runAsGroup":65532,"runAsNonRoot":true,"runAsUser":65532}` | Controller Security Context. ref: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-pod |
 | securityContext | object | `{"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"]},"readOnlyRootFilesystem":true,"seccompProfile":{"type":"RuntimeDefault"}}` | Controller Container Security Context. ref: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-pod |
-| updateStrategy | object | `{"rollingUpdate":{"maxUnavailable":1},"type":"RollingUpdate"}` | Controller deployment update stategy type. ref: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/#updating-a-deployment |
+| updateStrategy | object | `{"rollingUpdate":{"maxUnavailable":1},"type":"RollingUpdate"}` | Controller deployment update strategy type. ref: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/#updating-a-deployment |
 | metrics | object | `{"enabled":false,"port":8080,"type":"annotation"}` | Prometheus metrics |
 | metrics.enabled | bool | `false` | Enable Prometheus metrics. |
 | metrics.port | int | `8080` | Prometheus metrics port. |
