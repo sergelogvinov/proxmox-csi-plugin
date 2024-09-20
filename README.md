@@ -39,7 +39,7 @@ Proxmox cluster with local storage like: lvm, lvm-thin, zfs, xfs, ext4, etc.
 
 - Each Proxmox cluster has predefined in cloud-config the region name (see `clusters[].region` below).
 - Each Proxmox Cluster has many Proxmox Nodes. In kubernetes scope it is called as `zone`. The name of `zone` is the name of Proxmox node.
-- Pods can easily migrate between Kubernetes nodes on the same physical Proxmox node (`zone`). 
+- Pods can easily migrate between Kubernetes nodes on the same physical Proxmox node (`zone`).
   The PV will automatically be moved by the CSI Plugin.
 - Pods with PVC `cannot` automatically migrate across zones (Proxmox nodes).
   You can manually move PVs across zones using [pvecsictl](docs/pvecsictl.md) to migrate Pods across zones.
@@ -77,7 +77,7 @@ pv22 --> vm3
 ```
 ```mermaid
 ---
-title: Manual migration usign pvecsictl across zones
+title: Manual migration using pvecsictl across zones
 ---
 flowchart
     subgraph cluster1["Proxmox Cluster (Region 1)"]
@@ -120,7 +120,9 @@ Requirements for Proxmox CSI Plugin
 
 How to configure the above is detailed below
 
-### Proxmox Config:
+For details about how to install and deploy the CSI plugin, see [Installation instruction](docs/install.md).
+
+### Proxmox VM Config:
 
 For the Proxmox CSI Plugin to work you need to cluster your Proxmox nodes.
 You can cluster a single Proxmox node with itself.
@@ -134,30 +136,12 @@ VM config after creating a Pod with PVC:
 
 It is very important to use disk controller `VirtIO SCSI single` with `iothread`.
 
-### Proxmox CSI Plugin User
-
-Proxmox CSI Plugin requires the correct privileges in order to allocate and attach disks.
-
-Create CSI role in Proxmox:
-
-```shell
-pveum role add CSI -privs "VM.Audit VM.Config.Disk Datastore.Allocate Datastore.AllocateSpace Datastore.Audit"
-```
-
-Next create a user for the CSI plugin and grant it the above role
-
-```shell
-pveum user add kubernetes-csi@pve
-pveum aclmod / -user kubernetes-csi@pve -role CSI
-pveum user token add kubernetes-csi@pve csi -privsep 0
-```
-
 ### Kubernetes Topology Labels
 
 Proxmox CSI Plugin uses the well-known node labels/spec to define the disk location
-* topology.kubernetes.io/region
-* topology.kubernetes.io/zone
-* Spec.ProviderID
+* `topology.kubernetes.io/region` - proxmox cluster name
+* `topology.kubernetes.io/zone` - proxmox node name
+* `Spec.ProviderID` - providerID magic string to help define the virtual machine ID
 
 **Important**: The `topology.kubernetes.io/region` and `topology.kubernetes.io/zone` labels _must_ be set.
 Region is the Proxmox cluster name, and zone is the Proxmox node name.
@@ -193,91 +177,6 @@ Storage parameters:
 * `ssd` - true if SSD/NVME disk
 
 For more detailed options and a comprehensive understanding, refer to the following link [StorageClass options](docs/options.md)
-
-### Install CSI Driver
-
-Create a Proxmox cloud config to connect to your cluster with the Proxmox user you just created
-
-```yaml
-# config.yaml
-clusters:
-  - url: https://cluster-api-1.exmple.com:8006/api2/json
-    insecure: false
-    token_id: "kubernetes-csi@pve!csi"
-    token_secret: "secret"
-    region: Region-1
-  - url: https://cluster-api-2.exmple.com:8006/api2/json
-    insecure: false
-    token_id: "kubernetes-csi@pve!csi"
-    token_secret: "secret"
-    region: Region-2
-```
-
-Upload the configuration to the Kubernetes as a secret
-
-```shell
-kubectl -n csi-proxmox create secret generic proxmox-csi-plugin --from-file=config.yaml
-```
-
-#### Method 1: By Kubectl
-
-Latest stable version (edge)
-
-```shell
-kubectl apply -f https://raw.githubusercontent.com/sergelogvinov/proxmox-csi-plugin/main/docs/deploy/proxmox-csi-plugin.yml
-```
-
-#### Method 2: By Helm
-
-Create the config file:
-
-```yaml
-# proxmox-csi.yaml
-config:
-  clusters:
-    - url: https://cluster-api-1.exmple.com:8006/api2/json
-      insecure: false
-      token_id: "kubernetes-csi@pve!csi"
-      token_secret: "secret"
-      region: Region-1
-    - url: https://cluster-api-2.exmple.com:8006/api2/json
-      insecure: false
-      token_id: "kubernetes-csi@pve!csi"
-      token_secret: "secret"
-      region: Region-2
-
-storageClass:
-  - name: proxmox-data-xfs
-    storage: data
-    reclaimPolicy: Delete
-    fstype: xfs
-```
-
-```shell
-kubectl create ns csi-proxmox
-```
-
-We have to label the namespace to allow the plugin to run as privileged
-
-```shell
-kubectl label ns/csi-proxmox pod-security.kubernetes.io/enforce=privileged
-```
-
-```shell
-helm upgrade -i -n csi-proxmox -f proxmox-csi.yaml proxmox-csi-plugin oci://ghcr.io/sergelogvinov/charts/proxmox-csi-plugin
-```
-
-#### Method 3: Talos machine config
-
-If you're running [Talos](https://www.talos.dev/) you can install Proxmox CSI Plugin using the machine config
-
-```yaml
-cluster:
-  externalCloudProvider:
-    enabled: true
-    manifests:
-      - https://raw.githubusercontent.com/sergelogvinov/proxmox-csi-plugin/main/docs/deploy/proxmox-csi-plugin-talos.yml
-```
 
 ## Deployment examples
 
