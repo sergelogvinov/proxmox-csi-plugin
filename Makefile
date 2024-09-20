@@ -15,7 +15,8 @@ ARCHS = amd64 arm64
 
 BUILD_ARGS := --platform=$(PLATFORM)
 ifeq ($(PUSH),true)
-BUILD_ARGS += --push=$(PUSH) --output type=image,annotation-index.org.opencontainers.image.source="https://github.com/$(USERNAME)/proxmox-csi-plugin"
+BUILD_ARGS += --push=$(PUSH)
+BUILD_ARGS += --output type=image,annotation-index.org.opencontainers.image.source="https://github.com/$(USERNAME)/proxmox-csi-plugin",annotation-index.org.opencontainers.image.description="Proxmox VE CSI plugin"
 else
 BUILD_ARGS += --output type=docker
 endif
