@@ -1,4 +1,28 @@
 
+## [v0.8.0](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.7.0...v0.8.0) (2024-09-20)
+
+Welcome to the v0.8.0 release of Proxmox CSI Plugin!
+
+### Bug Fixes
+
+- check rbac permission (57a6b0d)
+- helm chart metrics option (e5ef1b1)
+- allow nfs shared storages (04cfb97)
+- helm chart podAnnotation (b935d88)
+
+### Features
+
+- expose metrics (4bbe65d)
+- add unsafe env (36fa532)
+
+### Miscellaneous
+
+- bump deps (9a0161b)
+- bump deps (3c3c122)
+- bump deps (c5769c1)
+- **chart:** update readme (c76555a)
+
+
 ## [v0.7.0](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.6.1...v0.7.0) (2024-06-14)
 
 Welcome to the v0.7.0 release of Proxmox CSI Plugin!
@@ -15,7 +39,8 @@ Welcome to the v0.7.0 release of Proxmox CSI Plugin!
 
 ### Miscellaneous
 
-- release v0.7.0 (50d8c3a)
+- release v0.7.0 (9424c06)
+- release v0.7.0 (7362940)
 - bump deps (5bf0677)
 - bump deps (89adec9)
 - release v0.6.1 (ac1ef92)

@@ -109,8 +109,8 @@ github.com/prometheus/procfs v0.15.1/go.mod h1:fB45yRUv8NstnjriLhBQLuOUt+WW4BsoG
 github.com/rogpeppe/go-internal v1.12.0 h1:exVL4IDcn6na9z1rAb56Vxr+CgyK3nn3O+epU5NdKM8=
 github.com/rogpeppe/go-internal v1.12.0/go.mod h1:E+RYuTGaKKdloAfM02xzb0FW3Paa99yedzYV+kq4uf4=
 github.com/russross/blackfriday/v2 v2.1.0/go.mod h1:+Rmxgy9KzJVeS9/2gXHxylqXiyQDYRxCVz55jmeOWTM=
-github.com/sergelogvinov/proxmox-cloud-controller-manager v0.5.0 h1:VlzFrRmN1MSpnykBgFIG3kSbE4uyR49bm44HSRou0Dc=
-github.com/sergelogvinov/proxmox-cloud-controller-manager v0.5.0/go.mod h1:m9Ip+Wu/kDNwsemzlQlqOMUrCmvsxA1zbI32dQHgPCw=
+github.com/sergelogvinov/proxmox-cloud-controller-manager v0.5.1 h1:RM4D/VCreZr22pTuJHd97Rz8DrDUYMAxlv6/xf65EoA=
+github.com/sergelogvinov/proxmox-cloud-controller-manager v0.5.1/go.mod h1:m9Ip+Wu/kDNwsemzlQlqOMUrCmvsxA1zbI32dQHgPCw=
 github.com/siderolabs/go-blockdevice v0.4.8 h1:KfdWvIx0Jft5YVuCsFIJFwjWEF1oqtzkgX9PeU9cX4c=
 github.com/siderolabs/go-blockdevice v0.4.8/go.mod h1:4PeOuk71pReJj1JQEXDE7kIIQJPVe8a+HZQa+qjxSEA=
 github.com/siderolabs/go-cmd v0.1.1 h1:nTouZUSxLeiiEe7hFexSVvaTsY/3O8k1s08BxPRrsps=

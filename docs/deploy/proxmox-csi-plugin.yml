@@ -16,10 +16,10 @@ metadata:
   name: proxmox-csi-plugin-controller
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.2.10
+    helm.sh/chart: proxmox-csi-plugin-0.2.11
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
-    app.kubernetes.io/version: "v0.7.0"
+    app.kubernetes.io/version: "v0.8.0"
     app.kubernetes.io/managed-by: Helm
 ---
 # Source: proxmox-csi-plugin/templates/serviceaccount.yaml
@@ -29,10 +29,10 @@ metadata:
   name: proxmox-csi-plugin-node
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.2.10
+    helm.sh/chart: proxmox-csi-plugin-0.2.11
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
-    app.kubernetes.io/version: "v0.7.0"
+    app.kubernetes.io/version: "v0.8.0"
     app.kubernetes.io/managed-by: Helm
 ---
 # Source: proxmox-csi-plugin/templates/storageclass.yaml
@@ -69,10 +69,10 @@ metadata:
   name: proxmox-csi-plugin-controller
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.2.10
+    helm.sh/chart: proxmox-csi-plugin-0.2.11
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
-    app.kubernetes.io/version: "v0.7.0"
+    app.kubernetes.io/version: "v0.8.0"
     app.kubernetes.io/managed-by: Helm
 rules:
   - apiGroups: [""]
@@ -112,10 +112,10 @@ metadata:
   name: proxmox-csi-plugin-node
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.2.10
+    helm.sh/chart: proxmox-csi-plugin-0.2.11
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
-    app.kubernetes.io/version: "v0.7.0"
+    app.kubernetes.io/version: "v0.8.0"
     app.kubernetes.io/managed-by: Helm
 rules:
   - apiGroups:
@@ -160,10 +160,10 @@ metadata:
   name: proxmox-csi-plugin-controller
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.2.10
+    helm.sh/chart: proxmox-csi-plugin-0.2.11
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
-    app.kubernetes.io/version: "v0.7.0"
+    app.kubernetes.io/version: "v0.8.0"
     app.kubernetes.io/managed-by: Helm
 rules:
   - apiGroups: ["coordination.k8s.io"]
@@ -202,10 +202,10 @@ metadata:
   name: proxmox-csi-plugin-node
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.2.10
+    helm.sh/chart: proxmox-csi-plugin-0.2.11
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
-    app.kubernetes.io/version: "v0.7.0"
+    app.kubernetes.io/version: "v0.8.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   updateStrategy:
@@ -345,10 +345,10 @@ metadata:
   name: proxmox-csi-plugin-controller
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.2.10
+    helm.sh/chart: proxmox-csi-plugin-0.2.11
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
-    app.kubernetes.io/version: "v0.7.0"
+    app.kubernetes.io/version: "v0.8.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   replicas: 1
