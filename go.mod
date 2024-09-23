@@ -8,7 +8,7 @@ require (
 	github.com/golang/protobuf v1.5.4
 	github.com/jarcoal/httpmock v1.3.1
 	github.com/kubernetes-csi/csi-lib-utils v0.19.0
-	github.com/sergelogvinov/proxmox-cloud-controller-manager v0.5.0
+	github.com/sergelogvinov/proxmox-cloud-controller-manager v0.5.1
 	github.com/siderolabs/go-blockdevice v0.4.8
 	github.com/siderolabs/go-retry v0.3.3
 	github.com/sirupsen/logrus v1.9.3
