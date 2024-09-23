@@ -1,3 +1,18 @@
+## [0.8.0](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.7.0...v0.8.0) (2024-09-23)
+
+
+### Features
+
+* add unsafe env ([36fa532](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/36fa5324074d6a695404c0c94fee65ff35c2d96e))
+* expose metrics ([4bbe65d](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/4bbe65dccc54192005d663fef86c2c40fd1c3b2c))
+
+
+### Bug Fixes
+
+* allow nfs shared storages ([04cfb97](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/04cfb97993fb536994a8cf0da6542ea8f6fd696c))
+* check rbac permission ([57a6b0d](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/57a6b0dbb7b60309f9185a475ac1e949878ff349))
+* helm chart metrics option ([e5ef1b1](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/e5ef1b132251e7bfb98234ee3ea935524db55d16))
+* helm chart podAnnotation ([b935d88](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/b935d88e14df3982ff59541ee0732e5b421a2088))
 
 ## [v0.8.0](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.7.0...v0.8.0) (2024-09-20)
 
@@ -262,4 +277,3 @@ Welcome to the v0.01 release of Proxmox CSI Plugin!
 ### Miscellaneous
 
 - release v0.0.1 (56b4297)
-
