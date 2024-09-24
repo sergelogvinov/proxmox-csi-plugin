@@ -1,3 +1,5 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+version: 2
 project_name: pvecsictl
 
 before:
@@ -26,7 +28,7 @@ checksum:
   name_template: "checksums.txt"
 
 snapshot:
-  name_template: edge
+  version_template: edge
 
 # dockers:
 #   - use: buildx
@@ -55,7 +57,6 @@ snapshot:
 
 brews:
   - name: pvecsictl
-    folder: Formula
     homepage: https://github.com/sergelogvinov/proxmox-csi-plugin
     description: "Proxmox VE CSI Mutate tool"
     license: Apache-2.0
