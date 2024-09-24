@@ -1,3 +1,10 @@
+## [0.8.1](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.8.0...v0.8.1) (2024-09-24)
+
+
+### Bug Fixes
+
+* goreleaser ([4e0e87a](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/4e0e87a34671681394b901f4956fae605dd892e3))
+* release please ([593f605](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/593f605fdb2b8f3fc6ece800bb44f4cfb93df882))
 
 ## [v0.8.0](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.7.0...v0.8.0) (2024-09-20)
 
@@ -262,4 +269,3 @@ Welcome to the v0.01 release of Proxmox CSI Plugin!
 ### Miscellaneous
 
 - release v0.0.1 (56b4297)
-
