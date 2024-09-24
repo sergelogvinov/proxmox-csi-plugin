@@ -16,7 +16,7 @@ jobs:
     steps:
       - name: Create release PR
         id: release
-        uses: google-github-actions/release-please-action@v4
+        uses: googleapis/release-please-action@v4
         with:
           config-file: hack/release-please-config.json
           manifest-file: hack/release-please-manifest.json
