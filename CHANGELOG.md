@@ -1,12 +1,32 @@
-## [0.8.1](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.8.0...v0.8.1) (2024-09-24)
 
+## [v0.8.2](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.8.1...v0.8.2) (2024-09-28)
+
+Welcome to the v0.8.2 release of Proxmox CSI Plugin!
 
 ### Bug Fixes
 
-* goreleaser ([4e0e87a](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/4e0e87a34671681394b901f4956fae605dd892e3))
-* release please ([593f605](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/593f605fdb2b8f3fc6ece800bb44f4cfb93df882))
+- log sanitizer (474e734)
 
-## [v0.8.0](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.7.0...v0.8.0) (2024-09-20)
+### Miscellaneous
+
+- release v0.8.2 (0274c03)
+
+
+## [v0.8.1](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.8.0...v0.8.1) (2024-09-24)
+
+Welcome to the v0.8.1 release of Proxmox CSI Plugin!
+
+### Bug Fixes
+
+- release please (593f605)
+- goreleaser (4e0e87a)
+
+### Miscellaneous
+
+- release v0.8.1 (3f8bd85)
+
+
+## [v0.8.0](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.7.0...v0.8.0) (2024-09-23)
 
 Welcome to the v0.8.0 release of Proxmox CSI Plugin!
 
@@ -24,6 +44,7 @@ Welcome to the v0.8.0 release of Proxmox CSI Plugin!
 
 ### Miscellaneous
 
+- release v0.8.0 (589de9c)
 - bump deps (9a0161b)
 - bump deps (3c3c122)
 - bump deps (c5769c1)
@@ -269,3 +290,4 @@ Welcome to the v0.01 release of Proxmox CSI Plugin!
 ### Miscellaneous
 
 - release v0.0.1 (56b4297)
+
