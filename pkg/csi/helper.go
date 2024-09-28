@@ -22,11 +22,9 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"reflect"
 	"strings"
 
 	proto "github.com/container-storage-interface/spec/lib/go/csi"
-	"github.com/kubernetes-csi/csi-lib-utils/protosanitizer"
 
 	corev1 "k8s.io/api/core/v1"
 )
@@ -91,20 +89,4 @@ func locationFromTopologyRequirement(tr *proto.TopologyRequirement) (region, zon
 	}
 
 	return region, ""
-}
-
-func stripSecrets(msg interface{}) string {
-	reqValue := reflect.ValueOf(&msg)
-	reqType := reqValue.Type()
-
-	if reqType.Kind() == reflect.Struct {
-		secrets := reqValue.FieldByName("Secrets")
-		if secrets.IsValid() && secrets.Kind() == reflect.Map {
-			for _, k := range secrets.MapKeys() {
-				secrets.SetMapIndex(k, reflect.ValueOf("***stripped***"))
-			}
-		}
-	}
-
-	return fmt.Sprintf("%+v", protosanitizer.StripSecrets(reqValue.Interface()))
 }
