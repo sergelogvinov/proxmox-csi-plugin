@@ -319,6 +319,10 @@ spec:
     - topology.kubernetes.io/zone
 ```
 
+## FAQ
+
+See [FAQ](docs/faq.md) for answers to common questions.
+
 ## Resources
 
 * https://arslan.io/2018/06/21/how-to-write-a-container-storage-interface-csi-plugin/
