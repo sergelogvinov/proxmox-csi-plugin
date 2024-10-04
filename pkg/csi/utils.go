@@ -209,12 +209,12 @@ func waitForVolumeDetach(cl *pxapi.Client, vmr *pxapi.VmRef, lun int) error {
 	return fmt.Errorf("timeout waiting for disk to detach")
 }
 
-func createVolume(cl *pxapi.Client, vol *volume.Volume, sizeGB int) error {
+func createVolume(cl *pxapi.Client, vol *volume.Volume, sizeBytes int64) error {
 	filename := strings.Split(vol.Disk(), "/")
 	diskParams := map[string]interface{}{
 		"vmid":     vmID,
 		"filename": filename[len(filename)-1],
-		"size":     fmt.Sprintf("%dG", sizeGB),
+		"size":     fmt.Sprintf("%d", sizeBytes),
 	}
 
 	err := cl.CreateVMDisk(vol.Node(), vol.Storage(), fmt.Sprintf("%s:%s", vol.Storage(), vol.Disk()), diskParams)
