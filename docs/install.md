@@ -119,5 +119,52 @@ cluster:
   externalCloudProvider:
     enabled: true
     manifests:
-      - https://raw.githubusercontent.com/sergelogvinov/proxmox-csi-plugin/main/docs/deploy/proxmox-csi-plugin-talos.yml
+      - https://raw.githubusercontent.com/sergelogvinov/proxmox-csi-plugin/main/docs/deploy/proxmox-csi-plugin.yml
+```
+
+Or all together with the Proxmox Cloud Controller Manager
+
+* Proxmox CCM will label the nodes
+* Proxmox CSI will use the labeled nodes to define the regions and zones
+
+```yaml
+cluster:
+  inlineManifests:
+    - name: proxmox-cloud-controller-manager
+      contents: |-
+        apiVersion: v1
+        kind: Secret
+        type: Opaque
+        metadata:
+          name: proxmox-cloud-controller-manager
+          namespace: kube-system
+        data:
+          config.yaml: |
+            clusters:
+              - url: https://cluster-api-1.exmple.com:8006/api2/json
+                insecure: false
+                token_id: "kubernetes-csi@pve!ccm"
+                token_secret: "secret"
+                region: Region-1
+    - name: proxmox-csi-plugin
+      contents: |-
+        apiVersion: v1
+        kind: Secret
+        type: Opaque
+        metadata:
+          name: proxmox-csi-plugin
+          namespace: csi-proxmox
+        data:
+          config.yaml: |
+            clusters:
+              - url: https://cluster-api-1.exmple.com:8006/api2/json
+                insecure: false
+                token_id: "kubernetes-csi@pve!csi"
+                token_secret: "secret"
+                region: Region-1
+  externalCloudProvider:
+    enabled: true
+    manifests:
+      - https://raw.githubusercontent.com/sergelogvinov/proxmox-cloud-controller-manager/main/docs/deploy/cloud-controller-manager.yml
+      - https://raw.githubusercontent.com/sergelogvinov/proxmox-csi-plugin/main/docs/deploy/proxmox-csi-plugin.yml
 ```
