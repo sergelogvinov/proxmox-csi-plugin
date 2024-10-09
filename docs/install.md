@@ -138,7 +138,7 @@ cluster:
         metadata:
           name: proxmox-cloud-controller-manager
           namespace: kube-system
-        data:
+        stringData:
           config.yaml: |
             clusters:
               - url: https://cluster-api-1.exmple.com:8006/api2/json
@@ -154,7 +154,7 @@ cluster:
         metadata:
           name: proxmox-csi-plugin
           namespace: csi-proxmox
-        data:
+        stringData:
           config.yaml: |
             clusters:
               - url: https://cluster-api-1.exmple.com:8006/api2/json
