@@ -65,6 +65,7 @@ clusters:
   - url: https://cluster-1:8006/api2/json
     username: root@pam
     password: "strong-password"
+    region: fsn1
     ...
 ```
 
