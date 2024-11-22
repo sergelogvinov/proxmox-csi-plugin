@@ -110,6 +110,22 @@ Install the plugin. You need to prepare the `csi-proxmox` namespace first, see a
 helm upgrade -i -n csi-proxmox -f proxmox-csi.yaml proxmox-csi-plugin oci://ghcr.io/sergelogvinov/charts/proxmox-csi-plugin
 ```
 
+#### Option for k0s
+
+If you're running [k0s](https://k0sproject.io/) you need to add extra value to the helm chart
+
+```yaml
+kubeletDir: /var/lib/k0s/kubelet
+```
+
+#### Option for microk8s
+
+If you're running [microk8s](https://microk8s.io/) you need to add extra value to the helm chart
+
+```yaml
+kubeletDir: /var/snap/microk8s/common/var/lib/kubelet
+```
+
 ### Install the plugin by using Talos machine config
 
 If you're running [Talos](https://www.talos.dev/) you can install Proxmox CSI plugin using the machine config
