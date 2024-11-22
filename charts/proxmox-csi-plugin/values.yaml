@@ -59,7 +59,8 @@ config:
   #     region: cluster-1
 
 # -- Storage class definition.
-storageClass: []
+storageClass:
+  []
   # - name: proxmox-data-xfs
   #   storage: data
   #   reclaimPolicy: Delete
@@ -93,7 +94,8 @@ storageClass: []
 controller:
   # -- Annotations for controller pod.
   # ref: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
-  podAnnotations: {}
+  podAnnotations:
+    {}
     # prometheus.io/scrape: "true"
     # prometheus.io/port: "8080"
 
@@ -172,6 +174,7 @@ node:
         memory: 16Mi
 
   # -- Location of the /var/lib/kubelet directory as some k8s distribution differ from the standard.
+  # Standard: /var/lib/kubelet, k0s: /var/lib/k0s/kubelet, microk8s: /var/snap/microk8s/common/var/lib/kubelet
   kubeletDir: /var/lib/kubelet
 
   # -- Node labels for node-plugin assignment.
@@ -211,7 +214,8 @@ livenessprobe:
 
 # -- Add additional init containers for the CSI controller pods.
 # ref: https://kubernetes.io/docs/concepts/workloads/pods/init-containers/
-initContainers: []
+initContainers:
+  []
   # - name: loadbalancer
   #   restartPolicy: Always
   #   image: ghcr.io/sergelogvinov/haproxy:2.8.3-alpine3.18
@@ -234,7 +238,8 @@ initContainers: []
 
 # -- hostAliases Deployment pod host aliases
 # ref: https://kubernetes.io/docs/tasks/network/customize-hosts-file-for-pods/
-hostAliases: []
+hostAliases:
+  []
   # - ip: 127.0.0.1
   #   hostnames:
   #     - proxmox.domain.com
@@ -258,7 +263,7 @@ securityContext:
   allowPrivilegeEscalation: false
   capabilities:
     drop:
-    - ALL
+      - ALL
   seccompProfile:
     type: RuntimeDefault
   readOnlyRootFilesystem: true
@@ -279,15 +284,16 @@ metrics:
 
   type: annotation
 
-
 # -- Node labels for controller assignment.
 # ref: https://kubernetes.io/docs/user-guide/node-selection/
-nodeSelector: {}
+nodeSelector:
+  {}
   # node-role.kubernetes.io/control-plane: ""
 
 # -- Tolerations for controller assignment.
 # ref: https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
-tolerations: []
+tolerations:
+  []
   # - key: node-role.kubernetes.io/control-plane
   #   effect: NoSchedule
 
