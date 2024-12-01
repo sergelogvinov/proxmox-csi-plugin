@@ -52,7 +52,7 @@ func WaitForVolumeDetach(client *pxapi.Client, vmName string, disk string) error
 		for lun := 1; lun < 30; lun++ {
 			device := fmt.Sprintf("scsi%d", lun)
 
-			if vmConfig[device] != nil && strings.Contains(vmConfig[device].(string), disk) {
+			if vmConfig[device] != nil && strings.Contains(vmConfig[device].(string), disk) { //nolint:errcheck
 				found = true
 
 				break

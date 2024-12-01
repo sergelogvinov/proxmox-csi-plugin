@@ -6,9 +6,6 @@ run:
   # default concurrency is a available CPU number
   # concurrency: 4
 
-  # timeout for analysis, e.g. 30s, 5m, default is 1m
-  deadline: 10m
-
   # exit code when at least one issue was found, default is 1
   issues-exit-code: 1
 
@@ -59,9 +56,6 @@ linters-settings:
   gocyclo:
     # minimal code complexity to report, 30 by default (but we recommend 10-20)
     min-complexity: 30
-  maligned:
-    # print struct with more effective memory layout or not, false by default
-    suggest-new: true
   dupl:
     # tokens count to trigger issue, 150 by default
     threshold: 100
@@ -70,8 +64,6 @@ linters-settings:
     min-len: 3
     # minimal occurrences count to trigger, 3 by default
     min-occurrences: 3
-  depguard:
-    list-type: blacklist
   misspell:
     # Correct spellings using locale preferences for US or UK.
     # Default is to use a neutral variety of English.
@@ -83,17 +75,7 @@ linters-settings:
     line-length: 200
     # tab width in spaces. Default to 1.
     tab-width: 1
-  unused:
-    # treat code as a program (not a library) and report unused exported identifiers; default is false.
-    # XXX: if you enable this setting, unused will report a lot of false-positives in text editors:
-    # if it's called for subdir of a project it can't find funcs usages. All text editor integrations
-    # with golangci-lint call it on a directory with the changed file.
-    check-exported: false
   unparam:
-    # call graph construction algorithm (cha, rta). In general, use cha for libraries,
-    # and rta for programs with main packages. Default is cha.
-    algo: cha
-
     # Inspect exported functions, default is false. Set to true if no external program/library imports your code.
     # XXX: if you enable this setting, unparam will report a lot of false-positives in text editors:
     # if it's called for subdir of a project it can't find external interfaces. All text editor integrations
@@ -104,7 +86,6 @@ linters-settings:
     max-func-lines: 30
   nolintlint:
     allow-unused: false
-    allow-leading-space: false
     allow-no-explanation: []
     require-explanation: false
     require-specific: true
@@ -147,7 +128,6 @@ linters:
     - gocognit
     - godox
     - godot
-    - gomnd
     - gosec
     - mnd
     - ireturn # we return interfaces
@@ -175,7 +155,6 @@ linters:
 
     # abandoned linters for which golangci shows the warning that the repo is archived by the owner
     - perfsprint
-    - execinquery
 
   disable-all: false
   fast: false

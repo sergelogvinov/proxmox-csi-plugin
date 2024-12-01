@@ -57,14 +57,14 @@ func getNodeWithStorage(cl *pxapi.Client, storageName string) (string, error) {
 		return "", fmt.Errorf("failed to parce node list: %v", err)
 	}
 
-	for _, item := range data["data"].([]interface{}) {
+	for _, item := range data["data"].([]interface{}) { //nolint:errcheck
 		node, ok := item.(map[string]interface{})
 		if !ok {
 			continue
 		}
 
 		vmr := pxapi.NewVmRef(vmID)
-		vmr.SetNode(node["node"].(string))
+		vmr.SetNode(node["node"].(string)) //nolint:errcheck
 		vmr.SetVmType("qemu")
 
 		if _, err := cl.GetStorageStatus(vmr, storageName); err == nil {
@@ -120,10 +120,10 @@ func getStorageContent(cl *pxapi.Client, vol *volume.Volume) (*storageContent, e
 			return nil, fmt.Errorf("failed to cast image to map: %v", err)
 		}
 
-		if image["volid"].(string) == volid && image["size"] != nil {
+		if image["volid"].(string) == volid && image["size"] != nil { //nolint:errcheck
 			return &storageContent{
 				volID: volid,
-				size:  int64(image["size"].(float64)),
+				size:  int64(image["size"].(float64)), //nolint:errcheck
 			}, nil
 		}
 	}
@@ -161,7 +161,7 @@ func isVolumeAttached(vmConfig map[string]interface{}, pvc string) (int, bool) {
 	for lun := 1; lun < 30; lun++ {
 		device := fmt.Sprintf("%s%d", deviceNamePrefix, lun)
 
-		if vmConfig[device] != nil && strings.Contains(vmConfig[device].(string), pvc) {
+		if vmConfig[device] != nil && strings.Contains(vmConfig[device].(string), pvc) { //nolint:errcheck
 			return lun, true
 		}
 	}

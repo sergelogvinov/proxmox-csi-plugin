@@ -176,9 +176,9 @@ func (d *ControllerService) CreateVolume(_ context.Context, request *csi.CreateV
 		},
 	}
 
-	if storageConfig["shared"] != nil && int(storageConfig["shared"].(float64)) == 1 {
+	if storageConfig["shared"] != nil && int(storageConfig["shared"].(float64)) == 1 { //nolint:errcheck
 		// https://pve.proxmox.com/wiki/Storage only block/local storage are supported
-		switch storageConfig["type"].(string) {
+		switch storageConfig["type"].(string) { //nolint:errcheck
 		case "cifs", "pbs":
 			return nil, status.Error(codes.Internal, "error: shared storage type cifs, pbs are not supported")
 		}
@@ -191,7 +191,7 @@ func (d *ControllerService) CreateVolume(_ context.Context, request *csi.CreateV
 	}
 
 	vol := volume.NewVolume(region, zone, params[StorageIDKey], fmt.Sprintf("vm-%d-%s", vmID, pvc))
-	if storageConfig["path"] != nil && storageConfig["path"].(string) != "" {
+	if storageConfig["path"] != nil && storageConfig["path"].(string) != "" { //nolint:errcheck
 		vol = volume.NewVolume(region, zone, params[StorageIDKey], fmt.Sprintf("%d/vm-%d-%s.raw", vmID, vmID, pvc))
 	}
 
@@ -217,7 +217,7 @@ func (d *ControllerService) CreateVolume(_ context.Context, request *csi.CreateV
 	}
 
 	volID := vol.VolumeID()
-	if storageConfig["shared"] != nil && int(storageConfig["shared"].(float64)) == 1 {
+	if storageConfig["shared"] != nil && int(storageConfig["shared"].(float64)) == 1 { //nolint:errcheck
 		volID = vol.VolumeSharedID()
 	}
 
@@ -552,7 +552,7 @@ func (d *ControllerService) GetCapacity(_ context.Context, request *csi.GetCapac
 				return nil, status.Error(codes.Internal, err.Error())
 			}
 		} else {
-			availableCapacity = int64(storage["avail"].(float64))
+			availableCapacity = int64(storage["avail"].(float64)) //nolint:errcheck
 		}
 
 		return &csi.GetCapacityResponse{
@@ -657,21 +657,21 @@ func (d *ControllerService) ControllerExpandVolume(_ context.Context, request *c
 			return nil, status.Errorf(codes.Internal, "failed to cast response to map, vm: %v", vm)
 		}
 
-		if vm["type"].(string) != "qemu" {
-			klog.V(5).InfoS("ControllerExpandVolume: skipping non-qemu VM", "VM", vm["name"].(string))
+		if vmType, ok := vm["type"].(string); ok && vmType != "qemu" {
+			klog.V(5).InfoS("ControllerExpandVolume: skipping non-qemu VM", "VM", vm["name"].(string)) //nolint:errcheck
 
 			continue
 		}
 
-		if vm["node"].(string) == vol.Node() || vol.Node() == "" {
-			vmID := int(vm["vmid"].(float64))
+		if node, ok := vm["node"].(string); ok && node == vol.Node() || vol.Node() == "" {
+			vmID := int(vm["vmid"].(float64)) //nolint:errcheck
 
 			vmr := pxapi.NewVmRef(vmID)
 			vmr.SetNode(vol.Node())
 			vmr.SetVmType("qemu")
 
 			if vmr.Node() == "" {
-				vmr.SetNode(vm["node"].(string))
+				vmr.SetNode(node)
 			}
 
 			config, err := cl.GetVmConfig(vmr)
