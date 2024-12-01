@@ -4,7 +4,7 @@ go 1.23.2
 
 require (
 	github.com/Telmate/proxmox-api-go v0.0.0-20241028065640-b38644dd6993
-	github.com/container-storage-interface/spec v1.10.0
+	github.com/container-storage-interface/spec v1.11.0
 	github.com/golang/protobuf v1.5.4
 	github.com/jarcoal/httpmock v1.3.1
 	github.com/kubernetes-csi/csi-lib-utils v0.19.0
