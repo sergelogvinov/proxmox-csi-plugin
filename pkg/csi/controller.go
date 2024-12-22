@@ -686,7 +686,7 @@ func (d *ControllerService) ControllerExpandVolume(_ context.Context, request *c
 
 			mc := metrics.NewMetricContext("expandVolume")
 
-			if _, err := cl.ResizeQemuDiskRaw(vmr, device, fmt.Sprintf("%d", volSizeBytes)); mc.ObserveRequest(err) != nil {
+			if _, err := cl.ResizeQemuDiskRaw(vmr, device, fmt.Sprintf("%dM", volSizeBytes/MiB)); mc.ObserveRequest(err) != nil {
 				klog.ErrorS(err, "ControllerExpandVolume: failed to resize vm disk", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "vmID", vmr.VmId())
 
 				return nil, status.Error(codes.Internal, err.Error())
