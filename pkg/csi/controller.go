@@ -37,7 +37,6 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	clientkubernetes "k8s.io/client-go/kubernetes"
-	"k8s.io/cloud-provider-openstack/pkg/util"
 	"k8s.io/klog/v2"
 )
 
@@ -127,8 +126,6 @@ func (d *ControllerService) CreateVolume(_ context.Context, request *csi.CreateV
 		volSizeBytes = request.GetCapacityRange().GetRequiredBytes()
 	}
 
-	volSizeGB := int(util.RoundUpSize(volSizeBytes, 1024*1024*1024))
-
 	accessibleTopology := request.GetAccessibilityRequirements()
 
 	region, zone := locationFromTopologyRequirement(accessibleTopology)
@@ -206,11 +203,11 @@ func (d *ControllerService) CreateVolume(_ context.Context, request *csi.CreateV
 
 		mc := metrics.NewMetricContext("createVolume")
 
-		err = createVolume(cl, vol, volSizeGB)
+		err = createVolume(cl, vol, volSizeBytes)
 		if mc.ObserveRequest(err) != nil {
 			return nil, status.Error(codes.Internal, err.Error())
 		}
-	} else if size != int64(volSizeGB*1024*1024*1024) {
+	} else if size != volSizeBytes {
 		klog.ErrorS(err, "CreateVolume: volume is already exists", "cluster", region, "volumeID", vol.VolumeID(), "size", size)
 
 		return nil, status.Error(codes.AlreadyExists, "volume already exists with same name and different capacity")
@@ -221,13 +218,13 @@ func (d *ControllerService) CreateVolume(_ context.Context, request *csi.CreateV
 		volID = vol.VolumeSharedID()
 	}
 
-	klog.V(3).InfoS("CreateVolume: volume created", "cluster", vol.Cluster(), "volumeID", volID, "size", volSizeGB)
+	klog.V(3).InfoS("CreateVolume: volume created", "cluster", vol.Cluster(), "volumeID", volID, "size", volSizeBytes)
 
 	volume := csi.Volume{
 		VolumeId:      volID,
 		VolumeContext: params,
 		ContentSource: request.GetVolumeContentSource(),
-		CapacityBytes: int64(volSizeGB * 1024 * 1024 * 1024),
+		CapacityBytes: volSizeBytes,
 		AccessibleTopology: []*csi.Topology{
 			topology,
 		},
@@ -605,7 +602,6 @@ func (d *ControllerService) ControllerExpandVolume(_ context.Context, request *c
 	}
 
 	volSizeBytes := request.GetCapacityRange().GetRequiredBytes()
-	volSizeGB := int(util.RoundUpSize(volSizeBytes, 1024*1024*1024))
 	maxVolSize := capacityRange.GetLimitBytes()
 
 	if maxVolSize > 0 && maxVolSize < volSizeBytes {
@@ -690,13 +686,13 @@ func (d *ControllerService) ControllerExpandVolume(_ context.Context, request *c
 
 			mc := metrics.NewMetricContext("expandVolume")
 
-			if _, err := cl.ResizeQemuDiskRaw(vmr, device, fmt.Sprintf("%dG", volSizeGB)); mc.ObserveRequest(err) != nil {
+			if _, err := cl.ResizeQemuDiskRaw(vmr, device, fmt.Sprintf("%d", volSizeBytes)); mc.ObserveRequest(err) != nil {
 				klog.ErrorS(err, "ControllerExpandVolume: failed to resize vm disk", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "vmID", vmr.VmId())
 
 				return nil, status.Error(codes.Internal, err.Error())
 			}
 
-			klog.V(3).InfoS("ControllerExpandVolume: volume expanded", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "vmID", vmr.VmId(), "size", volSizeGB)
+			klog.V(3).InfoS("ControllerExpandVolume: volume expanded", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "vmID", vmr.VmId(), "size", volSizeBytes)
 
 			return &csi.ControllerExpandVolumeResponse{
 				CapacityBytes:         volSizeBytes,
