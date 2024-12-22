@@ -117,7 +117,7 @@ controller:
     image:
       repository: registry.k8s.io/sig-storage/csi-attacher
       pullPolicy: IfNotPresent
-      tag: v4.4.4
+      tag: v4.7.0
     # -- Attacher resource requests and limits.
     # ref: https://kubernetes.io/docs/user-guide/compute-resources/
     resources:
@@ -129,7 +129,7 @@ controller:
     image:
       repository: registry.k8s.io/sig-storage/csi-provisioner
       pullPolicy: IfNotPresent
-      tag: v3.6.4
+      tag: v5.1.0
     # -- Provisioner resource requests and limits.
     # ref: https://kubernetes.io/docs/user-guide/compute-resources/
     resources:
@@ -141,7 +141,7 @@ controller:
     image:
       repository: registry.k8s.io/sig-storage/csi-resizer
       pullPolicy: IfNotPresent
-      tag: v1.9.4
+      tag: v1.12.0
     # -- Resizer resource requests and limits.
     # ref: https://kubernetes.io/docs/user-guide/compute-resources/
     resources:
@@ -165,7 +165,7 @@ node:
     image:
       repository: registry.k8s.io/sig-storage/csi-node-driver-registrar
       pullPolicy: IfNotPresent
-      tag: v2.9.4
+      tag: v2.12.0
     # -- Node registrar resource requests and limits.
     # ref: https://kubernetes.io/docs/user-guide/compute-resources/
     resources:
@@ -196,7 +196,7 @@ livenessprobe:
   image:
     repository: registry.k8s.io/sig-storage/livenessprobe
     pullPolicy: IfNotPresent
-    tag: v2.11.0
+    tag: v2.14.0
   # -- Failure threshold for livenessProbe
   failureThreshold: 5
   # -- Initial delay seconds for livenessProbe
