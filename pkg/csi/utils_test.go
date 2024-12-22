@@ -84,3 +84,62 @@ func TestIsVolumeAttached(t *testing.T) {
 		})
 	}
 }
+
+func TestRoundUpSizeBytes(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		msg                 string
+		volumeSize          int64
+		allocationUnitBytes int64
+		expected            int64
+	}{
+		{
+			msg:                 "Zero size",
+			volumeSize:          0,
+			allocationUnitBytes: GiB,
+			expected:            1024 * 1024 * 1024,
+		},
+		{
+			msg:                 "KiB",
+			volumeSize:          123,
+			allocationUnitBytes: KiB,
+			expected:            1024,
+		},
+		{
+			msg:                 "MiB",
+			volumeSize:          123,
+			allocationUnitBytes: MiB,
+			expected:            1024 * 1024,
+		},
+		{
+			msg:                 "GiB",
+			volumeSize:          123,
+			allocationUnitBytes: GiB,
+			expected:            1024 * 1024 * 1024,
+		},
+		{
+			msg:                 "256MiB -> GiB",
+			volumeSize:          256 * 1024 * 1024,
+			allocationUnitBytes: GiB,
+			expected:            1024 * 1024 * 1024,
+		},
+		{
+			msg:                 "256MiB -> GiB/2",
+			volumeSize:          256 * 1024 * 1024,
+			allocationUnitBytes: 512 * MiB,
+			expected:            512 * 1024 * 1024,
+		},
+	}
+
+	for _, testCase := range tests {
+		testCase := testCase
+
+		t.Run(fmt.Sprint(testCase.msg), func(t *testing.T) {
+			t.Parallel()
+
+			expected := RoundUpSizeBytes(testCase.volumeSize, testCase.allocationUnitBytes)
+			assert.Equal(t, testCase.expected, expected)
+		})
+	}
+}
