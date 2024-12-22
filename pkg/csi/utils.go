@@ -42,6 +42,14 @@ const (
 	ErrorNotFound string = "not found"
 )
 
+// Common allocation units
+const (
+	KiB int64 = 1024
+	MiB int64 = 1024 * KiB
+	GiB int64 = 1024 * MiB
+	TiB int64 = 1024 * GiB
+)
+
 type storageContent struct {
 	volID string
 	size  int64
@@ -209,12 +217,12 @@ func waitForVolumeDetach(cl *pxapi.Client, vmr *pxapi.VmRef, lun int) error {
 	return fmt.Errorf("timeout waiting for disk to detach")
 }
 
-func createVolume(cl *pxapi.Client, vol *volume.Volume, sizeGB int) error {
+func createVolume(cl *pxapi.Client, vol *volume.Volume, sizeBytes int64) error {
 	filename := strings.Split(vol.Disk(), "/")
 	diskParams := map[string]interface{}{
 		"vmid":     vmID,
 		"filename": filename[len(filename)-1],
-		"size":     fmt.Sprintf("%dG", sizeGB),
+		"size":     fmt.Sprintf("%d", sizeBytes),
 	}
 
 	err := cl.CreateVMDisk(vol.Node(), vol.Storage(), fmt.Sprintf("%s:%s", vol.Storage(), vol.Disk()), diskParams)
@@ -388,4 +396,17 @@ func getDevicePath(deviceContext map[string]string) (string, error) {
 	}
 
 	return devicePath, nil
+}
+
+// RoundUpSizeBytes calculates how many allocation units are needed to accommodate
+// a volume of given size. E.g. when user wants 1500MiB volume, while AWS EBS
+// allocates volumes in gibibyte-sized chunks,
+// RoundUpSizeBytes(1500 * 1024*1024, 1024*1024*1024) returns '2*1024*1024*1024' (2GiB)
+// (2 GiB is the smallest allocatable volume that can hold 1500MiB)
+func RoundUpSizeBytes(volumeSizeBytes int64, allocationUnitBytes int64) int64 {
+	if volumeSizeBytes == 0 {
+		return allocationUnitBytes
+	}
+
+	return allocationUnitBytes * ((volumeSizeBytes + allocationUnitBytes - 1) / allocationUnitBytes)
 }

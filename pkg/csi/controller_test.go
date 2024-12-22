@@ -1138,8 +1138,8 @@ func (ts *csiTestSuite) TestControllerExpandVolumeError() {
 	defer httpmock.DeactivateAndReset()
 
 	capRange := &proto.CapacityRange{
-		RequiredBytes: 100,
-		LimitBytes:    150,
+		RequiredBytes: 100 * csi.GiB,
+		LimitBytes:    150 * csi.GiB,
 	}
 
 	volCapability := &proto.VolumeCapability{
@@ -1175,8 +1175,8 @@ func (ts *csiTestSuite) TestControllerExpandVolumeError() {
 			request: &proto.ControllerExpandVolumeRequest{
 				VolumeId: "volume-id",
 				CapacityRange: &proto.CapacityRange{
-					RequiredBytes: 150,
-					LimitBytes:    100,
+					RequiredBytes: 150 * csi.GiB,
+					LimitBytes:    100 * csi.GiB,
 				},
 				VolumeCapability: volCapability,
 			},
@@ -1226,7 +1226,7 @@ func (ts *csiTestSuite) TestControllerExpandVolumeError() {
 				VolumeCapability: volCapability,
 			},
 			expected: &proto.ControllerExpandVolumeResponse{
-				CapacityBytes:         100,
+				CapacityBytes:         100 * csi.GiB,
 				NodeExpansionRequired: true,
 			},
 		},
