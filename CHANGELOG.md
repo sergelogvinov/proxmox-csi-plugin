@@ -1,3 +1,14 @@
+## [0.9.0](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.8.2...v0.9.0) (2024-12-23)
+
+
+### Features
+
+* minimal chunk size ([898f6e7](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/898f6e7f6572f978b9cc4fb307c84c19a5c9e910))
+
+
+### Bug Fixes
+
+* volume size ([b08a592](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/b08a5927e34401112a13ae834b9b9ed709a3493f))
 
 ## [v0.8.2](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.8.1...v0.8.2) (2024-09-28)
 
@@ -290,4 +301,3 @@ Welcome to the v0.01 release of Proxmox CSI Plugin!
 ### Miscellaneous
 
 - release v0.0.1 (56b4297)
-
