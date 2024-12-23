@@ -45,10 +45,10 @@ const (
 
 	// MaxVolumesPerNode is the maximum number of volumes that can be attached to a node
 	MaxVolumesPerNode = 24
-	// MinVolumeSize is the minimum size of a volume
-	MinVolumeSize = 1 // GB
-	// DefaultVolumeSize is the default size of a volume
-	DefaultVolumeSize = 10 // GB
+	// DefaultVolumeSizeBytes is the default size of a volume
+	DefaultVolumeSizeBytes = 10 * GiB
+	// MinChunkSizeBytes is the minimum size of a volume chunk
+	MinChunkSizeBytes = 512 * MiB
 
 	// EncryptionPassphraseKey is the encryption passphrase secret key
 	EncryptionPassphraseKey = "encryption-passphrase"

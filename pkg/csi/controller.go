@@ -120,10 +120,9 @@ func (d *ControllerService) CreateVolume(_ context.Context, request *csi.CreateV
 		}
 	}
 
-	// Volume Size - Default is 10 GiB
-	volSizeBytes := DefaultVolumeSize * GiB
+	volSizeBytes := DefaultVolumeSizeBytes
 	if request.GetCapacityRange() != nil {
-		volSizeBytes = RoundUpSizeBytes(request.GetCapacityRange().GetRequiredBytes(), GiB)
+		volSizeBytes = RoundUpSizeBytes(request.GetCapacityRange().GetRequiredBytes(), MinChunkSizeBytes)
 	}
 
 	accessibleTopology := request.GetAccessibilityRequirements()
@@ -601,7 +600,7 @@ func (d *ControllerService) ControllerExpandVolume(_ context.Context, request *c
 		return nil, status.Error(codes.InvalidArgument, "CapacityRange must be provided")
 	}
 
-	volSizeBytes := RoundUpSizeBytes(capacityRange.GetRequiredBytes(), GiB)
+	volSizeBytes := RoundUpSizeBytes(capacityRange.GetRequiredBytes(), MinChunkSizeBytes)
 	maxVolSize := capacityRange.GetLimitBytes()
 
 	if maxVolSize > 0 && maxVolSize < volSizeBytes {
