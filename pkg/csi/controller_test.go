@@ -242,7 +242,7 @@ clusters:
 				"data": []interface{}{
 					map[string]interface{}{
 						"format": "raw",
-						"size":   1024 * 1024 * 1024,
+						"size":   csi.MinChunkSizeBytes,
 						"volid":  "local-lvm:vm-9999-pvc-123",
 					},
 					map[string]interface{}{
@@ -252,7 +252,7 @@ clusters:
 					},
 					map[string]interface{}{
 						"format": "raw",
-						"size":   csi.MinVolumeSize * 1024 * 1024 * 1024,
+						"size":   csi.MinChunkSizeBytes,
 						"volid":  "local-lvm:vm-9999-pvc-exist-same-size",
 					},
 					map[string]interface{}{
@@ -579,7 +579,7 @@ func (ts *csiTestSuite) TestCreateVolume() {
 				Parameters:         volParam,
 				VolumeCapabilities: []*proto.VolumeCapability{volcap},
 				CapacityRange: &proto.CapacityRange{
-					RequiredBytes: 100,
+					RequiredBytes: 1 * csi.GiB,
 				},
 				AccessibilityRequirements: &proto.TopologyRequirement{
 					Preferred: []*proto.Topology{
@@ -616,7 +616,7 @@ func (ts *csiTestSuite) TestCreateVolume() {
 				Volume: &proto.Volume{
 					VolumeId:      "cluster-1/pve-1/local-lvm/vm-9999-pvc-exist-same-size",
 					VolumeContext: volParam,
-					CapacityBytes: int64(1024 * 1024 * 1024),
+					CapacityBytes: csi.MinChunkSizeBytes,
 					AccessibleTopology: []*proto.Topology{
 						{
 							Segments: map[string]string{
@@ -650,7 +650,7 @@ func (ts *csiTestSuite) TestCreateVolume() {
 				Volume: &proto.Volume{
 					VolumeId:      "cluster-1/pve-1/local-lvm/vm-9999-pvc-123",
 					VolumeContext: volParam,
-					CapacityBytes: int64(1024 * 1024 * 1024),
+					CapacityBytes: csi.MinChunkSizeBytes,
 					AccessibleTopology: []*proto.Topology{
 						{
 							Segments: map[string]string{

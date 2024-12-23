@@ -1,4 +1,4 @@
-# syntax = docker/dockerfile:1.10
+# syntax = docker/dockerfile:1.12
 ########################################
 
 FROM golang:1.23-bookworm AS develop
