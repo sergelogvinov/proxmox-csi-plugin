@@ -1,4 +1,27 @@
 
+## [v0.9.0](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.8.2...v0.9.0) (2025-01-01)
+
+Welcome to the v0.9.0 release of Proxmox CSI Plugin!
+
+### Bug Fixes
+
+- volume size (b08a592)
+
+### Features
+
+- minimal chunk size (898f6e7)
+
+### Miscellaneous
+
+- release v0.9.0 (1555d55)
+- bump deps (a30235b)
+- bump deps (db61132)
+- bump deps (0695c22)
+- bump deps (2351ca2)
+- release v0.8.2 (0cd72b0)
+- **chart:** update csi sidecar (d3b2b84)
+
+
 ## [v0.8.2](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.8.1...v0.8.2) (2024-09-28)
 
 Welcome to the v0.8.2 release of Proxmox CSI Plugin!
