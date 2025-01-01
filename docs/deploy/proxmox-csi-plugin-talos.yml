@@ -16,10 +16,10 @@ metadata:
   name: proxmox-csi-plugin-controller
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.2.14
+    helm.sh/chart: proxmox-csi-plugin-0.3.1
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
-    app.kubernetes.io/version: "v0.8.2"
+    app.kubernetes.io/version: "v0.9.0"
     app.kubernetes.io/managed-by: Helm
 ---
 # Source: proxmox-csi-plugin/templates/serviceaccount.yaml
@@ -29,10 +29,10 @@ metadata:
   name: proxmox-csi-plugin-node
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.2.14
+    helm.sh/chart: proxmox-csi-plugin-0.3.1
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
-    app.kubernetes.io/version: "v0.8.2"
+    app.kubernetes.io/version: "v0.9.0"
     app.kubernetes.io/managed-by: Helm
 ---
 # Source: proxmox-csi-plugin/templates/storageclass.yaml
@@ -68,10 +68,10 @@ metadata:
   name: proxmox-csi-plugin-controller
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.2.14
+    helm.sh/chart: proxmox-csi-plugin-0.3.1
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
-    app.kubernetes.io/version: "v0.8.2"
+    app.kubernetes.io/version: "v0.9.0"
     app.kubernetes.io/managed-by: Helm
 rules:
   - apiGroups: [""]
@@ -111,10 +111,10 @@ metadata:
   name: proxmox-csi-plugin-node
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.2.14
+    helm.sh/chart: proxmox-csi-plugin-0.3.1
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
-    app.kubernetes.io/version: "v0.8.2"
+    app.kubernetes.io/version: "v0.9.0"
     app.kubernetes.io/managed-by: Helm
 rules:
   - apiGroups:
@@ -159,10 +159,10 @@ metadata:
   name: proxmox-csi-plugin-controller
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.2.14
+    helm.sh/chart: proxmox-csi-plugin-0.3.1
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
-    app.kubernetes.io/version: "v0.8.2"
+    app.kubernetes.io/version: "v0.9.0"
     app.kubernetes.io/managed-by: Helm
 rules:
   - apiGroups: ["coordination.k8s.io"]
@@ -201,10 +201,10 @@ metadata:
   name: proxmox-csi-plugin-node
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.2.14
+    helm.sh/chart: proxmox-csi-plugin-0.3.1
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
-    app.kubernetes.io/version: "v0.8.2"
+    app.kubernetes.io/version: "v0.9.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   updateStrategy:
@@ -240,7 +240,7 @@ spec:
               - DAC_OVERRIDE
             seccompProfile:
               type: RuntimeDefault
-          image: "ghcr.io/sergelogvinov/proxmox-csi-node:v0.8.2"
+          image: "ghcr.io/sergelogvinov/proxmox-csi-node:v0.9.0"
           imagePullPolicy: IfNotPresent
           args:
             - "-v=5"
@@ -272,7 +272,7 @@ spec:
             readOnlyRootFilesystem: true
             seccompProfile:
               type: RuntimeDefault
-          image: "registry.k8s.io/sig-storage/csi-node-driver-registrar:v2.9.4"
+          image: "registry.k8s.io/sig-storage/csi-node-driver-registrar:v2.12.0"
           imagePullPolicy: IfNotPresent
           args:
             - "-v=5"
@@ -296,7 +296,7 @@ spec:
             readOnlyRootFilesystem: true
             seccompProfile:
               type: RuntimeDefault
-          image: "registry.k8s.io/sig-storage/livenessprobe:v2.11.0"
+          image: "registry.k8s.io/sig-storage/livenessprobe:v2.14.0"
           imagePullPolicy: IfNotPresent
           args:
             - "-v=5"
@@ -341,10 +341,10 @@ metadata:
   name: proxmox-csi-plugin-controller
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.2.14
+    helm.sh/chart: proxmox-csi-plugin-0.3.1
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
-    app.kubernetes.io/version: "v0.8.2"
+    app.kubernetes.io/version: "v0.9.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   replicas: 1
@@ -389,7 +389,7 @@ spec:
             readOnlyRootFilesystem: true
             seccompProfile:
               type: RuntimeDefault
-          image: "ghcr.io/sergelogvinov/proxmox-csi-controller:v0.8.2"
+          image: "ghcr.io/sergelogvinov/proxmox-csi-controller:v0.9.0"
           imagePullPolicy: IfNotPresent
           args:
             - "-v=5"
@@ -414,7 +414,7 @@ spec:
             readOnlyRootFilesystem: true
             seccompProfile:
               type: RuntimeDefault
-          image: "registry.k8s.io/sig-storage/csi-attacher:v4.4.4"
+          image: "registry.k8s.io/sig-storage/csi-attacher:v4.7.0"
           imagePullPolicy: IfNotPresent
           args:
             - "-v=5"
@@ -438,7 +438,7 @@ spec:
             readOnlyRootFilesystem: true
             seccompProfile:
               type: RuntimeDefault
-          image: "registry.k8s.io/sig-storage/csi-provisioner:v3.6.4"
+          image: "registry.k8s.io/sig-storage/csi-provisioner:v5.1.0"
           imagePullPolicy: IfNotPresent
           args:
             - "-v=5"
@@ -474,7 +474,7 @@ spec:
             readOnlyRootFilesystem: true
             seccompProfile:
               type: RuntimeDefault
-          image: "registry.k8s.io/sig-storage/csi-resizer:v1.9.4"
+          image: "registry.k8s.io/sig-storage/csi-resizer:v1.12.0"
           imagePullPolicy: IfNotPresent
           args:
             - "-v=5"
@@ -498,7 +498,7 @@ spec:
             readOnlyRootFilesystem: true
             seccompProfile:
               type: RuntimeDefault
-          image: "registry.k8s.io/sig-storage/livenessprobe:v2.11.0"
+          image: "registry.k8s.io/sig-storage/livenessprobe:v2.14.0"
           imagePullPolicy: IfNotPresent
           args:
             - "-v=5"

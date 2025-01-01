@@ -12,7 +12,7 @@ spec:
   containers:
     - name: alpine
       image: alpine
-      command: ["sleep","6000"]
+      command: ["sleep", "6000"]
       volumeMounts:
         - name: pvc
           mountPath: /mnt
@@ -20,7 +20,7 @@ spec:
         allowPrivilegeEscalation: false
         capabilities:
           drop:
-          - ALL
+            - ALL
         seccompProfile:
           type: RuntimeDefault
         runAsNonRoot: true
@@ -37,8 +37,8 @@ spec:
             labels:
               type: pvc-volume
           spec:
-            accessModes: [ "ReadWriteOnce" ]
-            storageClassName: proxmox-rbd
+            accessModes: ["ReadWriteOnce"]
+            storageClassName: proxmox
             resources:
               requests:
-                storage: 1Gi
+                storage: 64Mi
