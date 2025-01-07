@@ -57,9 +57,9 @@ var controllerCaps = []csi.ControllerServiceCapability_RPC_Type{
 
 // ControllerService is the controller service for the CSI driver
 type ControllerService struct {
-	Cluster *proxmox.Cluster
-	Kclient clientkubernetes.Interface
-
+	Cluster     *proxmox.Cluster
+	Kclient     clientkubernetes.Interface
+	Provider    proxmox.Provider
 	volumeLocks sync.Mutex
 
 	csi.UnimplementedControllerServer
@@ -78,8 +78,9 @@ func NewControllerService(kclient *clientkubernetes.Clientset, cloudConfig strin
 	}
 
 	return &ControllerService{
-		Cluster: cluster,
-		Kclient: kclient,
+		Cluster:  cluster,
+		Kclient:  kclient,
+		Provider: cfg.Features.Provider,
 	}, nil
 }
 
@@ -342,7 +343,8 @@ func (d *ControllerService) ControllerPublishVolume(ctx context.Context, request
 
 	var vmr *pxapi.VmRef
 
-	vmrid, zone, err := tools.ProxmoxVMID(ctx, d.Kclient, nodeID)
+	vmrid, zone, err := tools.ProxmoxVMID(ctx, d.Kclient, cl, nodeID, d.Provider)
+
 	if err != nil {
 		klog.InfoS("ControllerPublishVolume: failed to get proxmox vmrID from ProviderID", "cluster", vol.Cluster(), "nodeID", nodeID)
 
@@ -466,7 +468,8 @@ func (d *ControllerService) ControllerUnpublishVolume(ctx context.Context, reque
 
 	var vmr *pxapi.VmRef
 
-	vmrid, zone, err := tools.ProxmoxVMID(ctx, d.Kclient, nodeID)
+	vmrid, zone, err := tools.ProxmoxVMID(ctx, d.Kclient, cl, nodeID, d.Provider)
+
 	if err != nil {
 		klog.InfoS("ControllerUnpublishVolume: failed to get proxmox vmrID from ProviderID", "cluster", vol.Cluster(), "nodeID", nodeID)
 
