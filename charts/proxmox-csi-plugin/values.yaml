@@ -51,6 +51,9 @@ configFile: /etc/proxmox/config.yaml
 
 # -- Proxmox cluster config.
 config:
+  features:
+    # specify provider: proxmox if you are using capmox (cluster api provider for proxmox)
+    provider: 'default'
   clusters: []
   #   - url: https://cluster-api-1.exmple.com:8006/api2/json
   #     insecure: false

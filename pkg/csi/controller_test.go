@@ -41,14 +41,25 @@ import (
 
 var _ proto.ControllerServer = (*csi.ControllerService)(nil)
 
-type csiTestSuite struct {
+type baseCSITestSuite struct {
 	suite.Suite
-
 	s *csi.ControllerService
 }
 
-func (ts *csiTestSuite) SetupTest() {
-	cfg, err := proxmox.ReadCloudConfig(strings.NewReader(`
+type configTestCase struct {
+	name       string
+	config     string
+	providerID string
+}
+
+func getTestConfigs() []configTestCase {
+	return []configTestCase{
+		{
+			name:       "CapMoxProvider",
+			providerID: "proxmox://11833f4c-341f-4bd3-aad7-f7abeda472e6",
+			config: `
+features:
+  provider: capmox
 clusters:
 - url: https://127.0.0.1:8006/api2/json
   insecure: false
@@ -59,12 +70,36 @@ clusters:
   insecure: false
   token_id: "user!token-id"
   token_secret: "secret"
-  region: cluster-2
-`))
-	if err != nil {
-		ts.T().Fatalf("failed to read config: %v", err)
+  region: cluster-2`,
+		},
+		{
+			name:       "ExplicitDefaultProvider",
+			providerID: "proxmox://cluster-1/101",
+			config: `
+features:
+  provider: capmox
+clusters:
+- url: https://127.0.0.1:8006/api2/json
+  insecure: false
+  token_id: "user!token-id"
+  token_secret: "secret"
+  region: cluster-1`,
+		},
+		{
+			name:       "ImplicitDefaultProvider",
+			providerID: "proxmox://cluster-1/101",
+			config: `
+clusters:
+- url: https://127.0.0.1:8006/api2/json
+  insecure: false
+  token_id: "user!token-id"
+  token_secret: "secret"
+  region: cluster-1`,
+		},
 	}
+}
 
+func setupMockResponders() {
 	httpmock.RegisterResponder("GET", "https://127.0.0.1:8006/api2/json/cluster/resources",
 		func(_ *http.Request) (*http.Response, error) {
 			return httpmock.NewJsonResponse(200, map[string]interface{}{
@@ -286,10 +321,12 @@ clusters:
 			})
 		},
 	)
+}
 
-	cluster, err := proxmox.NewCluster(&cfg, &http.Client{})
+func (ts *baseCSITestSuite) setupTestSuite(config string, providerID string) error {
+	cfg, err := proxmox.ReadCloudConfig(strings.NewReader(config))
 	if err != nil {
-		ts.T().Fatalf("failed to create proxmox cluster client: %v", err)
+		return fmt.Errorf("failed to read config: %v", err)
 	}
 
 	nodes := &corev1.NodeList{
@@ -303,7 +340,7 @@ clusters:
 					Name: "cluster-1-node-2",
 				},
 				Spec: corev1.NodeSpec{
-					ProviderID: "proxmox://cluster-1/101",
+					ProviderID: providerID,
 				},
 			},
 		},
@@ -311,14 +348,48 @@ clusters:
 
 	kclient := fake.NewSimpleClientset(nodes)
 
+	cluster, err := proxmox.NewCluster(&cfg, &http.Client{})
+	if err != nil {
+		return fmt.Errorf("failed to create proxmox cluster client: %v", err)
+	}
+
 	ts.s = &csi.ControllerService{
-		Cluster: cluster,
-		Kclient: kclient,
+		Cluster:  cluster,
+		Kclient:  kclient,
+		Provider: cfg.Features.Provider,
+	}
+
+	return nil
+}
+
+// TestSuiteCSI runs all test configurations
+func TestSuiteCSI(t *testing.T) {
+	configs := getTestConfigs()
+	for _, cfg := range configs {
+		// Create a new test suite for each configuration
+		ts := &baseCSITestSuite{}
+
+		// Run the suite with the current configuration
+		suite.Run(t, &configuredTestSuite{
+			baseCSITestSuite: ts,
+			configCase:       cfg,
+		})
 	}
 }
 
-func TestSuiteCCM(t *testing.T) {
-	suite.Run(t, new(csiTestSuite))
+// configuredTestSuite wraps the base suite with a specific configuration
+type configuredTestSuite struct {
+	*baseCSITestSuite
+	configCase configTestCase
+}
+
+func (ts *configuredTestSuite) SetupTest() {
+	setupMockResponders()
+
+	err := ts.setupTestSuite(ts.configCase.config, ts.configCase.providerID)
+	if err != nil {
+		ts.T().Fatalf("Failed to setup test suite: %v", err)
+	}
 }
 
 func TestNewControllerService(t *testing.T) {
@@ -333,7 +404,7 @@ func TestNewControllerService(t *testing.T) {
 }
 
 //nolint:dupl
-func (ts *csiTestSuite) TestCreateVolume() {
+func (ts *configuredTestSuite) TestCreateVolume() {
 	httpmock.Activate()
 	defer httpmock.DeactivateAndReset()
 
@@ -682,7 +753,7 @@ func (ts *csiTestSuite) TestCreateVolume() {
 }
 
 //nolint:dupl
-func (ts *csiTestSuite) TestDeleteVolume() {
+func (ts *configuredTestSuite) TestDeleteVolume() {
 	httpmock.Activate()
 	defer httpmock.DeactivateAndReset()
 
@@ -758,7 +829,7 @@ func (ts *csiTestSuite) TestDeleteVolume() {
 	}
 }
 
-func (ts *csiTestSuite) TestControllerServiceControllerGetCapabilities() {
+func (ts *configuredTestSuite) TestControllerServiceControllerGetCapabilities() {
 	resp, err := ts.s.ControllerGetCapabilities(context.Background(), &proto.ControllerGetCapabilitiesRequest{})
 	ts.Require().NoError(err)
 	ts.Require().NotNil(resp)
@@ -769,7 +840,7 @@ func (ts *csiTestSuite) TestControllerServiceControllerGetCapabilities() {
 }
 
 //nolint:dupl
-func (ts *csiTestSuite) TestControllerPublishVolumeError() {
+func (ts *configuredTestSuite) TestControllerPublishVolumeError() {
 	httpmock.Activate()
 	defer httpmock.DeactivateAndReset()
 
@@ -903,7 +974,7 @@ func (ts *csiTestSuite) TestControllerPublishVolumeError() {
 }
 
 //nolint:dupl
-func (ts *csiTestSuite) TestControllerUnpublishVolumeError() {
+func (ts *configuredTestSuite) TestControllerUnpublishVolumeError() {
 	httpmock.Activate()
 	defer httpmock.DeactivateAndReset()
 
@@ -975,19 +1046,19 @@ func (ts *csiTestSuite) TestControllerUnpublishVolumeError() {
 	}
 }
 
-func (ts *csiTestSuite) TestValidateVolumeCapabilities() {
+func (ts *configuredTestSuite) TestValidateVolumeCapabilities() {
 	_, err := ts.s.ValidateVolumeCapabilities(context.Background(), &proto.ValidateVolumeCapabilitiesRequest{})
 	ts.Require().Error(err)
 	ts.Require().Equal(status.Error(codes.Unimplemented, ""), err)
 }
 
-func (ts *csiTestSuite) TestListVolumes() {
+func (ts *configuredTestSuite) TestListVolumes() {
 	_, err := ts.s.ListVolumes(context.Background(), &proto.ListVolumesRequest{})
 	ts.Require().Error(err)
 	ts.Require().Equal(status.Error(codes.Unimplemented, ""), err)
 }
 
-func (ts *csiTestSuite) TestGetCapacity() {
+func (ts *configuredTestSuite) TestGetCapacity() {
 	httpmock.Activate()
 	defer httpmock.DeactivateAndReset()
 
@@ -1115,25 +1186,25 @@ func (ts *csiTestSuite) TestGetCapacity() {
 	}
 }
 
-func (ts *csiTestSuite) TestCreateSnapshot() {
+func (ts *configuredTestSuite) TestCreateSnapshot() {
 	_, err := ts.s.CreateSnapshot(context.Background(), &proto.CreateSnapshotRequest{})
 	ts.Require().Error(err)
 	ts.Require().Equal(status.Error(codes.Unimplemented, ""), err)
 }
 
-func (ts *csiTestSuite) TestDeleteSnapshot() {
+func (ts *configuredTestSuite) TestDeleteSnapshot() {
 	_, err := ts.s.DeleteSnapshot(context.Background(), &proto.DeleteSnapshotRequest{})
 	ts.Require().Error(err)
 	ts.Require().Equal(status.Error(codes.Unimplemented, ""), err)
 }
 
-func (ts *csiTestSuite) TestListSnapshots() {
+func (ts *configuredTestSuite) TestListSnapshots() {
 	_, err := ts.s.ListSnapshots(context.Background(), &proto.ListSnapshotsRequest{})
 	ts.Require().Error(err)
 	ts.Require().Equal(status.Error(codes.Unimplemented, ""), err)
 }
 
-func (ts *csiTestSuite) TestControllerExpandVolumeError() {
+func (ts *configuredTestSuite) TestControllerExpandVolumeError() {
 	httpmock.Activate()
 	defer httpmock.DeactivateAndReset()
 
@@ -1249,7 +1320,7 @@ func (ts *csiTestSuite) TestControllerExpandVolumeError() {
 	}
 }
 
-func (ts *csiTestSuite) TestControllerGetVolume() {
+func (ts *configuredTestSuite) TestControllerGetVolume() {
 	_, err := ts.s.ControllerGetVolume(context.Background(), &proto.ControllerGetVolumeRequest{})
 	ts.Require().Error(err)
 	ts.Require().Equal(status.Error(codes.Unimplemented, ""), err)

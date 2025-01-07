@@ -18,9 +18,15 @@ package tools
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
+	"net/url"
+	"strings"
 
-	provider "github.com/sergelogvinov/proxmox-cloud-controller-manager/pkg/provider"
+	pxapi "github.com/Telmate/proxmox-api-go/proxmox"
+
+	proxmox "github.com/sergelogvinov/proxmox-cloud-controller-manager/pkg/cluster"
+	"github.com/sergelogvinov/proxmox-cloud-controller-manager/pkg/provider"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -89,13 +95,90 @@ func UncondonNodes(ctx context.Context, kclient *clientkubernetes.Clientset, nod
 }
 
 // ProxmoxVMID returns the Proxmox VM ID from the specified kubernetes node name.
-func ProxmoxVMID(ctx context.Context, kclient clientkubernetes.Interface, nodeName string) (int, string, error) {
+func ProxmoxVMID(ctx context.Context, kclient clientkubernetes.Interface, px *pxapi.Client, nodeName string, prov proxmox.Provider) (int, string, error) {
 	node, err := kclient.CoreV1().Nodes().Get(ctx, nodeName, metav1.GetOptions{})
 	if err != nil {
 		return 0, "", fmt.Errorf("failed to get node: %v", err)
 	}
 
+	if prov == proxmox.ProviderCapmox {
+		return ProxmoxVMIDByProviderID(px, node.Spec.ProviderID)
+	}
+
 	vmID, err := provider.GetVMID(node.Spec.ProviderID)
 
 	return vmID, node.Labels[corev1.LabelTopologyZone], err
+}
+
+// ProxmoxVMIDByProviderID find a VM by uuid in all Proxmox clusters.
+func ProxmoxVMIDByProviderID(px *pxapi.Client, providerID string) (int, string, error) {
+	uuid := strings.TrimPrefix(providerID, "proxmox://")
+
+	vm, err := findVMByUUID(px, uuid)
+	if err != nil {
+		return 0, "", err
+	}
+
+	return vm.VmId(), vm.Node(), nil
+}
+
+func findVMByUUID(px *pxapi.Client, uuid string) (*pxapi.VmRef, error) {
+	vms, err := px.GetResourceList("vm")
+	if err != nil {
+		return nil, fmt.Errorf("error get resources %v", err)
+	}
+
+	for vmii := range vms {
+		vm, ok := vms[vmii].(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("failed to cast response to map, vm: %v", vm)
+		}
+
+		if vm["type"].(string) != "qemu" { //nolint:errcheck
+			continue
+		}
+
+		vmr := pxapi.NewVmRef(int(vm["vmid"].(float64))) //nolint:errcheck
+		vmr.SetNode(vm["node"].(string))                 //nolint:errcheck
+		vmr.SetVmType("qemu")
+
+		config, err := px.GetVmConfig(vmr)
+		if err != nil {
+			return nil, err
+		}
+
+		if config["smbios1"] != nil {
+			if getUUID(config["smbios1"].(string)) == uuid { //nolint:errcheck
+				return vmr, nil
+			}
+		}
+	}
+
+	return nil, fmt.Errorf("vm with uuid '%s' not found", uuid)
+}
+
+func getUUID(smbios string) string {
+	for _, l := range strings.Split(smbios, ",") {
+		if l == "" || l == "base64=1" {
+			continue
+		}
+
+		parsedParameter, err := url.ParseQuery(l)
+		if err != nil {
+			return ""
+		}
+
+		for k, v := range parsedParameter {
+			if k == "uuid" {
+				decodedString, err := base64.StdEncoding.DecodeString(v[0])
+				if err != nil {
+					decodedString = []byte(v[0])
+				}
+
+				return string(decodedString)
+			}
+		}
+	}
+
+	return ""
 }
