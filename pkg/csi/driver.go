@@ -25,24 +25,6 @@ const (
 	// DriverSpecVersion CSI spec version
 	DriverSpecVersion = "1.9.0"
 
-	// StorageIDKey is the ID of the Proxmox storage
-	StorageIDKey = "storage"
-	// StorageCacheKey is the cache type, can be one of "directsync", "none", "writeback", "writethrough"
-	StorageCacheKey = "cache"
-	// StorageSSDKey is it ssd disk
-	StorageSSDKey = "ssd"
-
-	// StorageDiskIOPSKey is maximum r/w I/O in operations per second
-	StorageDiskIOPSKey = "diskIOPS"
-	// StorageDiskMBpsKey is maximum r/w throughput in MB/s
-	StorageDiskMBpsKey = "diskMBps"
-
-	// StorageBlockSizeKey the block size when formatting a volume
-	StorageBlockSizeKey = "blockSize"
-
-	// StorageInodeSizeKey the inode size when formatting a volume
-	StorageInodeSizeKey = "inodeSize"
-
 	// MaxVolumesPerNode is the maximum number of volumes that can be attached to a node
 	MaxVolumesPerNode = 24
 	// DefaultVolumeSizeBytes is the default size of a volume

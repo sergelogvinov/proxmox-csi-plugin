@@ -33,6 +33,7 @@ policies:
     spec:
       skipPaths:
         - .git/
+        - pkg/helpers/ptr/
       includeSuffixes:
         - .go
       excludeSuffixes:

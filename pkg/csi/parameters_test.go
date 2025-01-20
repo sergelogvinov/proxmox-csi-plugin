@@ -1,0 +1,234 @@
+/*
+Copyright 2023 The Kubernetes Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package csi_test
+
+import (
+	"fmt"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+
+	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/csi"
+	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/helpers/ptr"
+)
+
+func Test_ExtractAndDefaultParameters(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		msg     string
+		params  map[string]string
+		storage csi.StorageParameters
+	}{
+		{
+			msg: "Empty params",
+			params: map[string]string{
+				csi.StorageIDKey: "local-lvm",
+			},
+			storage: csi.StorageParameters{
+				Backup:   ptr.Ptr(false),
+				IOThread: true,
+			},
+		},
+		{
+			msg: "SSD disk",
+			params: map[string]string{
+				csi.StorageIDKey:  "local-lvm",
+				csi.StorageSSDKey: "true",
+			},
+			storage: csi.StorageParameters{
+				Backup:   ptr.Ptr(false),
+				IOThread: true,
+				SSD:      ptr.Ptr(true),
+				Discard:  "on",
+			},
+		},
+		{
+			msg: "disk limits",
+			params: map[string]string{
+				csi.StorageIDKey:       "local-lvm",
+				csi.StorageSSDKey:      "true",
+				csi.StorageDiskIOPSKey: "100",
+			},
+			storage: csi.StorageParameters{
+				Backup:   ptr.Ptr(false),
+				IOThread: true,
+				SSD:      ptr.Ptr(true),
+				Discard:  "on",
+				Iops:     ptr.Ptr(100),
+			},
+		},
+	}
+
+	for _, testCase := range tests {
+		testCase := testCase
+
+		t.Run(fmt.Sprint(testCase.msg), func(t *testing.T) {
+			t.Parallel()
+
+			storage, err := csi.ExtractAndDefaultParameters(testCase.params)
+
+			assert.Nil(t, err)
+			assert.Equal(t, testCase.storage, storage)
+		})
+	}
+}
+
+func Test_ToMap(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		msg     string
+		storage csi.StorageParameters
+		params  map[string]string
+	}{
+		{
+			msg:     "Empty params",
+			storage: csi.StorageParameters{},
+			params: map[string]string{
+				"iothread": "0",
+			},
+		},
+		{
+			msg: "Params with IOThread and limits",
+			storage: csi.StorageParameters{
+				Cache:     "directsync",
+				IOThread:  true,
+				IopsRead:  ptr.Ptr(100),
+				IopsWrite: ptr.Ptr(100),
+			},
+			params: map[string]string{
+				"cache":    "directsync",
+				"iothread": "1",
+				"iops_rd":  "100",
+				"iops_wr":  "100",
+			},
+		},
+	}
+
+	for _, testCase := range tests {
+		testCase := testCase
+
+		t.Run(fmt.Sprint(testCase.msg), func(t *testing.T) {
+			t.Parallel()
+
+			storage := testCase.storage.ToMap()
+			assert.Equal(t, testCase.params, storage)
+		})
+	}
+}
+
+func Test_ExtractModifyVolumeParameters(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		msg     string
+		params  map[string]string
+		storage csi.ModifyVolumeParameters
+	}{
+		{
+			msg:     "Empty params",
+			params:  map[string]string{},
+			storage: csi.ModifyVolumeParameters{},
+		},
+		{
+			msg: "Backup volume",
+			params: map[string]string{
+				"backup": "true",
+			},
+			storage: csi.ModifyVolumeParameters{
+				Backup: ptr.Ptr(true),
+			},
+		},
+		{
+			msg: "BW limits",
+			params: map[string]string{
+				"diskIOPS": "100",
+				"diskMBps": "100",
+			},
+			storage: csi.ModifyVolumeParameters{
+				Iops:      ptr.Ptr(100),
+				SpeedMbps: ptr.Ptr(100),
+			},
+		},
+	}
+
+	for _, testCase := range tests {
+		testCase := testCase
+
+		t.Run(fmt.Sprint(testCase.msg), func(t *testing.T) {
+			t.Parallel()
+
+			storage, err := csi.ExtractModifyVolumeParameters(testCase.params)
+
+			assert.Nil(t, err)
+			assert.Equal(t, testCase.storage, storage)
+		})
+	}
+}
+
+func Test_MergeMap(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		msg      string
+		storage  csi.ModifyVolumeParameters
+		params   map[string]string
+		expected map[string]string
+	}{
+		{
+			msg:     "Empty params",
+			storage: csi.ModifyVolumeParameters{},
+			params: map[string]string{
+				"storage": "lvm",
+				"ssd":     "true",
+			},
+			expected: map[string]string{
+				"storage": "lvm",
+				"ssd":     "true",
+			},
+		},
+		{
+			msg: "Backup param",
+			storage: csi.ModifyVolumeParameters{
+				Backup: ptr.Ptr(true),
+			},
+			params: map[string]string{
+				"storage":   "lvm",
+				"ssd":       "true",
+				"blockSize": "1024",
+			},
+			expected: map[string]string{
+				"backup":    "1",
+				"storage":   "lvm",
+				"ssd":       "true",
+				"blockSize": "1024",
+			},
+		},
+	}
+
+	for _, testCase := range tests {
+		testCase := testCase
+
+		t.Run(fmt.Sprint(testCase.msg), func(t *testing.T) {
+			t.Parallel()
+
+			storage := testCase.storage.MergeMap(testCase.params)
+			assert.Equal(t, testCase.expected, storage)
+		})
+	}
+}

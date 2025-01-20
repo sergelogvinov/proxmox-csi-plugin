@@ -31,6 +31,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	proxmox "github.com/sergelogvinov/proxmox-cloud-controller-manager/pkg/cluster"
+	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/helpers/ptr"
 	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/metrics"
 	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/tools"
 	volume "github.com/sergelogvinov/proxmox-csi-plugin/pkg/volume"
@@ -53,6 +54,7 @@ var controllerCaps = []csi.ControllerServiceCapability_RPC_Type{
 	csi.ControllerServiceCapability_RPC_EXPAND_VOLUME,
 	csi.ControllerServiceCapability_RPC_GET_VOLUME,
 	csi.ControllerServiceCapability_RPC_SINGLE_NODE_MULTI_WRITER,
+	csi.ControllerServiceCapability_RPC_MODIFY_VOLUME,
 }
 
 // ControllerService is the controller service for the CSI driver
@@ -105,21 +107,19 @@ func (d *ControllerService) CreateVolume(_ context.Context, request *csi.CreateV
 		return nil, status.Error(codes.InvalidArgument, "Parameters must be provided")
 	}
 
-	if params[StorageIDKey] == "" {
-		return nil, status.Errorf(codes.InvalidArgument, "Parameters %s must be provided", StorageIDKey)
+	klog.V(5).InfoS("CreateVolume: parameters", "parameters", params)
+
+	_, err := ExtractAndDefaultParameters(params)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
-	if params[StorageBlockSizeKey] != "" {
-		if _, err := strconv.Atoi(params[StorageBlockSizeKey]); err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "Parameters %s must be a number", StorageBlockSizeKey)
-		}
+	paramsVAC, err := ExtractModifyVolumeParameters(request.GetMutableParameters())
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
-	if params[StorageInodeSizeKey] != "" {
-		if _, err := strconv.Atoi(params[StorageInodeSizeKey]); err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "Parameters %s must be a number", StorageInodeSizeKey)
-		}
-	}
+	klog.V(5).InfoS("CreateVolume: modify parameters", "parameters", paramsVAC)
 
 	volSizeBytes := DefaultVolumeSizeBytes
 	if request.GetCapacityRange() != nil {
@@ -222,7 +222,7 @@ func (d *ControllerService) CreateVolume(_ context.Context, request *csi.CreateV
 
 	volume := csi.Volume{
 		VolumeId:      volID,
-		VolumeContext: params,
+		VolumeContext: paramsVAC.MergeMap(params),
 		ContentSource: request.GetVolumeContentSource(),
 		CapacityBytes: volSizeBytes,
 		AccessibleTopology: []*csi.Topology{
@@ -364,52 +364,19 @@ func (d *ControllerService) ControllerPublishVolume(ctx context.Context, request
 		vol = volume.NewVolume(vol.Region(), vmr.Node(), vol.Storage(), vol.Disk())
 	}
 
-	options := map[string]string{
-		"backup":   "0",
-		"iothread": "1",
+	params, err := ExtractAndDefaultParameters(volCtx)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
 	// Temporary workaround for unsafe mount, better to use a VolumeAttributesClass resource
 	unsafeEnv := os.Getenv("UNSAFEMOUNT")
 	if unsafeEnv == "true" { // nolint: goconst
-		options = map[string]string{
-			"iothread": "1",
-		}
+		params.Backup = nil
 	}
 
 	if request.GetReadonly() {
-		options["ro"] = "1"
-	}
-
-	if volCtx[StorageSSDKey] == "true" {
-		options["ssd"] = "1"
-		options["discard"] = "on"
-	}
-
-	if volCtx[StorageCacheKey] != "" {
-		options["cache"] = volCtx[StorageCacheKey]
-	}
-
-	if volCtx[StorageDiskIOPSKey] != "" {
-		iops, err := strconv.Atoi(volCtx[StorageDiskIOPSKey]) //nolint:govet
-		if err != nil {
-			klog.ErrorS(err, "ControllerPublishVolume: must be a number", StorageDiskIOPSKey, volCtx[StorageDiskIOPSKey])
-
-			return nil, status.Error(codes.InvalidArgument, fmt.Sprintf("failed %s must be a number: %v", StorageDiskIOPSKey, err))
-		}
-
-		options["iops"] = strconv.Itoa(iops)
-	}
-
-	if volCtx[StorageDiskMBpsKey] != "" {
-		mbps, err := strconv.Atoi(volCtx[StorageDiskMBpsKey]) //nolint:govet
-		if err != nil {
-			klog.ErrorS(err, "ControllerPublishVolume: must be a number", StorageDiskMBpsKey, volCtx[StorageDiskMBpsKey])
-
-			return nil, status.Error(codes.InvalidArgument, fmt.Sprintf("failed %s must be a number: %v", StorageDiskMBpsKey, err))
-		}
-
-		options["mbps"] = strconv.Itoa(mbps)
+		params.ReadOnly = ptr.Ptr(true)
 	}
 
 	exist, err := isPvcExists(cl, vol)
@@ -428,7 +395,7 @@ func (d *ControllerService) ControllerPublishVolume(ctx context.Context, request
 
 	mc := metrics.NewMetricContext("attachVolume")
 
-	pvInfo, err := attachVolume(cl, vmr, vol.Storage(), vol.Disk(), options)
+	pvInfo, err := attachVolume(cl, vmr, vol.Storage(), vol.Disk(), params.ToMap())
 	if mc.ObserveRequest(err) != nil {
 		klog.ErrorS(err, "ControllerPublishVolume: failed to attach volume", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "vmID", vmr.VmId())
 
@@ -716,6 +683,43 @@ func (d *ControllerService) ControllerGetVolume(_ context.Context, request *csi.
 // ControllerModifyVolume modify a volume
 func (d *ControllerService) ControllerModifyVolume(_ context.Context, request *csi.ControllerModifyVolumeRequest) (*csi.ControllerModifyVolumeResponse, error) {
 	klog.V(4).InfoS("ControllerModifyVolume: called", "args", protosanitizer.StripSecrets(request))
+
+	volumeID := request.GetVolumeId()
+	if volumeID == "" {
+		return nil, status.Error(codes.InvalidArgument, "VolumeID must be provided")
+	}
+
+	paramsVAC, err := ExtractModifyVolumeParameters(request.GetMutableParameters())
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+
+	klog.V(5).InfoS("ControllerModifyVolume: modify parameters", "parameters", paramsVAC)
+
+	vol, err := volume.NewVolumeFromVolumeID(volumeID)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+
+	cl, err := d.Cluster.GetProxmoxCluster(vol.Cluster())
+	if err != nil {
+		klog.ErrorS(err, "ControllerModifyVolume: failed to get proxmox cluster", "cluster", vol.Cluster())
+
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	exist, err := isPvcExists(cl, vol)
+	if err != nil {
+		klog.ErrorS(err, "ControllerModifyVolume: failed to verify the existence of the PVC", "cluster", vol.Cluster(), "volumeID", vol.VolumeID())
+
+		return nil, status.Error(codes.NotFound, err.Error())
+	}
+
+	if !exist {
+		klog.V(3).InfoS("ControllerModifyVolume: volume not found", "cluster", vol.Cluster(), "volumeID", vol.VolumeID())
+
+		return &csi.ControllerModifyVolumeResponse{}, nil
+	}
 
 	return nil, status.Error(codes.Unimplemented, "")
 }
