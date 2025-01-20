@@ -104,6 +104,39 @@ func getVMRefByVolume(cl *pxapi.Client, vol *volume.Volume) (vmr *pxapi.VmRef, e
 	return vmr, nil
 }
 
+func getVMRefByAttachedVolume(cl *pxapi.Client, vol *volume.Volume) (*pxapi.VmRef, error) {
+	vms, err := cl.GetResourceList("vm")
+	if err != nil {
+		return nil, fmt.Errorf("error get resources %v", err)
+	}
+
+	for vmii := range vms {
+		vm, ok := vms[vmii].(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("failed to cast response to map, vm: %v", vm)
+		}
+
+		if vm["type"].(string) != "qemu" { //nolint:errcheck
+			continue
+		}
+
+		vmr := pxapi.NewVmRef(int(vm["vmid"].(float64))) //nolint:errcheck
+		vmr.SetNode(vm["node"].(string))                 //nolint:errcheck
+		vmr.SetVmType("qemu")
+
+		config, err := cl.GetVmConfig(vmr)
+		if err != nil {
+			return nil, err
+		}
+
+		if _, exist := isVolumeAttached(config, vol.Disk()); exist {
+			return vmr, nil
+		}
+	}
+
+	return nil, fmt.Errorf("vm with volume %s not found", vol.Disk())
+}
+
 func getStorageContent(cl *pxapi.Client, vol *volume.Volume) (*storageContent, error) {
 	vmr, err := getVMRefByVolume(cl, vol)
 	if err != nil {
@@ -282,6 +315,45 @@ func attachVolume(cl *pxapi.Client, vmr *pxapi.VmRef, storageName string, pvc st
 	}
 
 	return nil, fmt.Errorf("no free lun found")
+}
+
+func updateVolume(cl *pxapi.Client, vmr *pxapi.VmRef, storageName string, pvc string, options map[string]string) error {
+	config, err := cl.GetVmConfig(vmr)
+	if err != nil {
+		return fmt.Errorf("failed to get vm config: %v", err)
+	}
+
+	lun, exist := isVolumeAttached(config, pvc)
+	if !exist {
+		return fmt.Errorf("volume does not attached")
+	}
+
+	disk := config[deviceNamePrefix+strconv.Itoa(lun)].(string) //nolint:errcheck
+	if disk != "" {
+		params := strings.Split(disk, ",")
+		for _, param := range params {
+			kv := strings.Split(param, "=")
+			if len(kv) == 2 && options[kv[0]] == "" {
+				options[kv[0]] = kv[1]
+			}
+		}
+	}
+
+	opt := make([]string, 0, len(options))
+	for k := range options {
+		opt = append(opt, fmt.Sprintf("%s=%s", k, options[k]))
+	}
+
+	vmParams := map[string]interface{}{
+		deviceNamePrefix + strconv.Itoa(lun): fmt.Sprintf("%s:%s,%s", storageName, pvc, strings.Join(opt, ",")),
+	}
+
+	_, err = cl.SetVmConfig(vmr, vmParams)
+	if err != nil {
+		return fmt.Errorf("failed to update disk: %v, vmParams=%+v", err, vmParams)
+	}
+
+	return nil
 }
 
 func detachVolume(cl *pxapi.Client, vmr *pxapi.VmRef, pvc string) error {

@@ -204,7 +204,7 @@ func ExtractModifyVolumeParameters(parameters map[string]string) (ModifyVolumePa
 	return p, nil
 }
 
-// ToMap converts storage parameters to a map of string.
+// ToMap converts storage parameters to proxmox map of string.
 func (p StorageParameters) ToMap() map[string]string {
 	m := make(map[string]string)
 
@@ -274,6 +274,52 @@ func (p ModifyVolumeParameters) MergeMap(orig map[string]string) map[string]stri
 		if tag == "" {
 			continue
 		}
+
+		switch v := f.Interface().(type) {
+		case string:
+			if v != "" {
+				m[tag] = v
+			}
+		case int:
+			m[tag] = strconv.Itoa(v)
+		case bool:
+			if v {
+				m[tag] = "1"
+			} else {
+				m[tag] = "0"
+			}
+		}
+	}
+
+	return m
+}
+
+// ToMap converts ModifyVolumeParameters to proxmox map of string and merge it with the provided map.
+func (p ModifyVolumeParameters) ToMap() map[string]string {
+	m := map[string]string{}
+
+	ps := reflect.ValueOf(&p).Elem()
+	for i := 0; i < ps.NumField(); i++ {
+		f := ps.Field(i)
+
+		if !f.CanInterface() {
+			continue
+		}
+
+		if f.Kind() == reflect.Ptr {
+			if f.IsNil() {
+				continue
+			}
+
+			f = f.Elem()
+		}
+
+		tag := ps.Type().Field(i).Tag.Get("json")
+		if tag == "" {
+			continue
+		}
+
+		tag = strings.Split(tag, ",")[0]
 
 		switch v := f.Interface().(type) {
 		case string:
