@@ -9,7 +9,7 @@ jobs:
   build-publish:
     name: "Check release docs"
     timeout-minutes: 15
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     if:  startsWith(github.head_ref, 'release-')
     permissions:
       contents: read
@@ -21,10 +21,8 @@ jobs:
         run: git fetch --prune --unshallow
 
       - name: Release version
-        shell: bash
-        id: release
-        run: |
-          echo "TAG=v${GITHUB_HEAD_REF:8}" >> "$GITHUB_ENV"
+        if:  startsWith(github.head_ref, 'release-please')
+        run: jq -r '"TAG=v"+.[]' hack/release-please-manifest.json >> "$GITHUB_ENV"
 
       - name: Helm docs
         uses: gabe565/setup-helm-docs-action@v1
@@ -39,7 +37,7 @@ jobs:
   build-publish-cli:
     name: "Check cli tool"
     timeout-minutes: 15
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     if:  startsWith(github.head_ref, 'release-')
     steps:
       - name: Checkout
