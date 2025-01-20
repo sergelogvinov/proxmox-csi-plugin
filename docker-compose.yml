@@ -48,9 +48,9 @@ services:
     network_mode: "service:base"
     command:
       - "--v=5"
+      - "--workers=1"
       - "--csi-address=unix:///csi/csi.sock"
       - "--leader-election=false"
-      - "-workers=1"
       - "--kubeconfig=/etc/kubernetes/kubeconfig"
       - "--feature-gates=VolumeAttributesClass=true"
     volumes:
@@ -69,7 +69,7 @@ services:
       - "--csi-address=unix:///csi/csi.sock"
       - "--leader-election=false"
       - "--default-fstype=ext4"
-      - "--feature-gates=Topology=true,VolumeAttributesClass=true"
+      - "--feature-gates=VolumeAttributesClass=true"
       - "--enable-capacity"
       - "--capacity-ownerref-level=-1"
       - "--capacity-poll-interval=2m"

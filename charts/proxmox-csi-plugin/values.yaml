@@ -118,10 +118,15 @@ controller:
         memory: 16Mi
   attacher:
     # -- CSI Attacher.
+    # ref: https://github.com/kubernetes-csi/external-attacher
     image:
       repository: registry.k8s.io/sig-storage/csi-attacher
       pullPolicy: IfNotPresent
-      tag: v4.7.0
+      tag: v4.8.0
+    # -- Attacher arguments.
+    # example: --default-fstype=ext4
+    args:
+      - --default-fstype=ext4
     # -- Attacher resource requests and limits.
     # ref: https://kubernetes.io/docs/user-guide/compute-resources/
     resources:
@@ -130,10 +135,15 @@ controller:
         memory: 16Mi
   provisioner:
     # -- CSI Provisioner.
+    # ref: https://github.com/kubernetes-csi/external-provisioner
     image:
       repository: registry.k8s.io/sig-storage/csi-provisioner
       pullPolicy: IfNotPresent
       tag: v5.1.0
+    # -- Provisioner arguments.
+    # example: --feature-gates=VolumeAttributesClass=true
+    args:
+      - --default-fstype=ext4
     # -- Provisioner resource requests and limits.
     # ref: https://kubernetes.io/docs/user-guide/compute-resources/
     resources:
@@ -142,10 +152,14 @@ controller:
         memory: 16Mi
   resizer:
     # -- CSI Resizer.
+    # refs: https://github.com/kubernetes-csi/external-resizer
     image:
       repository: registry.k8s.io/sig-storage/csi-resizer
       pullPolicy: IfNotPresent
-      tag: v1.12.0
+      tag: v1.13.1
+    # -- Resizer arguments.
+    # example: --feature-gates=VolumeAttributesClass=true
+    args: []
     # -- Resizer resource requests and limits.
     # ref: https://kubernetes.io/docs/user-guide/compute-resources/
     resources:
@@ -166,10 +180,11 @@ node:
     resources: {}
   driverRegistrar:
     # -- Node CSI driver registrar.
+    # ref: https://github.com/kubernetes-csi/node-driver-registrar
     image:
       repository: registry.k8s.io/sig-storage/csi-node-driver-registrar
       pullPolicy: IfNotPresent
-      tag: v2.12.0
+      tag: v2.13.0
     # -- Node registrar resource requests and limits.
     # ref: https://kubernetes.io/docs/user-guide/compute-resources/
     resources:
