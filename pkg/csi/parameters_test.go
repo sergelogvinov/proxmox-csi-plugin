@@ -217,7 +217,7 @@ func Test_MergeMap(t *testing.T) {
 		expected map[string]string
 	}{
 		{
-			msg:     "Empty params",
+			msg:     "Empty modify params",
 			storage: csi.ModifyVolumeParameters{},
 			params: map[string]string{
 				"storage": "lvm",

@@ -722,5 +722,24 @@ func (d *ControllerService) ControllerModifyVolume(_ context.Context, request *c
 		return &csi.ControllerModifyVolumeResponse{}, nil
 	}
 
-	return nil, status.Error(codes.Unimplemented, "")
+	vmr, err := getVMRefByAttachedVolume(cl, vol)
+	if err != nil {
+		klog.ErrorS(err, "ControllerModifyVolume: failed to get vm ref by volume", "cluster", vol.Cluster(), "volumeName", vol.Disk())
+
+		return nil, status.Error(codes.NotFound, err.Error())
+	}
+
+	d.volumeLocks.Lock()
+	defer d.volumeLocks.Unlock()
+
+	klog.V(5).InfoS("ControllerModifyVolume: update volume", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "vmID", vmr.VmId(), "parameters", paramsVAC.ToMap())
+
+	mc := metrics.NewMetricContext("updateVolume")
+	if err = updateVolume(cl, vmr, vol.Storage(), vol.Disk(), paramsVAC.ToMap()); mc.ObserveRequest(err) != nil {
+		klog.ErrorS(err, "ControllerModifyVolume: failed to update volume", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "vmID", vmr.VmId())
+
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	return &csi.ControllerModifyVolumeResponse{}, nil
 }
