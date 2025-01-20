@@ -50,10 +50,11 @@ existingConfigSecretKey: config.yaml
 configFile: /etc/proxmox/config.yaml
 
 # -- Proxmox cluster config.
+# ref: https://github.com/sergelogvinov/proxmox-csi-plugin/blob/main/docs/install.md
 config:
   features:
     # specify provider: proxmox if you are using capmox (cluster api provider for proxmox)
-    provider: 'default'
+    provider: "default"
   clusters: []
   #   - url: https://cluster-api-1.exmple.com:8006/api2/json
   #     insecure: false

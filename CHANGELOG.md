@@ -1,3 +1,9 @@
+## [0.10.0](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.9.0...v0.10.0) (2025-01-20)
+
+
+### Features
+
+* enable support for capmox ([6145c7d](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/6145c7d91cfc47c131ac453e2a90a915e5694b2b))
 
 ## [v0.9.0](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.8.2...v0.9.0) (2025-01-01)
 
@@ -313,4 +319,3 @@ Welcome to the v0.01 release of Proxmox CSI Plugin!
 ### Miscellaneous
 
 - release v0.0.1 (56b4297)
-
