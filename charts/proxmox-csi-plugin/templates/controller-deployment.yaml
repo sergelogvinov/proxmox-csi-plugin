@@ -80,7 +80,9 @@ spec:
             - "--csi-address=unix:///csi/csi.sock"
             - "--timeout={{ .Values.timeout }}"
             - "--leader-election"
-            - "--default-fstype=ext4"
+            {{- range .Values.controller.attacher.args }}
+            - {{ . | quote }}
+            {{- end }}
           volumeMounts:
             - name: socket-dir
               mountPath: /csi
@@ -95,10 +97,11 @@ spec:
             - "--csi-address=unix:///csi/csi.sock"
             - "--timeout={{ .Values.timeout }}"
             - "--leader-election"
-            - "--default-fstype=ext4"
-            - "--feature-gates=Topology=True"
             - "--enable-capacity"
             - "--capacity-ownerref-level=2"
+            {{- range .Values.controller.provisioner.args }}
+            - {{ . | quote }}
+            {{- end }}
           env:
             - name: NAMESPACE
               valueFrom:
@@ -123,6 +126,9 @@ spec:
             - "--timeout={{ .Values.timeout }}"
             - "--handle-volume-inuse-error=false"
             - "--leader-election"
+            {{- range .Values.controller.resizer.args }}
+            - {{ . | quote }}
+            {{- end }}
           volumeMounts:
             - name: socket-dir
               mountPath: /csi
