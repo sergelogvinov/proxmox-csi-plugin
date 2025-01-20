@@ -9,7 +9,7 @@ jobs:
   conform:
     name: Conformance
     timeout-minutes: 5
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     if: github.event.pull_request.draft == false
     steps:
       - name: Checkout
@@ -22,3 +22,5 @@ jobs:
 
       - name: Conform action
         uses: talos-systems/conform@v0.1.0-alpha.30
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
