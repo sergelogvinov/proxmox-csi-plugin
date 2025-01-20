@@ -1,6 +1,6 @@
 # proxmox-csi-plugin
 
-![Version: 0.3.1](https://img.shields.io/badge/Version-0.3.1-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: v0.9.0](https://img.shields.io/badge/AppVersion-v0.9.0-informational?style=flat-square)
+![Version: 0.3.3](https://img.shields.io/badge/Version-0.3.3-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: v0.10.0](https://img.shields.io/badge/AppVersion-v0.10.0-informational?style=flat-square)
 
 Container Storage Interface plugin for Proxmox
 
@@ -109,7 +109,7 @@ helm upgrade -i --namespace=csi-proxmox -f proxmox-csi.yaml \
 | existingConfigSecret | string | `nil` | Proxmox cluster config stored in secrets. |
 | existingConfigSecretKey | string | `"config.yaml"` | Proxmox cluster config stored in secrets key. |
 | configFile | string | `"/etc/proxmox/config.yaml"` | Proxmox cluster config path. |
-| config | object | `{"clusters":[]}` | Proxmox cluster config. |
+| config | object | `{"clusters":[],"features":{"provider":"default"}}` | Proxmox cluster config. ref: https://github.com/sergelogvinov/proxmox-csi-plugin/blob/main/docs/install.md |
 | storageClass | list | `[]` | Storage class definition. |
 | controller.podAnnotations | object | `{}` | Annotations for controller pod. ref: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/ |
 | controller.plugin.image | object | `{"pullPolicy":"IfNotPresent","repository":"ghcr.io/sergelogvinov/proxmox-csi-controller","tag":""}` | Controller CSI Driver. |

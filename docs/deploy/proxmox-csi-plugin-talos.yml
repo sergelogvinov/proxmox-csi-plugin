@@ -16,10 +16,10 @@ metadata:
   name: proxmox-csi-plugin-controller
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.3.1
+    helm.sh/chart: proxmox-csi-plugin-0.3.3
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
-    app.kubernetes.io/version: "v0.9.0"
+    app.kubernetes.io/version: "v0.10.0"
     app.kubernetes.io/managed-by: Helm
 ---
 # Source: proxmox-csi-plugin/templates/serviceaccount.yaml
@@ -29,10 +29,10 @@ metadata:
   name: proxmox-csi-plugin-node
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.3.1
+    helm.sh/chart: proxmox-csi-plugin-0.3.3
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
-    app.kubernetes.io/version: "v0.9.0"
+    app.kubernetes.io/version: "v0.10.0"
     app.kubernetes.io/managed-by: Helm
 ---
 # Source: proxmox-csi-plugin/templates/storageclass.yaml
@@ -68,10 +68,10 @@ metadata:
   name: proxmox-csi-plugin-controller
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.3.1
+    helm.sh/chart: proxmox-csi-plugin-0.3.3
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
-    app.kubernetes.io/version: "v0.9.0"
+    app.kubernetes.io/version: "v0.10.0"
     app.kubernetes.io/managed-by: Helm
 rules:
   - apiGroups: [""]
@@ -111,10 +111,10 @@ metadata:
   name: proxmox-csi-plugin-node
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.3.1
+    helm.sh/chart: proxmox-csi-plugin-0.3.3
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
-    app.kubernetes.io/version: "v0.9.0"
+    app.kubernetes.io/version: "v0.10.0"
     app.kubernetes.io/managed-by: Helm
 rules:
   - apiGroups:
@@ -159,10 +159,10 @@ metadata:
   name: proxmox-csi-plugin-controller
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.3.1
+    helm.sh/chart: proxmox-csi-plugin-0.3.3
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
-    app.kubernetes.io/version: "v0.9.0"
+    app.kubernetes.io/version: "v0.10.0"
     app.kubernetes.io/managed-by: Helm
 rules:
   - apiGroups: ["coordination.k8s.io"]
@@ -201,10 +201,10 @@ metadata:
   name: proxmox-csi-plugin-node
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.3.1
+    helm.sh/chart: proxmox-csi-plugin-0.3.3
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
-    app.kubernetes.io/version: "v0.9.0"
+    app.kubernetes.io/version: "v0.10.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   updateStrategy:
@@ -240,7 +240,7 @@ spec:
               - DAC_OVERRIDE
             seccompProfile:
               type: RuntimeDefault
-          image: "ghcr.io/sergelogvinov/proxmox-csi-node:v0.9.0"
+          image: "ghcr.io/sergelogvinov/proxmox-csi-node:v0.10.0"
           imagePullPolicy: IfNotPresent
           args:
             - "-v=5"
@@ -341,10 +341,10 @@ metadata:
   name: proxmox-csi-plugin-controller
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.3.1
+    helm.sh/chart: proxmox-csi-plugin-0.3.3
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
-    app.kubernetes.io/version: "v0.9.0"
+    app.kubernetes.io/version: "v0.10.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   replicas: 1
@@ -360,7 +360,7 @@ spec:
   template:
     metadata:
       annotations:
-        checksum/config: c69436cb1e16c36ff708b1003d3ca4c6ee6484d2524e2ba7d9b68f473acaa1ca
+        checksum/config: ce080eff0c26b50fe73bf9fcda017c8ad47c1000729fd0c555cfe3535c6d6222
       labels:
         app.kubernetes.io/name: proxmox-csi-plugin
         app.kubernetes.io/instance: proxmox-csi-plugin
@@ -389,7 +389,7 @@ spec:
             readOnlyRootFilesystem: true
             seccompProfile:
               type: RuntimeDefault
-          image: "ghcr.io/sergelogvinov/proxmox-csi-controller:v0.9.0"
+          image: "ghcr.io/sergelogvinov/proxmox-csi-controller:v0.10.0"
           imagePullPolicy: IfNotPresent
           args:
             - "-v=5"
