@@ -50,19 +50,11 @@ var nodeCaps = []csi.NodeServiceCapability_RPC_Type{
 	csi.NodeServiceCapability_RPC_GET_VOLUME_STATS,
 }
 
-var volumeCaps = []csi.VolumeCapability_AccessMode{
-	{
-		Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER,
-	},
-	{
-		Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_READER_ONLY,
-	},
-	{
-		Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_SINGLE_WRITER,
-	},
-	{
-		Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_MULTI_WRITER,
-	},
+var volumeCaps = []csi.VolumeCapability_AccessMode_Mode{
+	csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER,
+	csi.VolumeCapability_AccessMode_SINGLE_NODE_READER_ONLY,
+	csi.VolumeCapability_AccessMode_SINGLE_NODE_SINGLE_WRITER,
+	csi.VolumeCapability_AccessMode_SINGLE_NODE_MULTI_WRITER,
 }
 
 // NodeService is the node service for the CSI driver
@@ -149,7 +141,7 @@ func (n *NodeService) NodeStageVolume(_ context.Context, request *csi.NodeStageV
 				fsType = mnt.GetFsType()
 			}
 
-			if volumeContext["ssd"] == "true" {
+			if volumeContext["ssd"] == "true" { //nolint:goconst
 				options = append(options, "noatime")
 			}
 
@@ -569,8 +561,8 @@ func (n *NodeService) NodeGetInfo(ctx context.Context, _ *csi.NodeGetInfoRequest
 
 func isValidVolumeCapabilities(volCaps []*csi.VolumeCapability) bool {
 	hasSupport := func(reqcap *csi.VolumeCapability) bool {
-		for _, c := range volumeCaps { // nolint: govet
-			if c.GetMode() == reqcap.GetAccessMode().GetMode() {
+		for _, c := range volumeCaps {
+			if c == reqcap.GetAccessMode().GetMode() {
 				return true
 			}
 		}

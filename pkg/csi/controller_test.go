@@ -482,7 +482,7 @@ func (ts *configuredTestSuite) TestCreateVolume() {
 				CapacityRange:             volsize,
 				AccessibilityRequirements: topology,
 			},
-			expectedError: status.Error(codes.InvalidArgument, "Parameters storage must be provided"),
+			expectedError: status.Error(codes.InvalidArgument, "parameters storage must be provided"),
 		},
 		{
 			msg: "VolumeParametersBlockSize",
@@ -496,7 +496,7 @@ func (ts *configuredTestSuite) TestCreateVolume() {
 				CapacityRange:             volsize,
 				AccessibilityRequirements: topology,
 			},
-			expectedError: status.Error(codes.InvalidArgument, "Parameters blockSize must be a number"),
+			expectedError: status.Error(codes.InvalidArgument, "parameters blockSize must be a number"),
 		},
 		{
 			msg: "VolumeParametersInodeSize",
@@ -510,7 +510,7 @@ func (ts *configuredTestSuite) TestCreateVolume() {
 				CapacityRange:             volsize,
 				AccessibilityRequirements: topology,
 			},
-			expectedError: status.Error(codes.InvalidArgument, "Parameters inodeSize must be a number"),
+			expectedError: status.Error(codes.InvalidArgument, "parameters inodeSize must be a number"),
 		},
 		{
 			msg: "RegionZone",
@@ -834,7 +834,7 @@ func (ts *configuredTestSuite) TestControllerServiceControllerGetCapabilities() 
 	ts.Require().NoError(err)
 	ts.Require().NotNil(resp)
 
-	if len(resp.GetCapabilities()) != 6 {
+	if len(resp.GetCapabilities()) != 7 {
 		ts.T().Fatalf("unexpected number of capabilities: %d", len(resp.GetCapabilities()))
 	}
 }
@@ -844,7 +844,7 @@ func (ts *configuredTestSuite) TestControllerPublishVolumeError() {
 	httpmock.Activate()
 	defer httpmock.DeactivateAndReset()
 
-	volcap := &proto.VolumeCapability{
+	volCap := &proto.VolumeCapability{
 		AccessMode: &proto.VolumeCapability_AccessMode{
 			Mode: proto.VolumeCapability_AccessMode_SINGLE_NODE_WRITER,
 		},
@@ -854,7 +854,9 @@ func (ts *configuredTestSuite) TestControllerPublishVolumeError() {
 			},
 		},
 	}
-	volCtx := map[string]string{}
+	volCtx := map[string]string{
+		csi.StorageIDKey: "local-lvm",
+	}
 
 	tests := []struct {
 		msg           string
@@ -866,7 +868,7 @@ func (ts *configuredTestSuite) TestControllerPublishVolumeError() {
 			msg: "VolumeID",
 			request: &proto.ControllerPublishVolumeRequest{
 				NodeId:           "node-id",
-				VolumeCapability: volcap,
+				VolumeCapability: volCap,
 				VolumeContext:    volCtx,
 			},
 			expectedError: status.Error(codes.InvalidArgument, "VolumeID must be provided"),
@@ -875,7 +877,7 @@ func (ts *configuredTestSuite) TestControllerPublishVolumeError() {
 			msg: "NodeID",
 			request: &proto.ControllerPublishVolumeRequest{
 				VolumeId:         "volume-id",
-				VolumeCapability: volcap,
+				VolumeCapability: volCap,
 				VolumeContext:    volCtx,
 			},
 			expectedError: status.Error(codes.InvalidArgument, "NodeID must be provided"),
@@ -894,7 +896,7 @@ func (ts *configuredTestSuite) TestControllerPublishVolumeError() {
 			request: &proto.ControllerPublishVolumeRequest{
 				NodeId:           "node-id",
 				VolumeId:         "volume-id",
-				VolumeCapability: volcap,
+				VolumeCapability: volCap,
 			},
 			expectedError: status.Error(codes.InvalidArgument, "VolumeContext must be provided"),
 		},
@@ -903,7 +905,7 @@ func (ts *configuredTestSuite) TestControllerPublishVolumeError() {
 			request: &proto.ControllerPublishVolumeRequest{
 				NodeId:           "node-id",
 				VolumeId:         "volume-id",
-				VolumeCapability: volcap,
+				VolumeCapability: volCap,
 				VolumeContext:    volCtx,
 			},
 			expectedError: status.Error(codes.InvalidArgument, "VolumeID must be in the format of region/zone/storageName/diskName"),
@@ -913,7 +915,7 @@ func (ts *configuredTestSuite) TestControllerPublishVolumeError() {
 			request: &proto.ControllerPublishVolumeRequest{
 				NodeId:           "node-id",
 				VolumeId:         "fake-region/node-id/data/volume-id",
-				VolumeCapability: volcap,
+				VolumeCapability: volCap,
 				VolumeContext:    volCtx,
 			},
 			expectedError: status.Error(codes.Internal, "proxmox cluster fake-region not found"),
@@ -934,7 +936,7 @@ func (ts *configuredTestSuite) TestControllerPublishVolumeError() {
 			request: &proto.ControllerPublishVolumeRequest{
 				NodeId:           "cluster-1-node-1",
 				VolumeId:         "cluster-1/pve-1/local-lvm/vm-9999-pvc-123-not-exist",
-				VolumeCapability: volcap,
+				VolumeCapability: volCap,
 				VolumeContext:    volCtx,
 			},
 			expectedError: status.Error(codes.NotFound, "volume not found"),
@@ -944,7 +946,7 @@ func (ts *configuredTestSuite) TestControllerPublishVolumeError() {
 			request: &proto.ControllerPublishVolumeRequest{
 				NodeId:           "cluster-1-node-1",
 				VolumeId:         "cluster-1/pve-1/local-lvm/vm-9999-pvc-123",
-				VolumeCapability: volcap,
+				VolumeCapability: volCap,
 				VolumeContext:    volCtx,
 			},
 			expected: &proto.ControllerPublishVolumeResponse{

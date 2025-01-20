@@ -6,7 +6,7 @@ metadata:
   labels:
     app: alpine
 spec:
-  podManagementPolicy: Parallel  # default is OrderedReady
+  podManagementPolicy: Parallel # default is OrderedReady
   serviceName: test
   replicas: 1
   template:
@@ -19,12 +19,12 @@ spec:
         - effect: NoSchedule
           key: node-role.kubernetes.io/control-plane
       nodeSelector:
-        # kubernetes.io/hostname: kube-21
+        # kubernetes.io/hostname: kube-01a
         # topology.kubernetes.io/zone: hvm-1
       containers:
         - name: alpine
           image: alpine
-          command: ["sleep","1d"]
+          command: ["sleep", "1d"]
           securityContext:
             seccompProfile:
               type: RuntimeDefault
@@ -47,3 +47,4 @@ spec:
           requests:
             storage: 50Gi
         storageClassName: proxmox-lvm
+        # volumeAttributesClassName: test

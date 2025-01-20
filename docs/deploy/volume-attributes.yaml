@@ -1,0 +1,35 @@
+apiVersion: storage.k8s.io/v1beta1
+kind: VolumeAttributesClass
+metadata:
+  name: test
+driverName: csi.proxmox.sinextra.dev
+parameters:
+  diskIOPS: "400"
+  diskMBps: "120"
+---
+apiVersion: storage.k8s.io/v1beta1
+kind: VolumeAttributesClass
+metadata:
+  name: test-2
+driverName: csi.proxmox.sinextra.dev
+parameters:
+  diskIOPS: "500"
+  diskMBps: "200"
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: proxmox-lvm
+parameters:
+  csi.storage.k8s.io/fstype: xfs
+  # blockSize: "1024"
+  # inodeSize: "512"
+  #
+  storage: lvm
+  ssd: "true"
+  # diskIOPS: "100"
+  # diskMBps: "100"
+provisioner: csi.proxmox.sinextra.dev
+reclaimPolicy: Delete
+volumeBindingMode: WaitForFirstConsumer
+allowVolumeExpansion: true
