@@ -47,16 +47,14 @@ type baseCSITestSuite struct {
 }
 
 type configTestCase struct {
-	name       string
-	config     string
-	providerID string
+	name   string
+	config string
 }
 
 func getTestConfigs() []configTestCase {
 	return []configTestCase{
 		{
-			name:       "CapMoxProvider",
-			providerID: "proxmox://11833f4c-341f-4bd3-aad7-f7abeda472e6",
+			name: "CapMoxProvider",
 			config: `
 features:
   provider: capmox
@@ -73,11 +71,10 @@ clusters:
   region: cluster-2`,
 		},
 		{
-			name:       "ExplicitDefaultProvider",
-			providerID: "proxmox://cluster-1/101",
+			name: "ExplicitDefaultProvider",
 			config: `
 features:
-  provider: capmox
+  provider: default
 clusters:
 - url: https://127.0.0.1:8006/api2/json
   insecure: false
@@ -86,8 +83,7 @@ clusters:
   region: cluster-1`,
 		},
 		{
-			name:       "ImplicitDefaultProvider",
-			providerID: "proxmox://cluster-1/101",
+			name: "ImplicitDefaultProvider",
 			config: `
 clusters:
 - url: https://127.0.0.1:8006/api2/json
@@ -163,9 +159,10 @@ func setupMockResponders() {
 		func(_ *http.Request) (*http.Response, error) {
 			return httpmock.NewJsonResponse(200, map[string]interface{}{
 				"data": map[string]interface{}{
-					"vmid":  100,
-					"scsi0": "local-lvm:vm-100-disk-0,size=10G",
-					"scsi1": "local-lvm:vm-9999-pvc-123,backup=0,iothread=1,wwn=0x5056432d49443031",
+					"vmid":    100,
+					"scsi0":   "local-lvm:vm-100-disk-0,size=10G",
+					"scsi1":   "local-lvm:vm-9999-pvc-123,backup=0iothread=1,wwn=0x5056432d49443031",
+					"smbios1": "uuid=11833f4c-341f-4bd3-aad7-f7abed000000",
 				},
 			})
 		},
@@ -175,10 +172,11 @@ func setupMockResponders() {
 		func(_ *http.Request) (*http.Response, error) {
 			return httpmock.NewJsonResponse(200, map[string]interface{}{
 				"data": map[string]interface{}{
-					"vmid":  101,
-					"scsi0": "local-lvm:vm-101-disk-0,size=10G",
-					"scsi1": "local-lvm:vm-101-disk-1,size=1G",
-					"scsi3": "local-lvm:vm-101-disk-2,size=1G",
+					"vmid":    101,
+					"scsi0":   "local-lvm:vm-101-disk-0,size=10G",
+					"scsi1":   "local-lvm:vm-101-disk-1,size=1G",
+					"scsi3":   "local-lvm:vm-101-disk-2,size=1G",
+					"smbios1": "uuid=11833f4c-341f-4bd3-aad7-f7abed000001",
 				},
 			})
 		},
@@ -323,7 +321,7 @@ func setupMockResponders() {
 	)
 }
 
-func (ts *baseCSITestSuite) setupTestSuite(config string, providerID string) error {
+func (ts *baseCSITestSuite) setupTestSuite(config string) error {
 	cfg, err := proxmox.ReadCloudConfig(strings.NewReader(config))
 	if err != nil {
 		return fmt.Errorf("failed to read config: %v", err)
@@ -337,10 +335,32 @@ func (ts *baseCSITestSuite) setupTestSuite(config string, providerID string) err
 					APIVersion: "v1",
 				},
 				ObjectMeta: metav1.ObjectMeta{
+					Name: "cluster-1-node-1",
+				},
+				Spec: corev1.NodeSpec{
+					ProviderID: "proxmox://cluster-1/100",
+				},
+				Status: corev1.NodeStatus{
+					NodeInfo: corev1.NodeSystemInfo{
+						SystemUUID: "11833f4c-341f-4bd3-aad7-f7abed000000",
+					},
+				},
+			},
+			{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "Node",
+					APIVersion: "v1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
 					Name: "cluster-1-node-2",
 				},
 				Spec: corev1.NodeSpec{
-					ProviderID: providerID,
+					ProviderID: "proxmox://cluster-1/101",
+				},
+				Status: corev1.NodeStatus{
+					NodeInfo: corev1.NodeSystemInfo{
+						SystemUUID: "11833f4c-341f-4bd3-aad7-f7abed000001",
+					},
 				},
 			},
 		},
@@ -386,7 +406,7 @@ type configuredTestSuite struct {
 func (ts *configuredTestSuite) SetupTest() {
 	setupMockResponders()
 
-	err := ts.setupTestSuite(ts.configCase.config, ts.configCase.providerID)
+	err := ts.setupTestSuite(ts.configCase.config)
 	if err != nil {
 		ts.T().Fatalf("Failed to setup test suite: %v", err)
 	}
@@ -1021,7 +1041,7 @@ func (ts *configuredTestSuite) TestControllerUnpublishVolumeError() {
 				NodeId:   "cluster-1-node-3",
 				VolumeId: "cluster-1/pve-1/local-lvm/vm-9999-pvc-123",
 			},
-			expectedError: status.Error(codes.Internal, "vm 'cluster-1-node-3' not found"),
+			expectedError: status.Error(codes.InvalidArgument, "nodes \"cluster-1-node-3\" not found"),
 		},
 		{
 			msg: "AlreadyDetached",

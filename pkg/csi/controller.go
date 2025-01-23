@@ -37,6 +37,7 @@ import (
 	volume "github.com/sergelogvinov/proxmox-csi-plugin/pkg/volume"
 
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clientkubernetes "k8s.io/client-go/kubernetes"
 	"k8s.io/klog/v2"
 )
@@ -341,23 +342,9 @@ func (d *ControllerService) ControllerPublishVolume(ctx context.Context, request
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
-	var vmr *pxapi.VmRef
-
-	vmrid, zone, err := tools.ProxmoxVMID(ctx, d.Kclient, cl, nodeID, d.Provider)
-
+	vmr, err := d.getVMRefbyNodeID(ctx, cl, nodeID)
 	if err != nil {
-		klog.InfoS("ControllerPublishVolume: failed to get proxmox vmrID from ProviderID", "cluster", vol.Cluster(), "nodeID", nodeID)
-
-		vmr, err = cl.GetVmRefByName(nodeID)
-		if err != nil {
-			klog.ErrorS(err, "ControllerPublishVolume: failed to get vm ref by nodeID", "cluster", vol.Cluster(), "nodeID", nodeID)
-
-			return nil, status.Error(codes.Internal, err.Error())
-		}
-	} else {
-		vmr = pxapi.NewVmRef(vmrid)
-		vmr.SetNode(zone)
-		vmr.SetVmType("qemu")
+		return nil, err
 	}
 
 	if vol.Zone() == "" {
@@ -434,23 +421,9 @@ func (d *ControllerService) ControllerUnpublishVolume(ctx context.Context, reque
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
-	var vmr *pxapi.VmRef
-
-	vmrid, zone, err := tools.ProxmoxVMID(ctx, d.Kclient, cl, nodeID, d.Provider)
-
+	vmr, err := d.getVMRefbyNodeID(ctx, cl, nodeID)
 	if err != nil {
-		klog.InfoS("ControllerUnpublishVolume: failed to get proxmox vmrID from ProviderID", "cluster", vol.Cluster(), "nodeID", nodeID)
-
-		vmr, err = cl.GetVmRefByName(nodeID)
-		if err != nil {
-			klog.ErrorS(err, "ControllerUnpublishVolume: failed to get vm ref by nodeID", "cluster", vol.Cluster(), "nodeID", nodeID)
-
-			return nil, status.Error(codes.Internal, err.Error())
-		}
-	} else {
-		vmr = pxapi.NewVmRef(vmrid)
-		vmr.SetNode(zone)
-		vmr.SetVmType("qemu")
+		return nil, err
 	}
 
 	mc := metrics.NewMetricContext("detachVolume")
@@ -742,4 +715,42 @@ func (d *ControllerService) ControllerModifyVolume(_ context.Context, request *c
 	}
 
 	return &csi.ControllerModifyVolumeResponse{}, nil
+}
+
+func (d *ControllerService) getVMRefbyNodeID(ctx context.Context, cl *pxapi.Client, nodeID string) (*pxapi.VmRef, error) {
+	var vmr *pxapi.VmRef
+
+	node, err := d.Kclient.CoreV1().Nodes().Get(ctx, nodeID, metav1.GetOptions{})
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+
+	if d.Provider == proxmox.ProviderCapmox {
+		vmr, _, err = d.Cluster.FindVMByUUID(node.Status.NodeInfo.SystemUUID)
+		if err != nil {
+			return nil, status.Error(codes.Internal, err.Error())
+		}
+
+		return vmr, nil
+	}
+
+	vmrid, zone, err := tools.ProxmoxVMIDbyProviderID(ctx, node)
+	if err != nil {
+		klog.InfoS("ControllerPublishVolume: failed to get proxmox vmrID from ProviderID", "nodeID", nodeID)
+
+		vmr, err = cl.GetVmRefByName(nodeID)
+		if err != nil {
+			klog.ErrorS(err, "ControllerPublishVolume: failed to get vm ref by nodeID", "nodeID", nodeID)
+
+			return nil, status.Error(codes.Internal, err.Error())
+		}
+	}
+
+	if vmr == nil {
+		vmr = pxapi.NewVmRef(vmrid)
+		vmr.SetNode(zone)
+		vmr.SetVmType("qemu")
+	}
+
+	return vmr, nil
 }
