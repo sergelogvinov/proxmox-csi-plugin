@@ -50,7 +50,7 @@ const (
 // cfg tags are used to map the struct to the Kubernetes API
 type StorageParameters struct {
 	AIO            string `json:"aio,omitempty"`
-	Backup         *bool  `json:"backup,omitempty"`
+	Backup         *bool  `json:"backup,omitempty"         cfg:"backup"`
 	Cache          string `json:"cache,omitempty"          cfg:"cache"`
 	Discard        string `json:"discard,omitempty"`
 	IOThread       bool   `json:"iothread,omitempty"`

@@ -370,6 +370,7 @@ func (d *ControllerService) ControllerPublishVolume(ctx context.Context, request
 	}
 
 	// Temporary workaround for unsafe mount, better to use a VolumeAttributesClass resource
+	// It should be removed in the future, use backup=true/false in the volume attributes instead
 	unsafeEnv := os.Getenv("UNSAFEMOUNT")
 	if unsafeEnv == "true" { // nolint: goconst
 		params.Backup = nil
