@@ -76,6 +76,24 @@ func Test_ExtractAndDefaultParameters(t *testing.T) {
 				IopsWrite: ptr.Ptr(100),
 			},
 		},
+		{
+			msg: "ovverid disk backup",
+			params: map[string]string{
+				csi.StorageIDKey:       "local-lvm",
+				csi.StorageSSDKey:      "true",
+				csi.StorageDiskIOPSKey: "100",
+				"backup":               "true",
+			},
+			storage: csi.StorageParameters{
+				Backup:    ptr.Ptr(true),
+				IOThread:  true,
+				SSD:       ptr.Ptr(true),
+				Discard:   "on",
+				Iops:      ptr.Ptr(100),
+				IopsRead:  ptr.Ptr(100),
+				IopsWrite: ptr.Ptr(100),
+			},
+		},
 	}
 
 	for _, testCase := range tests {
