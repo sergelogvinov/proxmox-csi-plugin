@@ -54,16 +54,16 @@ type StorageParameters struct {
 	Cache          string `json:"cache,omitempty"          cfg:"cache"`
 	Discard        string `json:"discard,omitempty"`
 	IOThread       bool   `json:"iothread,omitempty"`
-	Iops           *int   `json:"iops,omitempty"           cfg:"diskIOPS"`
 	IopsRead       *int   `json:"iops_rd,omitempty"`
 	IopsWrite      *int   `json:"iops_wr,omitempty"`
-	SpeedMbps      *int   `json:"mbps,omitempty"           cfg:"diskMBps"`
 	ReadSpeedMbps  *int   `json:"mbps_rd,omitempty"`
 	WriteSpeedMbps *int   `json:"mbps_wr,omitempty"`
 	Replicate      *bool  `json:"replicate,omitempty"`
 	SSD            *bool  `json:"ssd,omitempty"            cfg:"ssd"`
 	ReadOnly       *bool  `json:"ro,omitempty"`
 
+	Iops      *int `cfg:"diskIOPS"`
+	SpeedMbps *int `cfg:"diskMBps"`
 	BlockSize *int `cfg:"blockSize"`
 	InodeSize *int `cfg:"inodeSize"`
 }
@@ -73,12 +73,13 @@ type StorageParameters struct {
 // cfg tags are used to map the struct to the Kubernetes API
 type ModifyVolumeParameters struct {
 	Backup         *bool `json:"backup,omitempty"          cfg:"backup"`
-	Iops           *int  `json:"iops,omitempty"            cfg:"diskIOPS"`
 	IopsRead       *int  `json:"iops_rd,omitempty"`
 	IopsWrite      *int  `json:"iops_wr,omitempty"`
-	SpeedMbps      *int  `json:"mbps,omitempty"            cfg:"diskMBps"`
 	ReadSpeedMbps  *int  `json:"mbps_rd,omitempty"`
 	WriteSpeedMbps *int  `json:"mbps_wr,omitempty"`
+
+	Iops      *int `cfg:"diskIOPS"`
+	SpeedMbps *int `cfg:"diskMBps"`
 }
 
 // ExtractAndDefaultParameters extracts storage parameters from a map and sets default values.
@@ -107,16 +108,20 @@ func ExtractAndDefaultParameters(parameters map[string]string) (StorageParameter
 
 		fieldName := strings.Split(tag, ",")[0]
 		if v := parameters[fieldName]; v != "" {
-			switch f.Type().Elem().Kind() { //nolint:exhaustive
-			case reflect.Bool:
-				f.Set(reflect.ValueOf(ptr.Ptr(v == "true")))
-			case reflect.Int:
-				i, err := strconv.Atoi(v)
-				if err != nil {
-					return p, fmt.Errorf("parameters %s must be a number", fieldName)
-				}
+			if f.Kind() == reflect.Ptr {
+				switch f.Type().Elem().Kind() { //nolint:exhaustive
+				case reflect.String:
+					f.Set(reflect.ValueOf(ptr.Ptr(v)))
+				case reflect.Bool:
+					f.Set(reflect.ValueOf(ptr.Ptr(v == "true")))
+				case reflect.Int:
+					i, err := strconv.Atoi(v)
+					if err != nil {
+						return p, fmt.Errorf("parameters %s must be a number", fieldName)
+					}
 
-				f.Set(reflect.ValueOf(ptr.Ptr(i)))
+					f.Set(reflect.ValueOf(ptr.Ptr(i)))
+				}
 			}
 		}
 	}
@@ -137,6 +142,16 @@ func ExtractAndDefaultParameters(parameters map[string]string) (StorageParameter
 		default:
 			p.Cache = "none"
 		}
+	}
+
+	if p.Iops != nil && *p.Iops > 0 {
+		p.IopsRead = ptr.Ptr(*p.Iops)
+		p.IopsWrite = ptr.Ptr(*p.Iops)
+	}
+
+	if p.SpeedMbps != nil && *p.SpeedMbps > 0 {
+		p.ReadSpeedMbps = ptr.Ptr(*p.SpeedMbps)
+		p.WriteSpeedMbps = ptr.Ptr(*p.SpeedMbps)
 	}
 
 	return p, nil
@@ -161,17 +176,29 @@ func ExtractModifyVolumeParameters(parameters map[string]string) (ModifyVolumePa
 
 		fieldName := strings.Split(tag, ",")[0]
 		if v := parameters[fieldName]; v != "" {
-			switch f.Type().Elem().Kind() { //nolint:exhaustive
-			case reflect.String:
-				f.Set(reflect.ValueOf(ptr.Ptr(v)))
-			case reflect.Bool:
-				f.Set(reflect.ValueOf(ptr.Ptr(v == "true")))
-			case reflect.Int:
-				if i, err := strconv.Atoi(v); err == nil {
-					f.Set(reflect.ValueOf(ptr.Ptr(i)))
+			if f.Kind() == reflect.Ptr {
+				switch f.Type().Elem().Kind() { //nolint:exhaustive
+				case reflect.String:
+					f.Set(reflect.ValueOf(ptr.Ptr(v)))
+				case reflect.Bool:
+					f.Set(reflect.ValueOf(ptr.Ptr(v == "true")))
+				case reflect.Int:
+					if i, err := strconv.Atoi(v); err == nil {
+						f.Set(reflect.ValueOf(ptr.Ptr(i)))
+					}
 				}
 			}
 		}
+	}
+
+	if p.Iops != nil && *p.Iops > 0 {
+		p.IopsRead = ptr.Ptr(*p.Iops)
+		p.IopsWrite = ptr.Ptr(*p.Iops)
+	}
+
+	if p.SpeedMbps != nil && *p.SpeedMbps > 0 {
+		p.ReadSpeedMbps = ptr.Ptr(*p.SpeedMbps)
+		p.WriteSpeedMbps = ptr.Ptr(*p.SpeedMbps)
 	}
 
 	return p, nil
@@ -186,10 +213,11 @@ func (p StorageParameters) ToMap() map[string]string {
 
 	for i := 0; i < val.NumField(); i++ {
 		fieldName := typ.Field(i).Tag.Get("json")
-		if fieldName != "" {
-			vals := strings.Split(fieldName, ",")
-			fieldName = vals[0]
+		if fieldName == "" {
+			continue
 		}
+
+		fieldName = strings.Split(fieldName, ",")[0]
 
 		fieldValue := val.Field(i)
 		if fieldValue.Kind() == reflect.Ptr {

@@ -47,10 +47,12 @@ func Test_ExtractAndDefaultParameters(t *testing.T) {
 		{
 			msg: "SSD disk",
 			params: map[string]string{
-				csi.StorageIDKey:  "local-lvm",
-				csi.StorageSSDKey: "true",
+				csi.StorageIDKey:    "local-lvm",
+				csi.StorageSSDKey:   "true",
+				csi.StorageCacheKey: "directsync",
 			},
 			storage: csi.StorageParameters{
+				Cache:    "directsync",
 				Backup:   ptr.Ptr(false),
 				IOThread: true,
 				SSD:      ptr.Ptr(true),
@@ -65,11 +67,13 @@ func Test_ExtractAndDefaultParameters(t *testing.T) {
 				csi.StorageDiskIOPSKey: "100",
 			},
 			storage: csi.StorageParameters{
-				Backup:   ptr.Ptr(false),
-				IOThread: true,
-				SSD:      ptr.Ptr(true),
-				Discard:  "on",
-				Iops:     ptr.Ptr(100),
+				Backup:    ptr.Ptr(false),
+				IOThread:  true,
+				SSD:       ptr.Ptr(true),
+				Discard:   "on",
+				Iops:      ptr.Ptr(100),
+				IopsRead:  ptr.Ptr(100),
+				IopsWrite: ptr.Ptr(100),
 			},
 		},
 	}
@@ -161,8 +165,12 @@ func Test_ExtractModifyVolumeParameters(t *testing.T) {
 				"diskMBps": "100",
 			},
 			storage: csi.ModifyVolumeParameters{
-				Iops:      ptr.Ptr(100),
-				SpeedMbps: ptr.Ptr(100),
+				Iops:           ptr.Ptr(100),
+				IopsRead:       ptr.Ptr(100),
+				IopsWrite:      ptr.Ptr(100),
+				SpeedMbps:      ptr.Ptr(100),
+				ReadSpeedMbps:  ptr.Ptr(100),
+				WriteSpeedMbps: ptr.Ptr(100),
 			},
 		},
 	}
