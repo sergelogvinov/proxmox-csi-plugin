@@ -62,6 +62,23 @@ reclaimPolicy: Delete|Retain
 volumeBindingMode: WaitForFirstConsumer|Immediate
 ```
 
+You can use `VolumeAttributesClass` to redefine the mutable parameters of the `StorageClass`.
+
+```yaml
+apiVersion: storage.k8s.io/v1beta1
+kind: VolumeAttributesClass
+metadata:
+  name: proxmox-attributes
+driverName: csi.proxmox.sinextra.dev
+parameters:
+  ## Optional: Proxmox disk speed limit
+  diskIOPS: "4000"
+  diskMBps: "1000"
+
+  ## Optional: Backup disk with VM
+  backup: "true"
+```
+
 ## Parameters:
 
 * `node-stage-secret-name`/`node-expand-secret-name`,  `node-stage-secret-namespace`/`node-expand-secret-namespace` - Refer to the name and namespace of the Secret object in the Kubernetes API. The secrets key name is `encryption-passphrase`. [Official documentation](https://kubernetes-csi.github.io/docs/secrets-and-credentials-storage-class.html)
@@ -85,6 +102,8 @@ metadata:
 
 * `diskIOPS` - maximum r/w I/O in operations per second
 * `diskMBps` - maximum r/w throughput in megabytes per second
+
+* `backup` - set true if you want to backup the disk with VM. Dangerous option! Do not use it unless you fully understand how to use it in the recovery process.
 
 ## AllowVolumeExpansion
 

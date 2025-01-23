@@ -85,6 +85,8 @@ Proxmox CSI Plugin uses the well-known node labels/spec to define the disk locat
 Region is the Proxmox cluster name, and zone is the Proxmox node name.
 Cluster name can be human-readable and should be the same as in Cloud config.
 
+**Important**: The `Spec.ProviderID` is immutable and has the format `proxmox://$REGION/$VMID` or `proxmox://$UUID`, it cannot be changed after the first update.
+
 The labels can be set manually using `kubectl`,
 or automatically through a tool like [Proxmox CCM](https://github.com/sergelogvinov/proxmox-cloud-controller-manager).
 I recommend using the CCM (Cloud Controller Manager).
@@ -289,3 +291,7 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
+
+---
+
+`Proxmox®` is a registered trademark of [Proxmox Server Solutions GmbH](https://www.proxmox.com/en/about/company).
