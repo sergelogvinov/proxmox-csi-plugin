@@ -7,10 +7,13 @@ parameters:
   csi.storage.k8s.io/fstype: xfs
   #
   storage: zfs
+  ssd: "true"
+  aio: native
+  cache: directsync
   #
-  replicate: "true"
-  replicateSchedule: "*/15"
-  replicateZones: "pve-1,pve-2"
+  # replicate: "true"
+  # replicateSchedule: "*/15"
+  # replicateZones: "pve-1,pve-2"
 provisioner: csi.proxmox.sinextra.dev
 reclaimPolicy: Delete
 volumeBindingMode: WaitForFirstConsumer

@@ -509,19 +509,19 @@ func TestNodeServiceNodeGetInfo(t *testing.T) {
 			msg:           "NodeDesntExist",
 			kclient:       fake.NewSimpleClientset(nodes),
 			nodeName:      "nonexist-node",
-			expectedError: fmt.Errorf("failed to get node nonexist-node: nodes \"%s\" not found", "nonexist-node"),
+			expectedError: fmt.Errorf("rpc error: code = Internal desc = failed to get node nonexist-node: nodes \"nonexist-node\" not found"),
 		},
 		{
 			msg:           "RegionNode",
 			kclient:       fake.NewSimpleClientset(nodes),
 			nodeName:      "node-zone",
-			expectedError: fmt.Errorf("failed to get region or zone for node node-zone"),
+			expectedError: fmt.Errorf("rpc error: code = Internal desc = failed to get region or zone for node node-zone"),
 		},
 		{
 			msg:           "ZoneNode",
 			kclient:       fake.NewSimpleClientset(nodes),
 			nodeName:      "node-region",
-			expectedError: fmt.Errorf("failed to get region or zone for node node-region"),
+			expectedError: fmt.Errorf("rpc error: code = Internal desc = failed to get region or zone for node node-region"),
 		},
 		{
 			msg:      "GoodNode",

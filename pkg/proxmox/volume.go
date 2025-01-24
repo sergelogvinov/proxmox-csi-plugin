@@ -195,3 +195,59 @@ func DeleteDisk(cluster *pxapi.Client, vol *volume.Volume) error {
 
 	return nil
 }
+
+// CopyQemuDisk copies the volume from one volume to another with waiting for task completion.
+func CopyQemuDisk(cluster *pxapi.Client, srcVol *volume.Volume, destVol *volume.Volume) error {
+	taskResponse, err := CopyQemuDiskWithTask(cluster, srcVol, destVol)
+	if err != nil {
+		for {
+			if !strings.Contains(err.Error(), "Wait timeout") {
+				return err
+			}
+
+			if _, err = cluster.WaitForCompletion(taskResponse); err != nil {
+				continue
+			}
+
+			break
+		}
+	}
+
+	return nil
+}
+
+// CopyQemuDiskWithTask copies the volume from one volume to another and returns the task response.
+// This method requires root privileges.
+func CopyQemuDiskWithTask(cluster *pxapi.Client, srcVol *volume.Volume, destVol *volume.Volume) (taskResponse map[string]interface{}, err error) {
+	vmParams := map[string]interface{}{
+		"node":   srcVol.Node(),
+		"volume": srcVol.Disk(),
+		"target": destVol.Disk(),
+	}
+
+	if srcVol.Node() != destVol.Node() {
+		vmParams["target_node"] = destVol.Node()
+	}
+
+	// POST https://pve.proxmox.com/pve-docs/api-viewer/index.html#/nodes/{node}/storage/{storage}/content/{volume}
+	// Copy a volume. This is experimental code - do not use.
+	resp, err := cluster.CreateItemReturnStatus(vmParams, "/nodes/"+srcVol.Node()+"/storage/"+srcVol.Storage()+"/content/"+srcVol.Disk())
+	if err != nil {
+		return nil, fmt.Errorf("failed to copy pvc: %v, vmParams=%+v", err, vmParams)
+	}
+
+	if err = json.Unmarshal([]byte(resp), &taskResponse); err != nil {
+		return taskResponse, fmt.Errorf("failed to parse response: %v", err)
+	}
+
+	exitStatus, err := cluster.WaitForCompletion(taskResponse)
+	if err != nil {
+		return taskResponse, err
+	}
+
+	if exitStatus != "OK" {
+		return taskResponse, fmt.Errorf("failed to copy disk, exit status: %s", exitStatus)
+	}
+
+	return nil, nil
+}

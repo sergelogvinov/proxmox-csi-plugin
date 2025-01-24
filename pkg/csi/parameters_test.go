@@ -176,6 +176,18 @@ func Test_ToMap(t *testing.T) {
 				"replicate": "1",
 			},
 		},
+		{
+			msg: "resize parameters",
+			storage: csi.StorageParameters{
+				ResizeRequired:  ptr.Ptr(true),
+				ResizeSizeBytes: 1024 * 1024 * 1024,
+			},
+			params: map[string]string{
+				"iothread":        "0",
+				"resizeRequired":  "1",
+				"resizeSizeBytes": "1073741824",
+			},
+		},
 	}
 
 	for _, testCase := range tests {
@@ -275,6 +287,20 @@ func Test_MergeMap(t *testing.T) {
 				"storage":   "lvm",
 				"ssd":       "true",
 				"blockSize": "1024",
+			},
+		},
+		{
+			msg:     "Resize param",
+			storage: csi.ModifyVolumeParameters{},
+			params: map[string]string{
+				"storage":         "lvm",
+				"resizeRequired":  "true",
+				"resizeSizeBytes": "1024",
+			},
+			expected: map[string]string{
+				"storage":         "lvm",
+				"resizeRequired":  "true",
+				"resizeSizeBytes": "1024",
 			},
 		},
 	}

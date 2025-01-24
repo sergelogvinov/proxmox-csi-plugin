@@ -746,7 +746,7 @@ func (ts *configuredTestSuite) TestCreateVolume() {
 					},
 				},
 			},
-			expectedError: status.Error(codes.AlreadyExists, "volume already exists with same name and different capacity"),
+			expectedError: status.Error(codes.AlreadyExists, "volume already exists with different capacity"),
 		},
 		{
 			msg: "PVCAlreadyExistSameSize",
@@ -918,7 +918,7 @@ func (ts *configuredTestSuite) TestControllerServiceControllerGetCapabilities() 
 	ts.Require().NoError(err)
 	ts.Require().NotNil(resp)
 
-	if len(resp.GetCapabilities()) != 7 {
+	if len(resp.GetCapabilities()) != 9 {
 		ts.T().Fatalf("unexpected number of capabilities: %d", len(resp.GetCapabilities()))
 	}
 }
@@ -1270,15 +1270,90 @@ func (ts *configuredTestSuite) TestGetCapacity() {
 }
 
 func (ts *configuredTestSuite) TestCreateSnapshot() {
-	_, err := ts.s.CreateSnapshot(context.Background(), &proto.CreateSnapshotRequest{})
-	ts.Require().Error(err)
-	ts.Require().Equal(status.Error(codes.Unimplemented, ""), err)
+	httpmock.Activate()
+	defer httpmock.DeactivateAndReset() //nolint: wsl_v5
+
+	tests := []struct {
+		msg           string
+		request       *proto.CreateSnapshotRequest
+		expected      *proto.CreateSnapshotResponse
+		expectedError error
+	}{
+		{
+			msg:           "VolumeID",
+			request:       &proto.CreateSnapshotRequest{},
+			expectedError: status.Error(codes.InvalidArgument, "VolumeID must be in the format of region/zone/storageName/diskName"),
+		},
+		{
+			msg: "WrongCluster",
+			request: &proto.CreateSnapshotRequest{
+				Name: "name",
+				Parameters: map[string]string{
+					"param": "value",
+				},
+				SourceVolumeId: "fake-region/node/data/volume-id",
+			},
+			expectedError: status.Error(codes.Internal, "proxmox cluster fake-region not found"),
+		},
+	}
+
+	for _, testCase := range tests {
+		ts.Run(fmt.Sprint(testCase.msg), func() {
+			resp, err := ts.s.CreateSnapshot(context.Background(), testCase.request)
+			if testCase.expectedError == nil {
+				ts.Require().NoError(err)
+				ts.Require().Equal(testCase.expected, resp)
+			} else {
+				ts.Require().Error(err)
+				ts.Require().Equal(testCase.expectedError, err)
+			}
+		})
+	}
 }
 
 func (ts *configuredTestSuite) TestDeleteSnapshot() {
-	_, err := ts.s.DeleteSnapshot(context.Background(), &proto.DeleteSnapshotRequest{})
-	ts.Require().Error(err)
-	ts.Require().Equal(status.Error(codes.Unimplemented, ""), err)
+	httpmock.Activate()
+	defer httpmock.DeactivateAndReset() //nolint: wsl_v5
+
+	tests := []struct {
+		msg           string
+		request       *proto.DeleteSnapshotRequest
+		expected      *proto.DeleteSnapshotResponse
+		expectedError error
+	}{
+		{
+			msg:           "VolumeID",
+			request:       &proto.DeleteSnapshotRequest{},
+			expectedError: status.Error(codes.InvalidArgument, "VolumeID must be in the format of region/zone/storageName/diskName"),
+		},
+		{
+			msg: "WrongCluster",
+			request: &proto.DeleteSnapshotRequest{
+				SnapshotId: "fake-region/node/data/volume-id",
+			},
+			expectedError: status.Error(codes.Internal, "proxmox cluster fake-region not found"),
+		},
+		{
+			msg: "PVCNonExist",
+			request: &proto.DeleteSnapshotRequest{
+				SnapshotId: "cluster-1/pve-1/local-lvm/vm-9999-pvc-none",
+			},
+			expected: &proto.DeleteSnapshotResponse{},
+		},
+	}
+
+	for _, testCase := range tests {
+		ts.Run(fmt.Sprint(testCase.msg), func() {
+			resp, err := ts.s.DeleteSnapshot(context.Background(), testCase.request)
+			if testCase.expectedError == nil {
+				ts.Require().NoError(err)
+				ts.Require().Equal(testCase.expected, resp)
+			} else {
+				ts.Require().Error(err)
+				ts.Require().Equal(testCase.expectedError, err)
+			}
+		})
+	}
 }
 
 func (ts *configuredTestSuite) TestListSnapshots() {

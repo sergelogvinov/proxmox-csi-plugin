@@ -1,0 +1,56 @@
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: storage-test-2-restore
+  namespace: default
+spec:
+  storageClassName: proxmox-zfs
+  dataSource:
+    apiGroup: snapshot.storage.k8s.io
+    kind: VolumeSnapshot
+    name: test
+  # dataSource:
+  #   kind: PersistentVolumeClaim
+  #   name: storage-test-2-0
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 55Gi
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: test-2-restore
+  namespace: default
+spec:
+  tolerations:
+    - effect: NoSchedule
+      key: node-role.kubernetes.io/control-plane
+  nodeSelector:
+    kubernetes.io/hostname: web-02a
+  containers:
+    - name: alpine
+      image: alpine
+      command: ["sleep", "6000"]
+      volumeMounts:
+        - name: pvc
+          mountPath: /mnt
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+            - ALL
+        seccompProfile:
+          type: RuntimeDefault
+        runAsNonRoot: true
+  terminationGracePeriodSeconds: 1
+  securityContext:
+    fsGroup: 65534
+    runAsGroup: 65534
+    runAsUser: 65534
+  volumes:
+    - name: pvc
+      persistentVolumeClaim:
+        claimName: storage-test-2-restore
