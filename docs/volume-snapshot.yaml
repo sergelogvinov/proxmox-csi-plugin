@@ -1,0 +1,19 @@
+# ---
+# apiVersion: snapshot.storage.k8s.io/v1
+# kind: VolumeSnapshotClass
+# metadata:
+#   name: proxmox
+# parameters:
+#   params: test
+# driver: csi.proxmox.sinextra.dev
+# deletionPolicy: Delete
+---
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshot
+metadata:
+  name: test
+  namespace: default
+spec:
+  volumeSnapshotClassName: proxmox
+  source:
+    persistentVolumeClaimName: storage-test-2-0

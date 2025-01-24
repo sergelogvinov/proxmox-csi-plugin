@@ -1,14 +1,14 @@
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: test
+  name: test-2
   namespace: default
   labels:
     app: alpine
 spec:
   podManagementPolicy: Parallel # default is OrderedReady
   serviceName: test
-  replicas: 4
+  replicas: 1
   template:
     metadata:
       labels:
@@ -55,6 +55,6 @@ spec:
         accessModes: ["ReadWriteOnce"]
         resources:
           requests:
-            storage: 10Gi
-        storageClassName: proxmox-lvm
+            storage: 1Gi
+        storageClassName: proxmox-zfs
         # volumeAttributesClassName: test
