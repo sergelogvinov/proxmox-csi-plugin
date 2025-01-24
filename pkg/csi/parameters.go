@@ -74,6 +74,9 @@ type StorageParameters struct {
 	Replicate         *bool  `json:"replicate,omitempty"   cfg:"replicate"`
 	ReplicateSchedule string `cfg:"replicateSchedule,omitempty"`
 	ReplicateZones    string `cfg:"replicateZones,omitempty"`
+
+	ResizeRequired  *bool `json:"resizeRequired,omitempty"`
+	ResizeSizeBytes int64 `json:"resizeSizeBytes,omitempty"`
 }
 
 // ModifyVolumeParameters contains parameters to modify a volume

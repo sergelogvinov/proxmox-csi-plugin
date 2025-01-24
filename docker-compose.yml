@@ -60,6 +60,23 @@ services:
       - type: bind
         source: ./hack
         target: /etc/kubernetes
+  csi-snapshotter:
+    image: registry.k8s.io/sig-storage/csi-snapshotter:v8.4.0
+    restart: always
+    network_mode: "service:base"
+    command:
+      - "--v=5"
+      - "--worker-threads=1"
+      - "--csi-address=unix:///csi/csi.sock"
+      - "--leader-election=false"
+      - "--kubeconfig=/etc/kubernetes/kubeconfig"
+    volumes:
+      - type: volume
+        source: socket-dir
+        target: /csi
+      - type: bind
+        source: ./hack
+        target: /etc/kubernetes
   csi-provisioner:
     image: registry.k8s.io/sig-storage/csi-provisioner:v6.0.0
     restart: always

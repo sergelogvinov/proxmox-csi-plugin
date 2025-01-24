@@ -100,6 +100,11 @@ func (n *NodeService) NodeStageVolume(_ context.Context, request *csi.NodeStageV
 		return nil, status.Error(codes.InvalidArgument, "StagingTargetPath must be provided")
 	}
 
+	publishContext := request.GetPublishContext()
+	if len(publishContext) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "PublishContext must be provided")
+	}
+
 	volumeCapability := request.GetVolumeCapability()
 	if volumeCapability == nil {
 		return nil, status.Error(codes.InvalidArgument, "VolumeCapability must be provided")
@@ -129,6 +134,8 @@ func (n *NodeService) NodeStageVolume(_ context.Context, request *csi.NodeStageV
 	defer n.volumeLocks.Unlock()
 
 	m := n.Mount
+
+	requiredResize := strings.EqualFold(publishContext[resizeRequired], "true")
 
 	notMnt, err := m.IsLikelyNotMountPointAttach(stagingTarget)
 	if err != nil {
@@ -169,6 +176,14 @@ func (n *NodeService) NodeStageVolume(_ context.Context, request *csi.NodeStageV
 				}
 			}
 
+			if requiredResize {
+				if err := l.Resize(devicePath, key); err != nil {
+					klog.ErrorS(err, "NodeStageVolume: failed to resize encrypted volume", "device", devicePath)
+
+					return nil, status.Errorf(codes.Internal, "Could not resize encrypted volume %s failed with error %v", devicePath, err)
+				}
+			}
+
 			lukskDevicePath, err := l.Open(devicePath, key) //nolint:govet
 			if err != nil {
 				klog.ErrorS(err, "NodeStageVolume: failed to open encrypted device", "device", devicePath)
@@ -186,6 +201,15 @@ func (n *NodeService) NodeStageVolume(_ context.Context, request *csi.NodeStageV
 			klog.ErrorS(err, "NodeStageVolume: failed to mount device", "device", devicePath)
 
 			return nil, status.Error(codes.Internal, err.Error())
+		}
+	}
+
+	if requiredResize {
+		klog.V(4).Infof("NodeStageVolume: resizing volume %q created from a snapshot/volume", volumeID)
+
+		r := mountutil.NewResizeFs(n.Mount.Mounter().Exec)
+		if _, err := r.Resize(devicePath, stagingTarget); err != nil {
+			return nil, status.Errorf(codes.Internal, "Could not resize volume %q:  %v", volumeID, err)
 		}
 	}
 
@@ -517,7 +541,7 @@ func (n *NodeService) NodeGetInfo(ctx context.Context, _ *csi.NodeGetInfoRequest
 
 	node, err := n.kclient.CoreV1().Nodes().Get(ctx, n.nodeID, metav1.GetOptions{})
 	if err != nil {
-		return nil, fmt.Errorf("failed to get node %s: %w", n.nodeID, err)
+		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to get node %s: %v", n.nodeID, err))
 	}
 
 	nodeMaxVolumeAttachments, err := strconv.ParseInt(node.Labels[NodeLabelMaxVolumeAttachments], 10, 64)
@@ -538,7 +562,7 @@ func (n *NodeService) NodeGetInfo(ctx context.Context, _ *csi.NodeGetInfoRequest
 
 	region, zone := getNodeTopology(node.Labels)
 	if region == "" || zone == "" {
-		return nil, fmt.Errorf("failed to get region or zone for node %s", n.nodeID)
+		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to get region or zone for node %s", n.nodeID))
 	}
 
 	return &csi.NodeGetInfoResponse{

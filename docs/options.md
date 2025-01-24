@@ -145,7 +145,7 @@ Allow you to resize (expand) the PVC in future.
 
 ## ReclaimPolicy
 
-It defines what happens to the storage volume when the associated PersistentVolumeClaim (PVC) is deleted. There are three reclaim policies:
+It defines what happens to the storage volume when the associated PersistentVolumeClaim (PVC) is deleted. There are two reclaim policies:
 
 * `Retain`: The storage volume is not deleted when the PVC is released, and it must be manually reclaimed by an administrator.
 * `Delete`: The storage volume is deleted when the PVC is released.
