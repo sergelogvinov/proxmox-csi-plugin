@@ -84,6 +84,11 @@ func getNodeWithStorage(cl *pxapi.Client, storageName string) (string, error) {
 }
 
 func getVMRefByVolume(cl *pxapi.Client, vol *volume.Volume) (vmr *pxapi.VmRef, err error) {
+	vmID, err := strconv.Atoi(vol.VMID())
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse volume vm id: %v", err)
+	}
+
 	vmr = pxapi.NewVmRef(vmID)
 	vmr.SetVmType("qemu")
 
@@ -252,13 +257,19 @@ func waitForVolumeDetach(cl *pxapi.Client, vmr *pxapi.VmRef, lun int) error {
 
 func createVolume(cl *pxapi.Client, vol *volume.Volume, sizeBytes int64) error {
 	filename := strings.Split(vol.Disk(), "/")
+
+	id, err := strconv.Atoi(vol.VMID())
+	if err != nil {
+		return fmt.Errorf("failed to parse volume vm id: %v", err)
+	}
+
 	diskParams := map[string]interface{}{
-		"vmid":     vmID,
+		"vmid":     id,
 		"filename": filename[len(filename)-1],
 		"size":     fmt.Sprintf("%dM", sizeBytes/MiB),
 	}
 
-	err := cl.CreateVMDisk(vol.Node(), vol.Storage(), fmt.Sprintf("%s:%s", vol.Storage(), vol.Disk()), diskParams)
+	err = cl.CreateVMDisk(vol.Node(), vol.Storage(), fmt.Sprintf("%s:%s", vol.Storage(), vol.Disk()), diskParams)
 	if err != nil {
 		return fmt.Errorf("failed to create vm disk: %v", err)
 	}

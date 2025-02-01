@@ -98,3 +98,13 @@ func (v *Volume) Cluster() string {
 func (v *Volume) Node() string {
 	return v.zone
 }
+
+// VMID function returns the vmID in which the volume was created.
+func (v *Volume) VMID() string {
+	parts := strings.SplitN(v.disk, "-", 3)
+	if len(parts) != 3 {
+		return ""
+	}
+
+	return parts[1]
+}
