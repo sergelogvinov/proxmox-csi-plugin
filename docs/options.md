@@ -38,6 +38,11 @@ parameters:
   diskIOPS: "4000"
   diskMBps: "1000"
 
+  ## Optional: Zone replication
+  replicate: "true"
+  replicateSchedule: "*/15"
+  replicateZones: "pve-1,pve-3"
+
 # Optional: This field allows you to specify additional mount options to be applied when the volume is mounted on the node
 mountOptions:
   # Common for ssd
@@ -77,6 +82,10 @@ parameters:
 
   ## Optional: Backup disk with VM
   backup: "true"
+
+  ## Optional: Zone replication
+  replicateSchedule: "*/30"
+  replicateZones: "rnd-1,rnd-2"
 ```
 
 ## Parameters:
@@ -104,6 +113,10 @@ metadata:
 * `diskMBps` - maximum r/w throughput in megabytes per second
 
 * `backup` - set true if you want to backup the disk with VM. Dangerous option! Do not use it unless you fully understand how to use it in the recovery process.
+
+* `replicate` - set true if you want to replicate the disk to another zone
+* `replicateSchedule` - replication schedule [in systemd calendar format](https://pve.proxmox.com/pve-docs/pve-admin-guide.html#pvesr_schedule_time_format) (default: `*/15`)
+* `replicateZones` - zones where the disk will be replicated, separated by commas
 
 ## AllowVolumeExpansion
 

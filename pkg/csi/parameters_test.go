@@ -94,6 +94,20 @@ func Test_ExtractAndDefaultParameters(t *testing.T) {
 				IopsWrite: ptr.Ptr(100),
 			},
 		},
+		{
+			msg: "replication disk",
+			params: map[string]string{
+				csi.StorageIDKey: "local-lvm",
+				"replicate":      "true",
+				"replicateZones": "zone1,zone2",
+			},
+			storage: csi.StorageParameters{
+				Backup:         ptr.Ptr(false),
+				IOThread:       true,
+				Replicate:      ptr.Ptr(true),
+				ReplicateZones: "zone1,zone2",
+			},
+		},
 	}
 
 	for _, testCase := range tests {
@@ -138,6 +152,21 @@ func Test_ToMap(t *testing.T) {
 				"iothread": "1",
 				"iops_rd":  "100",
 				"iops_wr":  "100",
+			},
+		},
+		{
+			msg: "Params with replication",
+			storage: csi.StorageParameters{
+				Cache:             "directsync",
+				IOThread:          true,
+				Replicate:         ptr.Ptr(true),
+				ReplicateZones:    "zone1,zone2",
+				ReplicateSchedule: "*/30",
+			},
+			params: map[string]string{
+				"cache":     "directsync",
+				"iothread":  "1",
+				"replicate": "1",
 			},
 		},
 	}

@@ -58,7 +58,6 @@ type StorageParameters struct {
 	IopsWrite      *int   `json:"iops_wr,omitempty"`
 	ReadSpeedMbps  *int   `json:"mbps_rd,omitempty"`
 	WriteSpeedMbps *int   `json:"mbps_wr,omitempty"`
-	Replicate      *bool  `json:"replicate,omitempty"`
 	SSD            *bool  `json:"ssd,omitempty"            cfg:"ssd"`
 	ReadOnly       *bool  `json:"ro,omitempty"`
 
@@ -66,6 +65,10 @@ type StorageParameters struct {
 	SpeedMbps *int `cfg:"diskMBps"`
 	BlockSize *int `cfg:"blockSize"`
 	InodeSize *int `cfg:"inodeSize"`
+
+	Replicate         *bool  `json:"replicate,omitempty"      cfg:"replicate"`
+	ReplicateSchedule string `cfg:"replicateSchedule"`
+	ReplicateZones    string `cfg:"replicateZones"`
 }
 
 // ModifyVolumeParameters contains parameters to modify a volume
@@ -80,6 +83,9 @@ type ModifyVolumeParameters struct {
 
 	Iops      *int `cfg:"diskIOPS"`
 	SpeedMbps *int `cfg:"diskMBps"`
+
+	ReplicateSchedule string `cfg:"replicateSchedule"`
+	ReplicateZones    string `cfg:"replicateZones"`
 }
 
 // ExtractAndDefaultParameters extracts storage parameters from a map and sets default values.
@@ -122,6 +128,20 @@ func ExtractAndDefaultParameters(parameters map[string]string) (StorageParameter
 
 					f.Set(reflect.ValueOf(ptr.Ptr(i)))
 				}
+			} else {
+				switch f.Kind() { //nolint:exhaustive
+				case reflect.String:
+					f.Set(reflect.ValueOf(v))
+				case reflect.Bool:
+					f.Set(reflect.ValueOf(v == "true"))
+				case reflect.Int:
+					i, err := strconv.Atoi(v)
+					if err != nil {
+						return p, fmt.Errorf("parameters %s must be a number", fieldName)
+					}
+
+					f.Set(reflect.ValueOf(i))
+				}
 			}
 		}
 	}
@@ -152,6 +172,12 @@ func ExtractAndDefaultParameters(parameters map[string]string) (StorageParameter
 	if p.SpeedMbps != nil && *p.SpeedMbps > 0 {
 		p.ReadSpeedMbps = ptr.Ptr(*p.SpeedMbps)
 		p.WriteSpeedMbps = ptr.Ptr(*p.SpeedMbps)
+	}
+
+	if p.Replicate != nil && *p.Replicate {
+		if p.ReplicateZones == "" {
+			return p, fmt.Errorf("parameters %s must be provided", "replicateZones")
+		}
 	}
 
 	return p, nil
