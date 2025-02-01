@@ -19,6 +19,7 @@ package proxmox
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -104,6 +105,61 @@ func MoveQemuDisk(cluster *pxapi.Client, vol *volume.Volume, node string, taskTi
 	}
 
 	cluster.TaskTimeout = oldTimeout
+
+	return nil
+}
+
+// DeleteDisk delete the volume from all nodes.
+func DeleteDisk(cluster *pxapi.Client, vol *volume.Volume) error {
+	data, err := cluster.GetNodeList()
+	if err != nil {
+		return fmt.Errorf("failed to get node list: %v", err)
+	}
+
+	if data["data"] == nil {
+		return fmt.Errorf("failed to parce node list: %v", err)
+	}
+
+	id, err := strconv.Atoi(vol.VMID())
+	if err != nil {
+		return fmt.Errorf("failed to parse volume vm id: %v", err)
+	}
+
+	for _, item := range data["data"].([]interface{}) { //nolint:errcheck
+		node, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		vmr := pxapi.NewVmRef(id)
+		vmr.SetNode(node["node"].(string)) //nolint:errcheck
+		vmr.SetVmType("qemu")
+
+		content, err := cluster.GetStorageContent(vmr, vol.Storage())
+		if err != nil {
+			return fmt.Errorf("failed to get storage content: %v", err)
+		}
+
+		images, ok := content["data"].([]interface{})
+		if !ok {
+			return fmt.Errorf("failed to cast images to map: %v", err)
+		}
+
+		volid := fmt.Sprintf("%s:%s", vol.Storage(), vol.Disk())
+
+		for i := range images {
+			image, ok := images[i].(map[string]interface{})
+			if !ok {
+				return fmt.Errorf("failed to cast image to map: %v", err)
+			}
+
+			if image["volid"].(string) == volid && image["size"] != nil { //nolint:errcheck
+				if _, err := cluster.DeleteVolume(vmr, vol.Storage(), vol.Disk()); err != nil {
+					return fmt.Errorf("failed to delete volume: %s", vol.Disk())
+				}
+			}
+		}
+	}
 
 	return nil
 }

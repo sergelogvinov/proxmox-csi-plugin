@@ -84,16 +84,23 @@ func getNodeWithStorage(cl *pxapi.Client, storageName string) (string, error) {
 }
 
 func getVMRefByVolume(cl *pxapi.Client, vol *volume.Volume) (vmr *pxapi.VmRef, err error) {
-	vmID, err := strconv.Atoi(vol.VMID())
+	id, err := strconv.Atoi(vol.VMID())
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse volume vm id: %v", err)
 	}
 
-	vmr = pxapi.NewVmRef(vmID)
+	vmr = pxapi.NewVmRef(id)
 	vmr.SetVmType("qemu")
 
 	node := vol.Node()
 	if node == "" {
+		if id != vmID {
+			_, err = cl.GetVmInfo(vmr)
+			if err == nil {
+				return vmr, nil
+			}
+		}
+
 		node, err = getNodeWithStorage(cl, vol.Storage())
 		if err != nil {
 			return nil, err

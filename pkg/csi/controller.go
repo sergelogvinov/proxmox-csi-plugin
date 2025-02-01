@@ -168,10 +168,12 @@ func (d *ControllerService) CreateVolume(_ context.Context, request *csi.CreateV
 
 	klog.V(5).InfoS("CreateVolume", "storageConfig", storageConfig)
 
-	topology := &csi.Topology{
-		Segments: map[string]string{
-			corev1.LabelTopologyRegion: region,
-			corev1.LabelTopologyZone:   zone,
+	topology := []*csi.Topology{
+		{
+			Segments: map[string]string{
+				corev1.LabelTopologyRegion: region,
+				corev1.LabelTopologyZone:   zone,
+			},
 		},
 	}
 
@@ -182,9 +184,11 @@ func (d *ControllerService) CreateVolume(_ context.Context, request *csi.CreateV
 			return nil, status.Error(codes.Internal, "error: shared storage type cifs, pbs are not supported")
 		}
 
-		topology = &csi.Topology{
-			Segments: map[string]string{
-				corev1.LabelTopologyRegion: region,
+		topology = []*csi.Topology{
+			{
+				Segments: map[string]string{
+					corev1.LabelTopologyRegion: region,
+				},
 			},
 		}
 	}
@@ -246,6 +250,8 @@ func (d *ControllerService) CreateVolume(_ context.Context, request *csi.CreateV
 		return nil, status.Error(codes.AlreadyExists, "volume already exists with same name and different capacity")
 	}
 
+	volumeID := vol.VolumeID()
+
 	if paramsSC.Replicate != nil && *paramsSC.Replicate {
 		_, err := attachVolume(cl, vmr, vol.Storage(), vol.Disk(), paramsSC.ToMap())
 		if err != nil {
@@ -271,25 +277,38 @@ func (d *ControllerService) CreateVolume(_ context.Context, request *csi.CreateV
 
 					return nil, status.Error(codes.Internal, err.Error())
 				}
+
+				volumeID = vol.VolumeSharedID()
+				topology = []*csi.Topology{
+					{
+						Segments: map[string]string{
+							corev1.LabelTopologyRegion: region,
+							corev1.LabelTopologyZone:   zone,
+						},
+					},
+					{
+						Segments: map[string]string{
+							corev1.LabelTopologyRegion: region,
+							corev1.LabelTopologyZone:   replicaZone,
+						},
+					},
+				}
 			}
 		}
 	}
 
-	volID := vol.VolumeID()
 	if storageConfig["shared"] != nil && int(storageConfig["shared"].(float64)) == 1 { //nolint:errcheck
-		volID = vol.VolumeSharedID()
+		volumeID = vol.VolumeSharedID()
 	}
 
-	klog.V(3).InfoS("CreateVolume: volume created", "cluster", vol.Cluster(), "volumeID", volID, "size", volSizeBytes)
+	klog.V(3).InfoS("CreateVolume: volume created", "cluster", vol.Cluster(), "volumeID", volumeID, "size", volSizeBytes)
 
 	volume := csi.Volume{
-		VolumeId:      volID,
-		VolumeContext: paramsVAC.MergeMap(params),
-		ContentSource: request.GetVolumeContentSource(),
-		CapacityBytes: volSizeBytes,
-		AccessibleTopology: []*csi.Topology{
-			topology,
-		},
+		VolumeId:           volumeID,
+		VolumeContext:      paramsVAC.MergeMap(params),
+		ContentSource:      request.GetVolumeContentSource(),
+		CapacityBytes:      volSizeBytes,
+		AccessibleTopology: topology,
 	}
 
 	return &csi.CreateVolumeResponse{Volume: &volume}, nil
@@ -351,6 +370,11 @@ func (d *ControllerService) DeleteVolume(_ context.Context, request *csi.DeleteV
 
 					return nil, status.Error(codes.Internal, fmt.Sprintf("failed to delete volume: %s", vol.Disk()))
 				}
+			}
+
+			mc := metrics.NewMetricContext("deleteDisk")
+			if err = proxmox.DeleteDisk(cl, vol); mc.ObserveRequest(err) != nil {
+				klog.ErrorS(err, "DeleteVolume: failed to delete disk", "cluster", vol.Cluster(), "volumeName", vol.Disk())
 			}
 		}
 	}
@@ -422,15 +446,6 @@ func (d *ControllerService) ControllerPublishVolume(ctx context.Context, request
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
-	vmr, err := d.getVMRefbyNodeID(ctx, cl, nodeID)
-	if err != nil {
-		return nil, err
-	}
-
-	if vol.Zone() == "" {
-		vol = volume.NewVolume(vol.Region(), vmr.Node(), vol.Storage(), vol.Disk())
-	}
-
 	params, err := ExtractAndDefaultParameters(volCtx)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
@@ -447,7 +462,12 @@ func (d *ControllerService) ControllerPublishVolume(ctx context.Context, request
 		params.ReadOnly = ptr.Ptr(true)
 	}
 
-	exist, err := isPvcExists(cl, vol)
+	vmr, err := d.getVMRefbyNodeID(ctx, cl, nodeID)
+	if err != nil {
+		return nil, err
+	}
+
+	exist, err := isPvcExists(cl, volume.NewVolume(vol.Region(), vmr.Node(), vol.Storage(), vol.Disk()))
 	if err != nil {
 		klog.ErrorS(err, "ControllerPublishVolume: failed to verify the existence of the PVC", "cluster", vol.Cluster(), "volumeID", vol.VolumeID())
 
@@ -460,6 +480,26 @@ func (d *ControllerService) ControllerPublishVolume(ctx context.Context, request
 
 	d.volumeLocks.Lock()
 	defer d.volumeLocks.Unlock()
+
+	if params.Replicate != nil && *params.Replicate {
+		vmrVol, err := getVMRefByVolume(cl, vol)
+		if err != nil {
+			klog.ErrorS(err, "ControllerPublishVolume: failed to get vm ref by volume", "cluster", vol.Cluster(), "volumeName", vol.Disk())
+
+			return nil, status.Error(codes.Internal, err.Error())
+		}
+
+		if vmr.Node() != vmrVol.Node() {
+			klog.V(4).InfoS("ControllerPublishVolume: replicate volume", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "src", vmrVol.Node(), "dst", vmr.Node())
+
+			_, err := cl.MigrateNode(vmrVol, vmr.Node(), false)
+			if err != nil {
+				klog.ErrorS(err, "ControllerPublishVolume: failed to migrate vm", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "vmID", vmr.VmId())
+
+				return nil, status.Error(codes.Internal, err.Error())
+			}
+		}
+	}
 
 	mc := metrics.NewMetricContext("attachVolume")
 
@@ -507,7 +547,6 @@ func (d *ControllerService) ControllerUnpublishVolume(ctx context.Context, reque
 	}
 
 	mc := metrics.NewMetricContext("detachVolume")
-
 	if err := detachVolume(cl, vmr, vol.Disk()); mc.ObserveRequest(err) != nil {
 		klog.ErrorS(err, "ControllerUnpublishVolume: failed to detach volume", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "vmID", vmr.VmId())
 
