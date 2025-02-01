@@ -23,12 +23,14 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	pxapi "github.com/Telmate/proxmox-api-go/proxmox"
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/kubernetes-csi/csi-lib-utils/protosanitizer"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	cluster "github.com/sergelogvinov/proxmox-cloud-controller-manager/pkg/cluster"
 	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/helpers/ptr"
@@ -53,6 +55,7 @@ var controllerCaps = []csi.ControllerServiceCapability_RPC_Type{
 	csi.ControllerServiceCapability_RPC_CREATE_DELETE_VOLUME,
 	csi.ControllerServiceCapability_RPC_PUBLISH_UNPUBLISH_VOLUME,
 	csi.ControllerServiceCapability_RPC_GET_CAPACITY,
+	csi.ControllerServiceCapability_RPC_CREATE_DELETE_SNAPSHOT,
 	csi.ControllerServiceCapability_RPC_EXPAND_VOLUME,
 	csi.ControllerServiceCapability_RPC_GET_VOLUME,
 	csi.ControllerServiceCapability_RPC_SINGLE_NODE_MULTI_WRITER,
@@ -107,6 +110,17 @@ func (d *ControllerService) CreateVolume(_ context.Context, request *csi.CreateV
 	params := request.GetParameters()
 	if params == nil {
 		return nil, status.Error(codes.InvalidArgument, "Parameters must be provided")
+	}
+
+	content := request.GetVolumeContentSource()
+	if content != nil {
+		if content.GetVolume() != nil {
+			return nil, status.Error(codes.InvalidArgument, "Source volume is not supported")
+		}
+
+		if content.GetSnapshot() != nil {
+			return nil, status.Error(codes.InvalidArgument, "Source snapshot is not supported")
+		}
 	}
 
 	klog.V(5).InfoS("CreateVolume: parameters", "parameters", params)
@@ -224,6 +238,8 @@ func (d *ControllerService) CreateVolume(_ context.Context, request *csi.CreateV
 	if storageConfig["path"] != nil && storageConfig["path"].(string) != "" { //nolint:errcheck
 		vol = volume.NewVolume(region, zone, params[StorageIDKey], fmt.Sprintf("%d/vm-%d-%s.raw", vmr.VmId(), vmr.VmId(), pvc))
 	}
+
+	klog.InfoS("CreateVolume: volume information", "cluster", region, "volumeID", vol.VolumeID(), "vmID", vol.VMID())
 
 	// Check if volume already exists, and use it if it has the same size, otherwise create a new one
 	size, err := getVolumeSize(cl, vol)
@@ -588,14 +604,181 @@ func (d *ControllerService) GetCapacity(_ context.Context, request *csi.GetCapac
 func (d *ControllerService) CreateSnapshot(_ context.Context, request *csi.CreateSnapshotRequest) (*csi.CreateSnapshotResponse, error) {
 	klog.V(4).InfoS("CreateSnapshot: called", "args", protosanitizer.StripSecrets(request))
 
-	return nil, status.Error(codes.Unimplemented, "")
+	volumeID := request.GetSourceVolumeId()
+	if volumeID == "" {
+		return nil, status.Error(codes.InvalidArgument, "SourceVolumeId must be provided")
+	}
+
+	name := request.GetName()
+	if name == "" {
+		return nil, status.Error(codes.InvalidArgument, "Name must be provided")
+	}
+
+	params := request.GetParameters()
+	if params == nil {
+		return nil, status.Error(codes.InvalidArgument, "Parameters must be provided")
+	}
+
+	vol, err := volume.NewVolumeFromVolumeID(volumeID)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+
+	cl, err := d.Cluster.GetProxmoxCluster(vol.Cluster())
+	if err != nil {
+		klog.ErrorS(err, "CreateSnapshot: failed to get proxmox cluster", "cluster", vol.Cluster())
+
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	storageConfig, err := cl.GetStorageConfig(params[StorageIDKey])
+	if err != nil {
+		klog.ErrorS(err, "CreateSnapshot: failed to get proxmox storage config", "cluster", vol.Cluster(), "storageID", params[StorageIDKey])
+
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	klog.V(5).InfoS("CreateSnapshot", "storageConfig", storageConfig)
+
+	d.volumeLocks.Lock()
+	defer d.volumeLocks.Unlock()
+
+	vmr := pxapi.NewVmRef(vmID)
+	vmr.SetNode(vol.Node())
+	vmr.SetVmType("qemu")
+
+	if vmInfo, err := cl.GetVmInfo(vmr); err != nil {
+		if !strings.Contains(err.Error(), "not found") {
+			klog.ErrorS(err, "CreateSnapshot: failed to get vm info", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "vmID", vmr.VmId())
+
+			return nil, status.Error(codes.Internal, err.Error())
+		}
+
+		vm := map[string]interface{}{}
+		vm["vmid"] = vmID
+		vm["node"] = vol.Node()
+		vm["name"] = "snapshot"
+		vm["boot"] = "order=scsi0"
+		vm["agent"] = "0"
+		vm["machine"] = "pc"
+		vm["cores"] = "1"
+		vm["memory"] = "1000"
+		vm["scsihw"] = "virtio-scsi-single"
+
+		_, err = cl.CreateQemuVm(vol.Node(), vm)
+		if err != nil {
+			klog.ErrorS(err, "CreateSnapshot: failed to create vm", "cluster", vol.Cluster(), "volumeID", vol.VolumeID())
+
+			return nil, status.Error(codes.Internal, err.Error())
+		}
+	} else {
+		if vmInfo["status"].(string) == "backup" { //nolint:errcheck
+			klog.V(3).InfoS("CreateSnapshot: vm is already in backup state", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "vmID", vmr.VmId())
+
+			return nil, status.Error(codes.Internal, "vm is already in backup state")
+		}
+	}
+
+	options := make(map[string]string)
+	options["backup"] = "1"
+
+	if _, err := attachVolume(cl, vmr, vol.Storage(), vol.Disk(), options); err != nil {
+		klog.ErrorS(err, "CreateSnapshot: failed to attach volume", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "vmID", vmr.VmId())
+
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	dumpOptions := map[string]interface{}{}
+	dumpOptions["vmid"] = vmID
+	dumpOptions["mode"] = "snapshot"
+	dumpOptions["compress"] = "zstd"
+	dumpOptions["storage"] = params[StorageIDKey]
+	dumpOptions["notes-template"] = name
+
+	if _, err := cl.VzDump(vmr, dumpOptions); err != nil {
+		klog.ErrorS(err, "CreateSnapshot: failed to create snapshot", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "vmID", vmr.VmId())
+	}
+
+	if err := detachVolume(cl, vmr, vol.Disk()); err != nil {
+		klog.ErrorS(err, "CreateSnapshot: failed to detach volume", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "vmID", vmr.VmId())
+
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	backups, err := getVMBackupContent(cl, vmr, params[StorageIDKey])
+	if err != nil || len(backups) == 0 {
+		klog.ErrorS(err, "CreateSnapshot: failed to get vm backup content", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "vmID", vmr.VmId())
+	}
+
+	snapshotID := volume.NewVolume(vol.Region(), vol.Zone(), params[StorageIDKey], fmt.Sprintf("vzdump-qemu-%d-%s", vmID, name))
+
+	if backups[name] != "" {
+		snap := strings.Split(backups[name], "/")
+		snapshotID = volume.NewVolume(vol.Region(), vol.Zone(), params[StorageIDKey], snap[len(snap)-1])
+	}
+
+	// if _, err := cl.MoveQemuDiskToVM(vmr, "unused0", pxapi.NewVmRef(vmID+1)); err != nil {
+	// 	klog.ErrorS(err, "CreateSnapshot: failed to move qemu disk to vm", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "vmID", vmr.VmId())
+	// }
+
+	// deleteOptions := map[string]interface{}{}
+	// deleteOptions["purge"] = "0"
+	// deleteOptions["destroy-unreferenced-disks"] = "0"
+
+	// if _, err := cl.DeleteVmParams(vmr, deleteOptions); err != nil {
+	// 	klog.ErrorS(err, "CreateSnapshot: failed to delete vm", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "vmID", vmr.VmId())
+
+	// 	return nil, status.Error(codes.Internal, err.Error())
+	// }
+
+	klog.V(3).InfoS("CreateSnapshot: snapshot created", "cluster", snapshotID.Cluster(), "volumeID", snapshotID.VolumeID())
+
+	return &csi.CreateSnapshotResponse{Snapshot: &csi.Snapshot{
+		CreationTime:   timestamppb.New(time.Now()),
+		SnapshotId:     snapshotID.VolumeID(),
+		SourceVolumeId: volumeID,
+		ReadyToUse:     true},
+	}, nil
 }
 
 // DeleteSnapshot delete a snapshot
 func (d *ControllerService) DeleteSnapshot(_ context.Context, request *csi.DeleteSnapshotRequest) (*csi.DeleteSnapshotResponse, error) {
 	klog.V(4).InfoS("DeleteSnapshot: called", "args", protosanitizer.StripSecrets(request))
 
-	return nil, status.Error(codes.Unimplemented, "")
+	snapshotID := request.GetSnapshotId()
+	if snapshotID == "" {
+		return &csi.DeleteSnapshotResponse{}, nil
+	}
+
+	vol, err := volume.NewVolumeFromVolumeID(snapshotID)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+
+	cl, err := d.Cluster.GetProxmoxCluster(vol.Cluster())
+	if err != nil {
+		klog.ErrorS(err, "DeleteVolume: failed to get proxmox cluster", "cluster", vol.Cluster())
+
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	vmr, err := getVMRefByVolume(cl, vol)
+	if err != nil {
+		klog.ErrorS(err, "DeleteVolume: failed to get vm ref by volume", "cluster", vol.Cluster(), "volumeName", vol.Disk())
+
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	mc := metrics.NewMetricContext("deleteVolume")
+	if _, err := cl.DeleteVolume(vmr, vol.Storage(), fmt.Sprintf("backup/%s", vol.Disk())); mc.ObserveRequest(err) != nil {
+		klog.ErrorS(err, "DeleteVolume: failed to delete volume", "cluster", vol.Cluster(), "volumeName", vol.Disk())
+
+		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to delete volume: %s", vol.Disk()))
+	}
+
+	klog.V(3).InfoS("DeleteSnapshot: snapshot deleted", "cluster", vol.Cluster(), "volumeID", vol.VolumeID())
+
+	return &csi.DeleteSnapshotResponse{}, nil
 }
 
 // ListSnapshots list snapshots

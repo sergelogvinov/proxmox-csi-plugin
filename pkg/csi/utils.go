@@ -84,12 +84,12 @@ func getNodeWithStorage(cl *pxapi.Client, storageName string) (string, error) {
 }
 
 func getVMRefByVolume(cl *pxapi.Client, vol *volume.Volume) (vmr *pxapi.VmRef, err error) {
-	vmID, err := strconv.Atoi(vol.VMID())
+	id, err := strconv.Atoi(vol.VMID())
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse volume vm id: %v", err)
 	}
 
-	vmr = pxapi.NewVmRef(vmID)
+	vmr = pxapi.NewVmRef(id)
 	vmr.SetVmType("qemu")
 
 	node := vol.Node()
@@ -175,6 +175,37 @@ func getStorageContent(cl *pxapi.Client, vol *volume.Volume) (*storageContent, e
 	}
 
 	return nil, nil
+}
+
+func getVMBackupContent(cl *pxapi.Client, vmr *pxapi.VmRef, storage string) (map[string]string, error) {
+	content := make(map[string]string)
+
+	context, err := cl.GetStorageContent(vmr, storage)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get storage list: %v", err)
+	}
+
+	list, ok := context["data"].([]interface{})
+	if !ok {
+		return nil, fmt.Errorf("failed to cast images to map: %v", err)
+	}
+
+	for i := range list {
+		image, ok := list[i].(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("failed to cast image to map: %v", err)
+		}
+
+		if image["content"].(string) != "backup" { //nolint:errcheck
+			continue
+		}
+
+		if image["notes"].(string) != "" { //nolint:errcheck
+			content[image["notes"].(string)] = image["volid"].(string) //nolint:errcheck
+		}
+	}
+
+	return content, nil
 }
 
 func isPvcExists(cl *pxapi.Client, vol *volume.Volume) (bool, error) {

@@ -107,3 +107,88 @@ func MoveQemuDisk(cluster *pxapi.Client, vol *volume.Volume, node string, taskTi
 
 	return nil
 }
+
+// MoveQemuDiskToStorage moves the volume from one storage to another.
+func MoveQemuDiskToStorage(cluster *pxapi.Client, vol *volume.Volume, storage string, taskTimeout int) error {
+	vmParams := map[string]interface{}{
+		"node":   vol.Node(),
+		"target": fmt.Sprintf("%s-2", vol.Disk()),
+		"volume": vol.Disk(),
+	}
+
+	oldTimeout := cluster.TaskTimeout
+	cluster.TaskTimeout = taskTimeout
+
+	// POST https://pve.proxmox.com/pve-docs/api-viewer/index.html#/nodes/{node}/qemu/{vmid}/move_disk
+	resp, err := cluster.CreateItemReturnStatus(vmParams, "/nodes/"+vol.Node()+"/storage/"+vol.Storage()+"/content/"+vol.Disk())
+	if err != nil {
+		return fmt.Errorf("failed to move pvc: %v, vmParams=%+v", err, vmParams)
+	}
+
+	var taskResponse map[string]interface{}
+
+	if err = json.Unmarshal([]byte(resp), &taskResponse); err != nil {
+		return fmt.Errorf("failed to parse response: %v", err)
+	}
+
+	for range 3 {
+		if _, err = cluster.WaitForCompletion(taskResponse); err != nil {
+			time.Sleep(2 * time.Second)
+
+			continue
+		}
+
+		break
+	}
+
+	if err != nil {
+		return fmt.Errorf("failed to wait for task completion: %v", err)
+	}
+
+	cluster.TaskTimeout = oldTimeout
+
+	return nil
+}
+
+// CopyQemuDisk copy the volume.
+func CopyQemuDisk(cluster *pxapi.Client, vol *volume.Volume, name string, taskTimeout int) error {
+	vmParams := map[string]interface{}{
+		"node":   vol.Node(),
+		"target": name,
+		"volume": vol.Disk(),
+	}
+
+	oldTimeout := cluster.TaskTimeout
+	cluster.TaskTimeout = taskTimeout
+
+	// POST https://pve.proxmox.com/pve-docs/api-viewer/index.html#/nodes/{node}/storage/{storage}/content/{volume}
+	// Copy a volume. This is experimental code - do not use.
+	resp, err := cluster.CreateItemReturnStatus(vmParams, "/nodes/"+vol.Node()+"/storage/"+vol.Storage()+"/content/"+vol.Disk())
+	if err != nil {
+		return fmt.Errorf("failed to copy pvc: %v, vmParams=%+v", err, vmParams)
+	}
+
+	var taskResponse map[string]interface{}
+
+	if err = json.Unmarshal([]byte(resp), &taskResponse); err != nil {
+		return fmt.Errorf("failed to parse response: %v", err)
+	}
+
+	for range 3 {
+		if _, err = cluster.WaitForCompletion(taskResponse); err != nil {
+			time.Sleep(2 * time.Second)
+
+			continue
+		}
+
+		break
+	}
+
+	if err != nil {
+		return fmt.Errorf("failed to wait for task completion: %v", err)
+	}
+
+	cluster.TaskTimeout = oldTimeout
+
+	return nil
+}

@@ -45,6 +45,6 @@ spec:
         accessModes: ["ReadWriteOnce"]
         resources:
           requests:
-            storage: 50Gi
-        storageClassName: proxmox-lvm
+            storage: 10Gi
+        storageClassName: proxmox-zfs
         # volumeAttributesClassName: test

@@ -84,6 +84,7 @@ func run() int {
 	cmd.PersistentFlags().StringVar(&kubeconfig, flagKubeConfig, "", "kubernetes config file")
 
 	cmd.AddCommand(buildMigrateCmd())
+	cmd.AddCommand(buildMoveCmd())
 	cmd.AddCommand(buildRenameCmd())
 	cmd.AddCommand(buildSwapCmd())
 
