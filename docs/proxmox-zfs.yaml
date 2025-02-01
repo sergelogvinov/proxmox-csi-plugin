@@ -1,0 +1,16 @@
+allowVolumeExpansion: true
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: proxmox-zfs
+parameters:
+  csi.storage.k8s.io/fstype: xfs
+  #
+  storage: zfs
+  #
+  replicate: "true"
+  replicateSchedule: "*/15"
+  replicateZones: "pve-1,pve-2"
+provisioner: csi.proxmox.sinextra.dev
+reclaimPolicy: Delete
+volumeBindingMode: WaitForFirstConsumer

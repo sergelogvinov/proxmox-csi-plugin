@@ -14,7 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package proxmox implements tools to work with Proxmox VM.
 package proxmox
 
 import (

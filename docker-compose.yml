@@ -52,7 +52,7 @@ services:
       - "--csi-address=unix:///csi/csi.sock"
       - "--leader-election=false"
       - "--kubeconfig=/etc/kubernetes/kubeconfig"
-      - "--feature-gates=VolumeAttributesClass=true"
+      # - "--feature-gates=VolumeAttributesClass=true"
     volumes:
       - type: volume
         source: socket-dir
@@ -69,7 +69,7 @@ services:
       - "--csi-address=unix:///csi/csi.sock"
       - "--leader-election=false"
       - "--default-fstype=ext4"
-      - "--feature-gates=VolumeAttributesClass=true"
+      # - "--feature-gates=VolumeAttributesClass=true"
       - "--enable-capacity"
       - "--capacity-ownerref-level=-1"
       - "--capacity-poll-interval=2m"

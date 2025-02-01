@@ -30,9 +30,10 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	proxmox "github.com/sergelogvinov/proxmox-cloud-controller-manager/pkg/cluster"
+	cluster "github.com/sergelogvinov/proxmox-cloud-controller-manager/pkg/cluster"
 	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/helpers/ptr"
 	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/metrics"
+	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/proxmox"
 	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/tools"
 	volume "github.com/sergelogvinov/proxmox-csi-plugin/pkg/volume"
 
@@ -60,9 +61,9 @@ var controllerCaps = []csi.ControllerServiceCapability_RPC_Type{
 
 // ControllerService is the controller service for the CSI driver
 type ControllerService struct {
-	Cluster     *proxmox.Cluster
+	Cluster     *cluster.Cluster
 	Kclient     clientkubernetes.Interface
-	Provider    proxmox.Provider
+	Provider    cluster.Provider
 	volumeLocks sync.Mutex
 
 	csi.UnimplementedControllerServer
@@ -70,12 +71,12 @@ type ControllerService struct {
 
 // NewControllerService returns a new controller service
 func NewControllerService(kclient *clientkubernetes.Clientset, cloudConfig string) (*ControllerService, error) {
-	cfg, err := proxmox.ReadCloudConfigFromFile(cloudConfig)
+	cfg, err := cluster.ReadCloudConfigFromFile(cloudConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read config: %v", err)
 	}
 
-	cluster, err := proxmox.NewCluster(&cfg, nil)
+	cluster, err := cluster.NewCluster(&cfg, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create proxmox cluster client: %v", err)
 	}
@@ -110,7 +111,7 @@ func (d *ControllerService) CreateVolume(_ context.Context, request *csi.CreateV
 
 	klog.V(5).InfoS("CreateVolume: parameters", "parameters", params)
 
-	_, err := ExtractAndDefaultParameters(params)
+	paramsSC, err := ExtractAndDefaultParameters(params)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
@@ -192,6 +193,33 @@ func (d *ControllerService) CreateVolume(_ context.Context, request *csi.CreateV
 	vmr.SetNode(zone)
 	vmr.SetVmType("qemu")
 
+	if paramsSC.Replicate != nil && *paramsSC.Replicate {
+		if storageConfig["type"].(string) != "zfspool" { //nolint:errcheck
+			return nil, status.Error(codes.Internal, "error: storage type is not zfs in replication mode")
+		}
+
+		vmr, err = cl.GetVmRefByName(pvc)
+		if err != nil {
+			id, err := cl.GetNextID(vmID + 1)
+			if err != nil {
+				klog.ErrorS(err, "CreateVolume: failed to get next id", "cluster", region)
+
+				return nil, status.Error(codes.Internal, err.Error())
+			}
+
+			vmr = pxapi.NewVmRef(id)
+			vmr.SetNode(zone)
+			vmr.SetVmType("qemu")
+
+			mc := metrics.NewMetricContext("CreateVm")
+			if err := proxmox.CreateQemuVM(cl, vmr, pvc); mc.ObserveRequest(err) != nil {
+				klog.ErrorS(err, "CreateVolume: failed to create vm", "cluster", region)
+
+				return nil, status.Error(codes.Internal, err.Error())
+			}
+		}
+	}
+
 	vol := volume.NewVolume(region, zone, params[StorageIDKey], fmt.Sprintf("vm-%d-%s", vmr.VmId(), pvc))
 	if storageConfig["path"] != nil && storageConfig["path"].(string) != "" { //nolint:errcheck
 		vol = volume.NewVolume(region, zone, params[StorageIDKey], fmt.Sprintf("%d/vm-%d-%s.raw", vmr.VmId(), vmr.VmId(), pvc))
@@ -216,6 +244,35 @@ func (d *ControllerService) CreateVolume(_ context.Context, request *csi.CreateV
 		klog.ErrorS(err, "CreateVolume: volume is already exists", "cluster", region, "volumeID", vol.VolumeID(), "size", size)
 
 		return nil, status.Error(codes.AlreadyExists, "volume already exists with same name and different capacity")
+	}
+
+	if paramsSC.Replicate != nil && *paramsSC.Replicate {
+		_, err := attachVolume(cl, vmr, vol.Storage(), vol.Disk(), paramsSC.ToMap())
+		if err != nil {
+			klog.ErrorS(err, "CreateVolume: failed to attach volume", "cluster", region, "volumeID", vol.VolumeID(), "vmID", vmr.VmId())
+
+			return nil, status.Error(codes.Internal, err.Error())
+		}
+
+		if paramsSC.ReplicateZones != "" {
+			var replicaZone string
+
+			for _, z := range strings.Split(paramsSC.ReplicateZones, ",") {
+				if z != zone {
+					replicaZone = z
+
+					break
+				}
+			}
+
+			if replicaZone != "" {
+				if err := proxmox.SetQemuVMReplication(cl, vmr, replicaZone, paramsSC.ReplicateSchedule); err != nil {
+					klog.ErrorS(err, "CreateVolume: failed to set replication", "cluster", region, "zone", replicaZone, "volumeID", vol.VolumeID(), "vmID", vmr.VmId())
+
+					return nil, status.Error(codes.Internal, err.Error())
+				}
+			}
+		}
 	}
 
 	volID := vol.VolumeID()
@@ -277,6 +334,25 @@ func (d *ControllerService) DeleteVolume(_ context.Context, request *csi.DeleteV
 		klog.ErrorS(err, "DeleteVolume: failed to get vm ref by volume", "cluster", vol.Cluster(), "volumeName", vol.Disk())
 
 		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	if vmr.VmId() != vmID {
+		config, err := cl.GetVmConfig(vmr)
+		if err != nil {
+			klog.ErrorS(err, "DeleteVolume: failed to get vm config", "cluster", vol.Cluster(), "volumeName", vol.Disk())
+		}
+
+		if config != nil {
+			vmName := config["name"].(string) //nolint:errcheck
+			if vmName != "" && strings.HasSuffix(vol.Disk(), vmName) {
+				mc := metrics.NewMetricContext("deleteVm")
+				if err := proxmox.DeleteQemuVM(cl, vmr); mc.ObserveRequest(err) != nil {
+					klog.ErrorS(err, "DeleteVolume: failed to delete vm", "cluster", vol.Cluster(), "volumeName", vol.Disk())
+
+					return nil, status.Error(codes.Internal, fmt.Sprintf("failed to delete volume: %s", vol.Disk()))
+				}
+			}
+		}
 	}
 
 	mc := metrics.NewMetricContext("deleteVolume")
@@ -729,7 +805,7 @@ func (d *ControllerService) getVMRefbyNodeID(ctx context.Context, cl *pxapi.Clie
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
-	if d.Provider == proxmox.ProviderCapmox {
+	if d.Provider == cluster.ProviderCapmox {
 		vmr, _, err = d.Cluster.FindVMByUUID(node.Status.NodeInfo.SystemUUID)
 		if err != nil {
 			return nil, status.Error(codes.Internal, err.Error())

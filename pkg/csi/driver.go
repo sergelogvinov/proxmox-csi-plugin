@@ -21,9 +21,9 @@ const (
 	// DriverName is the name of the CSI driver
 	DriverName = "csi.proxmox.sinextra.dev"
 	// DriverVersion is the version of the CSI driver
-	DriverVersion = "0.4.0"
+	DriverVersion = "0.5.0"
 	// DriverSpecVersion CSI spec version
-	DriverSpecVersion = "1.9.0"
+	DriverSpecVersion = "1.11.0"
 
 	// MaxVolumesPerNode is the maximum number of volumes that can be attached to a node
 	MaxVolumesPerNode = 24
