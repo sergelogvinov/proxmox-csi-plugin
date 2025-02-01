@@ -165,7 +165,7 @@ func (d *ControllerService) CreateVolume(_ context.Context, request *csi.CreateV
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
-	klog.V(4).InfoS("CreateVolume", "storageConfig", storageConfig)
+	klog.V(5).InfoS("CreateVolume", "storageConfig", storageConfig)
 
 	topology := &csi.Topology{
 		Segments: map[string]string{
@@ -188,9 +188,13 @@ func (d *ControllerService) CreateVolume(_ context.Context, request *csi.CreateV
 		}
 	}
 
-	vol := volume.NewVolume(region, zone, params[StorageIDKey], fmt.Sprintf("vm-%d-%s", vmID, pvc))
+	vmr := pxapi.NewVmRef(vmID)
+	vmr.SetNode(zone)
+	vmr.SetVmType("qemu")
+
+	vol := volume.NewVolume(region, zone, params[StorageIDKey], fmt.Sprintf("vm-%d-%s", vmr.VmId(), pvc))
 	if storageConfig["path"] != nil && storageConfig["path"].(string) != "" { //nolint:errcheck
-		vol = volume.NewVolume(region, zone, params[StorageIDKey], fmt.Sprintf("%d/vm-%d-%s.raw", vmID, vmID, pvc))
+		vol = volume.NewVolume(region, zone, params[StorageIDKey], fmt.Sprintf("%d/vm-%d-%s.raw", vmr.VmId(), vmr.VmId(), pvc))
 	}
 
 	// Check if volume already exists, and use it if it has the same size, otherwise create a new one

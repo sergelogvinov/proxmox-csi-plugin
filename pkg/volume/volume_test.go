@@ -39,13 +39,14 @@ func TestNewVolume(t *testing.T) {
 }
 
 func TestNewVolumeFromVolumeID(t *testing.T) {
-	v, err := volume.NewVolumeFromVolumeID("region/zone/storage/disk")
+	v, err := volume.NewVolumeFromVolumeID("region/zone/storage/vm-1000-disk")
 	assert.Nil(t, err)
 	assert.NotNil(t, v)
 	assert.Equal(t, "region", v.Cluster())
 	assert.Equal(t, "zone", v.Node())
 	assert.Equal(t, "storage", v.Storage())
-	assert.Equal(t, "disk", v.Disk())
+	assert.Equal(t, "vm-1000-disk", v.Disk())
+	assert.Equal(t, "1000", v.VMID())
 }
 
 func TestNewVolumeFromVolumeIDWithFolder(t *testing.T) {
