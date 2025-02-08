@@ -5,6 +5,22 @@
 
 * enable support for capmox ([6145c7d](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/6145c7d91cfc47c131ac453e2a90a915e5694b2b))
 
+## [0.11.0](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.10.0...v0.11.0) (2025-02-08)
+
+
+### Features
+
+* allow ovverid backup attribute ([2fada12](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/2fada12f0a0305a7083debff4c94b088b721cf04))
+* support different disk id ([e3a25c2](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/e3a25c26a2152d8605fef42e8b0c7e2b3b3c26c4))
+* support volume attributes class ([bab93fb](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/bab93fb05355f4e65995b60a7ec003b129fbe984))
+* volume replication ([0b66712](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/0b667121a527b01652a773f3274af7f65dc7b7f6))
+* zfs storage migration ([37d7fb0](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/37d7fb09f2e76fa4ea5b40377777a19e8832f09e))
+
+
+### Bug Fixes
+
+* parametes attributes ([820cb7e](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/820cb7ea11e09d1d8c7c6feff176350b20135f62))
+
 ## [v0.9.0](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.8.2...v0.9.0) (2025-01-01)
 
 Welcome to the v0.9.0 release of Proxmox CSI Plugin!
