@@ -30,6 +30,8 @@ It enables the use of a single storage class to deploy one or many deployments/s
 * [Encrypted volumes](https://kubernetes-csi.github.io/docs/secrets-and-credentials-storage-class.html): Encryption with LUKS.
 * [Volume bandwidth](https://pve.proxmox.com/wiki/Manual:_qm.conf): Maximum read/write limits.
 * [Volume migration](docs/pvecsictl.md): Offline migration of PV to another Proxmox node (region).
+* [Volume attributes class](docs/options.md): Detailed options for StorageClass.
+* [Volume zone replication](docs/options.md): ZFS replication to another Proxmox node (zone).
 
 ## Overview
 
@@ -79,13 +81,11 @@ It is very important to use disk controller `VirtIO SCSI single` with `iothread`
 Proxmox CSI Plugin uses the well-known node labels/spec to define the disk location
 * `topology.kubernetes.io/region` - proxmox cluster name
 * `topology.kubernetes.io/zone` - proxmox node name
-* `Spec.ProviderID` - providerID magic string to help define the virtual machine ID
+* `Spec.ProviderID` - providerID magic string `proxmox://$REGION/$VMID` to help define the virtual machine ID, it cannot be changed after the first update. If it not exists, the plugin will find the VM by the name or UUID.
 
-**Important**: The `topology.kubernetes.io/region` and `topology.kubernetes.io/zone` labels _must_ be set.
+**Important**: The `topology.kubernetes.io/region` and `topology.kubernetes.io/zone` labels __must__ be set.
 Region is the Proxmox cluster name, and zone is the Proxmox node name.
 Cluster name can be human-readable and should be the same as in Cloud config.
-
-**Important**: The `Spec.ProviderID` is immutable and has the format `proxmox://$REGION/$VMID` or `proxmox://$UUID`, it cannot be changed after the first update.
 
 The labels can be set manually using `kubectl`,
 or automatically through a tool like [Proxmox CCM](https://github.com/sergelogvinov/proxmox-cloud-controller-manager).
