@@ -45,11 +45,17 @@ Create a Proxmox cloud config to connect to your cluster with the Proxmox user y
 ```yaml
 # config.yaml
 clusters:
+  # List of Proxmox clusters
+
   - url: https://cluster-api-1.exmple.com:8006/api2/json
+    # Skip the certificate verification, if needed
     insecure: false
+    # Proxmox api token
     token_id: "kubernetes-csi@pve!csi"
     token_secret: "secret"
+    # Region name, which is cluster name
     region: Region-1
+
   # Add more clusters if needed
   - url: https://cluster-api-2.exmple.com:8006/api2/json
     insecure: false
@@ -102,6 +108,9 @@ storageClass:
     storage: data
     reclaimPolicy: Delete
     fstype: xfs
+    # Define the storage class as default
+    annotations:
+      stirageclass.kubernetes.io/is-default-class: "true"
 ```
 
 Install the plugin. You need to prepare the `csi-proxmox` namespace first, see above

@@ -9,7 +9,9 @@ apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
   name: proxmox-storage-class-name
-
+  annotations:
+    # If you need to set it as default
+    stirageclass.kubernetes.io/is-default-class: "true"
 parameters:
   # Pre defined options
   ## File system format (default: ext4)
