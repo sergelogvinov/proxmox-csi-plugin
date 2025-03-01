@@ -77,7 +77,7 @@ jobs:
           go-version-file: 'go.mod'
 
       - name: Generate token
-        uses: actions/create-github-app-token@136412a57a7081aa63c935a2cc2918f76c34f514 # v1.11.2
+        uses: actions/create-github-app-token@0d564482f06ca65fa9e77e2510873638c82206f2 # v1.11.5
         id: token
         with:
           app-id: "${{ secrets.BOT_APP_ID }}"
