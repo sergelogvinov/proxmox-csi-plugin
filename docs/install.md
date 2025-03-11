@@ -110,7 +110,7 @@ storageClass:
     fstype: xfs
     # Define the storage class as default
     annotations:
-      stirageclass.kubernetes.io/is-default-class: "true"
+      storageclass.kubernetes.io/is-default-class: "true"
 ```
 
 Install the plugin. You need to prepare the `csi-proxmox` namespace first, see above
