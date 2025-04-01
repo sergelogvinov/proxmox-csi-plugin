@@ -1,6 +1,7 @@
 module github.com/sergelogvinov/proxmox-csi-plugin
 
 go 1.23.7
+toolchain go1.24.1
 
 require (
 	github.com/Telmate/proxmox-api-go v0.0.0-20241127232213-af1f4e86b570
@@ -15,13 +16,13 @@ require (
 	github.com/spf13/cobra v1.9.1
 	github.com/stretchr/testify v1.10.0
 	google.golang.org/grpc v1.70.0
-	k8s.io/api v0.32.2
-	k8s.io/apimachinery v0.32.2
-	k8s.io/client-go v0.32.2
+	k8s.io/api v0.32.3
+	k8s.io/apimachinery v0.32.3
+	k8s.io/client-go v0.32.3
 	k8s.io/cloud-provider-openstack v1.32.0
-	k8s.io/component-base v0.32.2
+	k8s.io/component-base v0.32.3
 	k8s.io/klog/v2 v2.130.1
-	k8s.io/mount-utils v0.32.2
+	k8s.io/mount-utils v0.32.3
 	k8s.io/utils v0.0.0-20241210054802-24370beab758
 )
 
