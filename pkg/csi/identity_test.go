@@ -17,7 +17,6 @@ limitations under the License.
 package csi_test
 
 import (
-	"context"
 	"testing"
 
 	proto "github.com/container-storage-interface/spec/lib/go/csi"
@@ -41,7 +40,7 @@ func newIdentityServerTestEnv() identityServiceTestEnv {
 func TestGetPluginInfo(t *testing.T) {
 	env := newIdentityServerTestEnv()
 
-	resp, err := env.service.GetPluginInfo(context.Background(), &proto.GetPluginInfoRequest{})
+	resp, err := env.service.GetPluginInfo(t.Context(), &proto.GetPluginInfoRequest{})
 	assert.Nil(t, err)
 	assert.NotNil(t, resp)
 
@@ -52,7 +51,7 @@ func TestGetPluginInfo(t *testing.T) {
 func TestGetPluginCapabilities(t *testing.T) {
 	env := newIdentityServerTestEnv()
 
-	resp, err := env.service.GetPluginCapabilities(context.Background(), &proto.GetPluginCapabilitiesRequest{})
+	resp, err := env.service.GetPluginCapabilities(t.Context(), &proto.GetPluginCapabilitiesRequest{})
 	assert.Nil(t, err)
 	assert.NotNil(t, resp)
 	assert.NotNil(t, resp.GetCapabilities())
@@ -81,7 +80,7 @@ func TestGetPluginCapabilities(t *testing.T) {
 func TestProbe(t *testing.T) {
 	env := newIdentityServerTestEnv()
 
-	resp, err := env.service.Probe(context.Background(), &proto.ProbeRequest{})
+	resp, err := env.service.Probe(t.Context(), &proto.ProbeRequest{})
 	assert.Nil(t, err)
 	assert.NotNil(t, resp)
 }
