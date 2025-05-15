@@ -17,7 +17,6 @@ limitations under the License.
 package csi_test
 
 import (
-	"context"
 	"fmt"
 	"testing"
 
@@ -131,7 +130,7 @@ func TestNodeStageVolumeErrors(t *testing.T) {
 		t.Run(fmt.Sprint(testCase.msg), func(t *testing.T) {
 			t.Parallel()
 
-			resp, err := env.service.NodeStageVolume(context.Background(), testCase.request)
+			resp, err := env.service.NodeStageVolume(t.Context(), testCase.request)
 
 			if testCase.expectedError != nil {
 				assert.NotNil(t, err)
@@ -170,7 +169,7 @@ func TestNodeUnstageVolumeErrors(t *testing.T) {
 		t.Run(fmt.Sprint(testCase.msg), func(t *testing.T) {
 			t.Parallel()
 
-			_, err := env.service.NodeUnstageVolume(context.Background(), testCase.request)
+			_, err := env.service.NodeUnstageVolume(t.Context(), testCase.request)
 
 			assert.NotNil(t, err)
 			assert.Contains(t, err.Error(), testCase.expectedError.Error())
@@ -266,7 +265,7 @@ func TestNodeServiceNodePublishVolumeErrors(t *testing.T) {
 		t.Run(fmt.Sprint(testCase.msg), func(t *testing.T) {
 			t.Parallel()
 
-			_, err := env.service.NodePublishVolume(context.Background(), testCase.request)
+			_, err := env.service.NodePublishVolume(t.Context(), testCase.request)
 
 			assert.NotNil(t, err)
 			assert.Contains(t, err.Error(), testCase.expectedError.Error())
@@ -304,7 +303,7 @@ func TestNodeUnpublishVolumeErrors(t *testing.T) {
 		t.Run(fmt.Sprint(testCase.msg), func(t *testing.T) {
 			t.Parallel()
 
-			_, err := env.service.NodeUnpublishVolume(context.Background(), testCase.request)
+			_, err := env.service.NodeUnpublishVolume(t.Context(), testCase.request)
 
 			assert.NotNil(t, err)
 			assert.Contains(t, err.Error(), testCase.expectedError.Error())
@@ -345,7 +344,7 @@ func TestNodeGetVolumeStatsErrors(t *testing.T) {
 		t.Run(fmt.Sprint(testCase.msg), func(t *testing.T) {
 			t.Parallel()
 
-			_, err := env.service.NodeGetVolumeStats(context.Background(), testCase.request)
+			_, err := env.service.NodeGetVolumeStats(t.Context(), testCase.request)
 
 			assert.NotNil(t, err)
 			assert.Contains(t, err.Error(), testCase.expectedError.Error())
@@ -384,7 +383,7 @@ func TestNodeServiceNodeExpandVolumeErrors(t *testing.T) {
 		t.Run(fmt.Sprint(testCase.msg), func(t *testing.T) {
 			t.Parallel()
 
-			_, err := env.service.NodeExpandVolume(context.Background(), testCase.request)
+			_, err := env.service.NodeExpandVolume(t.Context(), testCase.request)
 
 			assert.NotNil(t, err)
 			assert.Contains(t, err.Error(), testCase.expectedError.Error())
@@ -395,7 +394,7 @@ func TestNodeServiceNodeExpandVolumeErrors(t *testing.T) {
 func TestNodeServiceNodeGetCapabilities(t *testing.T) {
 	env := newNodeServerTestEnv()
 
-	resp, err := env.service.NodeGetCapabilities(context.Background(), &proto.NodeGetCapabilitiesRequest{})
+	resp, err := env.service.NodeGetCapabilities(t.Context(), &proto.NodeGetCapabilitiesRequest{})
 	assert.Nil(t, err)
 	assert.NotNil(t, resp)
 	assert.NotNil(t, resp.GetCapabilities())
@@ -507,7 +506,7 @@ func TestNodeServiceNodeGetInfo(t *testing.T) {
 			svc := csi.NewNodeService(testCase.nodeName, testCase.kclient)
 			assert.NotNil(t, svc)
 
-			res, err := svc.NodeGetInfo(context.Background(), &proto.NodeGetInfoRequest{})
+			res, err := svc.NodeGetInfo(t.Context(), &proto.NodeGetInfoRequest{})
 
 			if testCase.expectedError == nil {
 				assert.Nil(t, err)

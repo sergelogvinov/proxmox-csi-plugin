@@ -204,7 +204,7 @@ func (c *migrateCmd) migrationValidate(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("failed to create Proxmox cluster client: %v", err)
 	}
 
-	if c.pclient.CheckClusters() != nil {
+	if err = c.pclient.CheckClusters(); err != nil {
 		return fmt.Errorf("failed to initialize Proxmox clusters: %v", err)
 	}
 
