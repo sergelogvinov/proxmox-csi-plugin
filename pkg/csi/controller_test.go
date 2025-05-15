@@ -1111,7 +1111,7 @@ func (ts *configuredTestSuite) TestGetCapacity() {
 			request: &proto.GetCapacityRequest{
 				AccessibleTopology: &proto.Topology{},
 			},
-			expectedError: status.Error(codes.InvalidArgument, "region, zone and storageName must be provided"),
+			expectedError: status.Error(codes.InvalidArgument, "region and storage must be provided"),
 		},
 		{
 			msg: "TopologyRegion",
@@ -1125,7 +1125,7 @@ func (ts *configuredTestSuite) TestGetCapacity() {
 					csi.StorageIDKey: "storage",
 				},
 			},
-			expectedError: status.Error(codes.InvalidArgument, "region, zone and storageName must be provided"),
+			expectedError: status.Error(codes.Internal, "proxmox cluster region not found"),
 		},
 		{
 			msg: "TopologyZone",
@@ -1139,7 +1139,7 @@ func (ts *configuredTestSuite) TestGetCapacity() {
 					csi.StorageIDKey: "storage",
 				},
 			},
-			expectedError: status.Error(codes.InvalidArgument, "region, zone and storageName must be provided"),
+			expectedError: status.Error(codes.InvalidArgument, "region and storage must be provided"),
 		},
 		{
 			msg: "TopologyStorageName",
@@ -1151,7 +1151,7 @@ func (ts *configuredTestSuite) TestGetCapacity() {
 					},
 				},
 			},
-			expectedError: status.Error(codes.InvalidArgument, "region, zone and storageName must be provided"),
+			expectedError: status.Error(codes.InvalidArgument, "region and storage must be provided"),
 		},
 		{
 			msg: "Topology",
