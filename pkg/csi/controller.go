@@ -576,17 +576,25 @@ func (d *ControllerService) ListVolumes(_ context.Context, request *csi.ListVolu
 func (d *ControllerService) GetCapacity(_ context.Context, request *csi.GetCapacityRequest) (*csi.GetCapacityResponse, error) {
 	klog.V(5).InfoS("GetCapacity: called", "args", protosanitizer.StripSecrets(request))
 
+	sharedStorage := os.Getenv("SHARED_STORAGE") == "1"
+
 	topology := request.GetAccessibleTopology()
 	if topology != nil {
 		region := topology.GetSegments()[corev1.LabelTopologyRegion]
 		zone := topology.GetSegments()[corev1.LabelTopologyZone]
 		storageID := request.GetParameters()[StorageIDKey]
 
-		if region == "" || zone == "" || storageID == "" {
-			return nil, status.Error(codes.InvalidArgument, "region, zone and storageName must be provided")
+		if !sharedStorage {
+			if zone == "" || region == "" || storageID == "" {
+				return nil, status.Error(codes.InvalidArgument, "region, zone and storageName must be provided")
+			}
+		} else {
+			if region == "" || storageID == "" {
+				return nil, status.Error(codes.InvalidArgument, "region and storageName must be provided")
+			}
 		}
 
-		klog.V(3).InfoS("GetCapacity", "region", region, "zone", zone, "storageID", storageID)
+		klog.V(3).InfoS("GetCapacity", "region", region, "storageID", storageID)
 
 		cl, err := d.Cluster.GetProxmoxCluster(region)
 		if err != nil {
@@ -596,8 +604,16 @@ func (d *ControllerService) GetCapacity(_ context.Context, request *csi.GetCapac
 		}
 
 		vmr := pxapi.NewVmRef(vmID)
-		vmr.SetNode(zone)
 		vmr.SetVmType("qemu")
+
+		if sharedStorage && zone == "" {
+			zone, err = getNodeWithStorage(cl, storageID)
+			if err != nil {
+				return nil, status.Error(codes.Internal, err.Error())
+			}
+		}
+
+		vmr.SetNode(zone)
 
 		availableCapacity := int64(0)
 
