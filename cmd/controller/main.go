@@ -137,6 +137,9 @@ func main() {
 	proto.RegisterIdentityServer(srv, identityService)
 
 	klog.InfoS("Listening for connection on address", "address", listener.Addr())
+	if os.Getenv("SHARED_STORAGE") == "1" {
+		klog.InfoS("Running in shared storage mode", "SHARED_STORAGE", os.Getenv("SHARED_STORAGE"))
+	}
 
 	if err := srv.Serve(listener); err != nil {
 		klog.ErrorS(err, "Failed to run driver")
