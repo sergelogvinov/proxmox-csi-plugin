@@ -5,6 +5,13 @@
 
 * enable support for capmox ([6145c7d](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/6145c7d91cfc47c131ac453e2a90a915e5694b2b))
 
+## [0.11.1](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.11.0...v0.11.1) (2025-05-17)
+
+
+### Bug Fixes
+
+* **chart:** add missing volumeattributesclasses rule to ClusterRole ([1f10218](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/1f10218dce4c78191d390b5fa839c6cd2516e33e))
+
 ## [0.11.0](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.10.0...v0.11.0) (2025-02-08)
 
 
