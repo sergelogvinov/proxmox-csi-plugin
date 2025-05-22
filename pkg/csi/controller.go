@@ -716,7 +716,7 @@ func (d *ControllerService) ControllerExpandVolume(_ context.Context, request *c
 		}
 
 		if vmType, ok := vm["type"].(string); ok && vmType != "qemu" {
-			klog.V(5).InfoS("ControllerExpandVolume: skipping non-qemu VM", "VM", vm["name"].(string)) //nolint:errcheck
+			klog.V(5).InfoS("ControllerExpandVolume: skipping non-qemu VM", "VM", vm["name"]) //nolint:errcheck
 
 			continue
 		}
