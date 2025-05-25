@@ -97,8 +97,10 @@ spec:
             - "--csi-address=unix:///csi/csi.sock"
             - "--timeout={{ .Values.timeout }}"
             - "--leader-election"
+            {{- if .Values.options.enableCapacity }}
             - "--enable-capacity"
             - "--capacity-ownerref-level=2"
+            {{- end }}
             {{- range .Values.controller.provisioner.args }}
             - {{ . | quote }}
             {{- end }}
