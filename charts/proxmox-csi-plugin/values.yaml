@@ -41,6 +41,11 @@ logVerbosityLevel: 5
 # -- Connection timeout between sidecars.
 timeout: 3m
 
+options:
+  # -- Enable or disable capacity feature.
+  # ref: https://github.com/kubernetes-csi/external-provisioner
+  enableCapacity: true
+
 # -- Proxmox cluster config stored in secrets.
 existingConfigSecret: ~
 # -- Proxmox cluster config stored in secrets key.
