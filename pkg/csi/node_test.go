@@ -452,6 +452,48 @@ func TestNodeServiceNodeGetInfo(t *testing.T) {
 					},
 				},
 			},
+			{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "Node",
+					APIVersion: "v1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "node-max-volumes-override",
+					Labels: map[string]string{
+						corev1.LabelTopologyRegion:        "region",
+						corev1.LabelTopologyZone:          "zone",
+						csi.NodeLabelMaxVolumeAttachments: "2",
+					},
+				},
+			},
+			{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "Node",
+					APIVersion: "v1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "node-max-volumes-override-negative",
+					Labels: map[string]string{
+						corev1.LabelTopologyRegion:        "region",
+						corev1.LabelTopologyZone:          "zone",
+						csi.NodeLabelMaxVolumeAttachments: "-1",
+					},
+				},
+			},
+			{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "Node",
+					APIVersion: "v1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "node-max-volumes-override-over-limit",
+					Labels: map[string]string{
+						corev1.LabelTopologyRegion:        "region",
+						corev1.LabelTopologyZone:          "zone",
+						csi.NodeLabelMaxVolumeAttachments: fmt.Sprintf("%d", csi.VolumesPerNodeHardLimit+1),
+					},
+				},
+			},
 		},
 	}
 
@@ -486,7 +528,52 @@ func TestNodeServiceNodeGetInfo(t *testing.T) {
 			nodeName: "node-1",
 			expectedResponse: &proto.NodeGetInfoResponse{
 				NodeId:            "node-1",
-				MaxVolumesPerNode: csi.MaxVolumesPerNode,
+				MaxVolumesPerNode: csi.DefaultMaxVolumesPerNode,
+				AccessibleTopology: &proto.Topology{
+					Segments: map[string]string{
+						corev1.LabelTopologyRegion: "region",
+						corev1.LabelTopologyZone:   "zone",
+					},
+				},
+			},
+		},
+		{
+			msg:      "GoodNode",
+			kclient:  fake.NewSimpleClientset(nodes),
+			nodeName: "node-max-volumes-override",
+			expectedResponse: &proto.NodeGetInfoResponse{
+				NodeId:            "node-max-volumes-override",
+				MaxVolumesPerNode: 2,
+				AccessibleTopology: &proto.Topology{
+					Segments: map[string]string{
+						corev1.LabelTopologyRegion: "region",
+						corev1.LabelTopologyZone:   "zone",
+					},
+				},
+			},
+		},
+		{
+			msg:      "GoodNode",
+			kclient:  fake.NewSimpleClientset(nodes),
+			nodeName: "node-max-volumes-override-negative",
+			expectedResponse: &proto.NodeGetInfoResponse{
+				NodeId:            "node-max-volumes-override-negative",
+				MaxVolumesPerNode: csi.DefaultMaxVolumesPerNode,
+				AccessibleTopology: &proto.Topology{
+					Segments: map[string]string{
+						corev1.LabelTopologyRegion: "region",
+						corev1.LabelTopologyZone:   "zone",
+					},
+				},
+			},
+		},
+		{
+			msg:      "GoodNode",
+			kclient:  fake.NewSimpleClientset(nodes),
+			nodeName: "node-max-volumes-override-over-limit",
+			expectedResponse: &proto.NodeGetInfoResponse{
+				NodeId:            "node-max-volumes-override-over-limit",
+				MaxVolumesPerNode: csi.DefaultMaxVolumesPerNode,
 				AccessibleTopology: &proto.Topology{
 					Segments: map[string]string{
 						corev1.LabelTopologyRegion: "region",

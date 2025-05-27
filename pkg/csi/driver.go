@@ -25,8 +25,8 @@ const (
 	// DriverSpecVersion CSI spec version
 	DriverSpecVersion = "1.11.0"
 
-	// MaxVolumesPerNode is the maximum number of volumes that can be attached to a node
-	MaxVolumesPerNode = 24
+	// DefaultMaxVolumesPerNode is the default maximum number of volumes that can be attached to a node
+	DefaultMaxVolumesPerNode = 24
 	// DefaultVolumeSizeBytes is the default size of a volume
 	DefaultVolumeSizeBytes = 10 * GiB
 	// MinChunkSizeBytes is the minimum size of a volume chunk
@@ -42,4 +42,9 @@ const (
 	FSTypeExt4 = "ext4"
 	// FSTypeXfs represents the xfs filesystem type
 	FSTypeXfs = "xfs"
+)
+
+// constants for node labels
+const (
+	NodeLabelMaxVolumeAttachments = DriverName + "/max-volume-attachments"
 )
