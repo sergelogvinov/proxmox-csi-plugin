@@ -584,14 +584,8 @@ func (d *ControllerService) GetCapacity(_ context.Context, request *csi.GetCapac
 		zone := topology.GetSegments()[corev1.LabelTopologyZone]
 		storageID := request.GetParameters()[StorageIDKey]
 
-		if !sharedStorage {
-			if zone == "" || region == "" || storageID == "" {
-				return nil, status.Error(codes.InvalidArgument, "region, zone and storageName must be provided")
-			}
-		} else {
-			if region == "" || storageID == "" {
-				return nil, status.Error(codes.InvalidArgument, "region and storageName must be provided")
-			}
+		if region == "" || storageID == "" {
+			return nil, status.Error(codes.InvalidArgument, "region and storage must be provided")
 		}
 
 		klog.V(3).InfoS("GetCapacity", "region", region, "storageID", storageID)
@@ -601,6 +595,13 @@ func (d *ControllerService) GetCapacity(_ context.Context, request *csi.GetCapac
 			klog.ErrorS(err, "GetCapacity: failed to get proxmox cluster", "cluster", region)
 
 			return nil, status.Error(codes.Internal, err.Error())
+		}
+
+		if zone == "" {
+			zone, err = getNodeWithStorage(cl, storageID)
+			if err != nil {
+				return nil, status.Error(codes.Internal, err.Error())
+			}
 		}
 
 		vmr := pxapi.NewVmRef(vmID)

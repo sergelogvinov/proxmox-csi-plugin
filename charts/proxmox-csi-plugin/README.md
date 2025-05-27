@@ -1,6 +1,6 @@
 # proxmox-csi-plugin
 
-![Version: 0.3.5](https://img.shields.io/badge/Version-0.3.5-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: v0.11.0](https://img.shields.io/badge/AppVersion-v0.11.0-informational?style=flat-square)
+![Version: 0.3.7](https://img.shields.io/badge/Version-0.3.7-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: v0.11.0](https://img.shields.io/badge/AppVersion-v0.11.0-informational?style=flat-square)
 
 Container Storage Interface plugin for Proxmox
 
@@ -106,6 +106,7 @@ helm upgrade -i --namespace=csi-proxmox -f proxmox-csi.yaml \
 | clusterID | string | `"kubernetes"` | Cluster name. Currently, cannot be customized. |
 | logVerbosityLevel | int | `5` | Log verbosity level. See https://github.com/kubernetes/community/blob/master/contributors/devel/sig-instrumentation/logging.md for description of individual verbosity levels. |
 | timeout | string | `"3m"` | Connection timeout between sidecars. |
+| options.enableCapacity | bool | `true` | Enable or disable capacity feature. ref: https://github.com/kubernetes-csi/external-provisioner |
 | existingConfigSecret | string | `nil` | Proxmox cluster config stored in secrets. |
 | existingConfigSecretKey | string | `"config.yaml"` | Proxmox cluster config stored in secrets key. |
 | configFile | string | `"/etc/proxmox/config.yaml"` | Proxmox cluster config path. |

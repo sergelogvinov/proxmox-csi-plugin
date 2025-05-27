@@ -182,6 +182,17 @@ func setupMockResponders() {
 		},
 	)
 
+	httpmock.RegisterResponder("GET", "https://127.0.0.2:8006/api2/json/nodes/pve-3/qemu/100/config",
+		func(_ *http.Request) (*http.Response, error) {
+			return httpmock.NewJsonResponse(200, map[string]interface{}{
+				"data": map[string]interface{}{
+					"vmid":    100,
+					"smbios1": "uuid=11833f4c-341f-4bd3-aad7-f7abea000000",
+				},
+			})
+		},
+	)
+
 	httpmock.RegisterResponder("GET", "https://127.0.0.1:8006/api2/json/nodes/cluster-1-node-2/qemu/101/config",
 		func(_ *http.Request) (*http.Response, error) {
 			return httpmock.NewJsonResponse(200, map[string]interface{}{
@@ -502,7 +513,7 @@ func (ts *configuredTestSuite) TestCreateVolume() {
 				CapacityRange:             volsize,
 				AccessibilityRequirements: topology,
 			},
-			expectedError: status.Error(codes.InvalidArgument, "parameters storage must be provided"),
+			expectedError: status.Error(codes.InvalidArgument, "parameter storage must be provided"),
 		},
 		{
 			msg: "VolumeParametersBlockSize",
@@ -1100,7 +1111,7 @@ func (ts *configuredTestSuite) TestGetCapacity() {
 			request: &proto.GetCapacityRequest{
 				AccessibleTopology: &proto.Topology{},
 			},
-			expectedError: status.Error(codes.InvalidArgument, "region, zone and storageName must be provided"),
+			expectedError: status.Error(codes.InvalidArgument, "region and storage must be provided"),
 		},
 		{
 			msg: "TopologyRegion",
@@ -1114,7 +1125,7 @@ func (ts *configuredTestSuite) TestGetCapacity() {
 					csi.StorageIDKey: "storage",
 				},
 			},
-			expectedError: status.Error(codes.InvalidArgument, "region, zone and storageName must be provided"),
+			expectedError: status.Error(codes.Internal, "proxmox cluster region not found"),
 		},
 		{
 			msg: "TopologyZone",
@@ -1128,7 +1139,7 @@ func (ts *configuredTestSuite) TestGetCapacity() {
 					csi.StorageIDKey: "storage",
 				},
 			},
-			expectedError: status.Error(codes.InvalidArgument, "region, zone and storageName must be provided"),
+			expectedError: status.Error(codes.InvalidArgument, "region and storage must be provided"),
 		},
 		{
 			msg: "TopologyStorageName",
@@ -1140,7 +1151,7 @@ func (ts *configuredTestSuite) TestGetCapacity() {
 					},
 				},
 			},
-			expectedError: status.Error(codes.InvalidArgument, "region, zone and storageName must be provided"),
+			expectedError: status.Error(codes.InvalidArgument, "region and storage must be provided"),
 		},
 		{
 			msg: "Topology",

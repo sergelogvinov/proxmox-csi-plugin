@@ -96,7 +96,7 @@ func ExtractAndDefaultParameters(parameters map[string]string) (StorageParameter
 	}
 
 	if parameters[StorageIDKey] == "" {
-		return p, fmt.Errorf("parameters %s must be provided", StorageIDKey)
+		return p, fmt.Errorf("parameter %s must be provided", StorageIDKey)
 	}
 
 	ps := reflect.ValueOf(&p).Elem()
