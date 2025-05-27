@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -56,6 +57,12 @@ var volumeCaps = []csi.VolumeCapability_AccessMode_Mode{
 	csi.VolumeCapability_AccessMode_SINGLE_NODE_SINGLE_WRITER,
 	csi.VolumeCapability_AccessMode_SINGLE_NODE_MULTI_WRITER,
 }
+
+const (
+	// VolumesPerNodeHardLimit is the technical limititation of the number of volumes that can be attached to a single node.
+	// This is currently limited by the QEMU limit of 30 iscsi volumes, see `man qm` for details.`
+	VolumesPerNodeHardLimit = 30
+)
 
 // NodeService is the node service for the CSI driver
 type NodeService struct {
@@ -547,9 +554,25 @@ func (n *NodeService) NodeGetInfo(ctx context.Context, _ *csi.NodeGetInfoRequest
 		return nil, fmt.Errorf("failed to get zone for node %s", n.nodeID)
 	}
 
+	nodeMaxVolumeAttachments, err := strconv.ParseInt(node.Labels[NodeLabelMaxVolumeAttachments], 10, 64)
+	if err != nil {
+		nodeMaxVolumeAttachments = DefaultMaxVolumesPerNode
+	}
+
+	if nodeMaxVolumeAttachments < 0 || nodeMaxVolumeAttachments > VolumesPerNodeHardLimit {
+		klog.Warningf("Node %s has out of range value for %s: %d, must be between 0 and %d, using default value %d",
+			n.nodeID,
+			NodeLabelMaxVolumeAttachments,
+			nodeMaxVolumeAttachments,
+			VolumesPerNodeHardLimit,
+			DefaultMaxVolumesPerNode)
+
+		nodeMaxVolumeAttachments = DefaultMaxVolumesPerNode
+	}
+
 	return &csi.NodeGetInfoResponse{
 		NodeId:            n.nodeID,
-		MaxVolumesPerNode: MaxVolumesPerNode,
+		MaxVolumesPerNode: nodeMaxVolumeAttachments,
 		AccessibleTopology: &csi.Topology{
 			Segments: map[string]string{
 				corev1.LabelTopologyRegion: region,

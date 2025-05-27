@@ -1,3 +1,19 @@
+# Node
+
+Individual Kubernetes Nodes can be configured using a set of labels specific to the driver.
+
+```yaml
+apiVersion: v1
+kind: Node
+metadata:
+  ...
+  labels:
+    # Maximum number of volumes that can be attached to this node, default is 24
+    # Note: Currently, there is a maximum limit of 30 virtio iscsi volumes *total*, including root disks, that can be attached to a single VM in QEMU/Proxmox.
+    csi.proxmox.sinextra.dev/max-volume-attachments = "24"
+...
+```
+
 # Storage Class
 
 A Kubernetes StorageClass is an object that defines the storage "classes" or tiers available for dynamic provisioning of storage volumes in a Kubernetes cluster. It abstracts the underlying storage infrastructure, making it easier for developers and administrators to manage persistent storage for applications running in Kubernetes.
