@@ -1,4 +1,4 @@
-# syntax = docker/dockerfile:1.12
+# syntax = docker/dockerfile:1.15
 ########################################
 
 FROM golang:1.24-bookworm AS develop
@@ -9,7 +9,7 @@ RUN go mod download
 
 ########################################
 
-FROM --platform=${BUILDPLATFORM} golang:1.24.3-alpine3.21 AS builder
+FROM --platform=${BUILDPLATFORM} golang:1.24.3-alpine3.22 AS builder
 RUN apk update && apk add --no-cache make
 ENV GO111MODULE=on
 WORKDIR /src
@@ -37,7 +37,7 @@ ENTRYPOINT ["/bin/proxmox-csi-controller"]
 
 ########################################
 
-FROM --platform=${TARGETARCH} debian:12.10 AS tools
+FROM --platform=${TARGETARCH} debian:12.11 AS tools
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     bash \
@@ -80,7 +80,7 @@ ENTRYPOINT ["/bin/proxmox-csi-node"]
 
 ########################################
 
-FROM alpine:3.21 AS pvecsictl
+FROM alpine:3.22 AS pvecsictl
 LABEL org.opencontainers.image.source="https://github.com/sergelogvinov/proxmox-csi-plugin" \
       org.opencontainers.image.licenses="Apache-2.0" \
       org.opencontainers.image.description="Proxmox VE CSI tools"
@@ -92,7 +92,7 @@ ENTRYPOINT ["/bin/pvecsictl"]
 
 ########################################
 
-FROM alpine:3.21 AS pvecsictl-goreleaser
+FROM alpine:3.22 AS pvecsictl-goreleaser
 LABEL org.opencontainers.image.source="https://github.com/sergelogvinov/proxmox-csi-plugin" \
       org.opencontainers.image.licenses="Apache-2.0" \
       org.opencontainers.image.description="Proxmox VE CSI tools"
