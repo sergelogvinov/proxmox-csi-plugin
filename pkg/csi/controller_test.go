@@ -814,6 +814,13 @@ func (ts *configuredTestSuite) TestDeleteVolume() {
 			expectedError: status.Error(codes.Internal, "proxmox cluster fake-region not found"),
 		},
 		{
+			msg: "WrongPVZone",
+			request: &proto.DeleteVolumeRequest{
+				VolumeId: "cluster-1/pve-removed/local-lvm/vm-9999-pvc-non-exist",
+			},
+			expected: &proto.DeleteVolumeResponse{},
+		},
+		{
 			msg: "VolumeIDNonExist",
 			request: &proto.DeleteVolumeRequest{
 				VolumeId: "cluster-1/pve-1/wrong-volume/vm-9999-pvc-non-exist",
@@ -1053,6 +1060,13 @@ func (ts *configuredTestSuite) TestControllerUnpublishVolumeError() {
 				VolumeId: "cluster-1/pve-1/local-lvm/vm-9999-pvc-123",
 			},
 			expectedError: status.Error(codes.InvalidArgument, "nodes \"cluster-1-node-3\" not found"),
+		},
+		{
+			msg: "WrongPVZone",
+			request: &proto.ControllerUnpublishVolumeRequest{
+				NodeId:   "cluster-1-node-2",
+				VolumeId: "cluster-1/pve-removed/local-lvm/vm-9999-pvc-exist",
+			},
 		},
 		{
 			msg: "AlreadyDetached",
@@ -1308,6 +1322,15 @@ func (ts *configuredTestSuite) TestControllerExpandVolumeError() {
 			msg: "WrongPVC",
 			request: &proto.ControllerExpandVolumeRequest{
 				VolumeId:         "cluster-1/pve-1/local-lvm/vm-9999-pvc-none",
+				CapacityRange:    capRange,
+				VolumeCapability: volCapability,
+			},
+			expected: &proto.ControllerExpandVolumeResponse{},
+		},
+		{
+			msg: "WrongPVZone",
+			request: &proto.ControllerExpandVolumeRequest{
+				VolumeId:         "cluster-1/pve-removed/local-lvm/vm-9999-pvc-exist",
 				CapacityRange:    capRange,
 				VolumeCapability: volCapability,
 			},
