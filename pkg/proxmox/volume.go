@@ -28,6 +28,38 @@ import (
 	volume "github.com/sergelogvinov/proxmox-csi-plugin/pkg/volume"
 )
 
+// GetNodeList retrieves the list of nodes in the Proxmox cluster.
+func GetNodeList(client *pxapi.Client) ([]string, error) {
+	data, err := client.GetNodeList()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get node list: %v", err)
+	}
+
+	if data["data"] == nil {
+		return nil, fmt.Errorf("failed to parse node list: %v", err)
+	}
+
+	nodes, ok := data["data"].([]interface{})
+	if !ok {
+		return nil, fmt.Errorf("failed to cast node list: %v", err)
+	}
+
+	nodeList := []string{}
+
+	for _, item := range nodes { //nolint:errcheck
+		node, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		if nodeName, ok := node["node"].(string); ok && nodeName != "" {
+			nodeList = append(nodeList, nodeName)
+		}
+	}
+
+	return nodeList, nil
+}
+
 // WaitForVolumeDetach waits for the volume to be detached from the VM.
 func WaitForVolumeDetach(client *pxapi.Client, vmName string, disk string) error {
 	if vmName == "" {

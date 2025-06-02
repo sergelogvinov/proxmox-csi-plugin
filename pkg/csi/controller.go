@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -335,6 +336,21 @@ func (d *ControllerService) DeleteVolume(_ context.Context, request *csi.DeleteV
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
+	if vol.Zone() != "" {
+		nodes, err := proxmox.GetNodeList(cl)
+		if err != nil {
+			klog.ErrorS(err, "DeleteVolume: failed to get node list in cluster", "cluster", vol.Cluster())
+
+			return nil, status.Error(codes.Internal, err.Error())
+		}
+
+		if !slices.Contains(nodes, vol.Zone()) {
+			klog.V(3).InfoS("DeleteVolume: zone does not exist", "volumeID", vol.VolumeID(), "zone", vol.Zone())
+
+			return &csi.DeleteVolumeResponse{}, nil
+		}
+	}
+
 	exist, err := isPvcExists(cl, vol)
 	if err != nil {
 		klog.ErrorS(err, "DeleteVolume: failed to verify the existence of the PVC", "cluster", vol.Cluster(), "volumeID", vol.VolumeID())
@@ -541,6 +557,21 @@ func (d *ControllerService) ControllerUnpublishVolume(ctx context.Context, reque
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
+	if vol.Zone() != "" {
+		nodes, err := proxmox.GetNodeList(cl)
+		if err != nil {
+			klog.ErrorS(err, "ControllerUnpublishVolume: failed to get node list in cluster", "cluster", vol.Cluster())
+
+			return nil, status.Error(codes.Internal, err.Error())
+		}
+
+		if !slices.Contains(nodes, vol.Zone()) {
+			klog.V(3).InfoS("ControllerUnpublishVolume: zone does not exist", "volumeID", vol.VolumeID(), "zone", vol.Zone())
+
+			return &csi.ControllerUnpublishVolumeResponse{}, nil
+		}
+	}
+
 	vmr, err := d.getVMRefbyNodeID(ctx, cl, nodeID)
 	if err != nil {
 		return nil, err
@@ -680,6 +711,21 @@ func (d *ControllerService) ControllerExpandVolume(_ context.Context, request *c
 		klog.ErrorS(err, "ControllerExpandVolume: failed to get proxmox cluster", "cluster", vol.Cluster())
 
 		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	if vol.Zone() != "" {
+		nodes, err := proxmox.GetNodeList(cl)
+		if err != nil {
+			klog.ErrorS(err, "ControllerExpandVolume: failed to get node list in cluster", "cluster", vol.Cluster())
+
+			return nil, status.Error(codes.Internal, err.Error())
+		}
+
+		if !slices.Contains(nodes, vol.Zone()) {
+			klog.V(3).InfoS("ControllerExpandVolume: zone does not exist", "volumeID", vol.VolumeID(), "zone", vol.Zone())
+
+			return &csi.ControllerExpandVolumeResponse{}, nil
+		}
 	}
 
 	exist, err := isPvcExists(cl, vol)
