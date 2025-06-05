@@ -1,6 +1,6 @@
 services:
   base:
-    image: k8s.gcr.io/pause:3.6
+    image: k8s.gcr.io/pause:3.10
     ports:
       - "8080:8080"
   plugin:
@@ -26,7 +26,7 @@ services:
         source: ./
         target: /src
   csi-attacher:
-    image: registry.k8s.io/sig-storage/csi-attacher:v4.8.0
+    image: registry.k8s.io/sig-storage/csi-attacher:v4.9.0
     restart: always
     network_mode: "service:base"
     command:
@@ -43,7 +43,7 @@ services:
         source: ./hack
         target: /etc/kubernetes
   csi-resizer:
-    image: registry.k8s.io/sig-storage/csi-resizer:v1.13.1
+    image: registry.k8s.io/sig-storage/csi-resizer:v1.13.2
     restart: always
     network_mode: "service:base"
     command:
@@ -61,7 +61,7 @@ services:
         source: ./hack
         target: /etc/kubernetes
   csi-provisioner:
-    image: registry.k8s.io/sig-storage/csi-provisioner:v5.1.0
+    image: registry.k8s.io/sig-storage/csi-provisioner:v5.3.0
     restart: always
     network_mode: "service:base"
     command:
@@ -88,7 +88,7 @@ services:
         source: ./hack
         target: /etc/kubernetes
   # csi-node-driver-registrar:
-  #   image: registry.k8s.io/sig-storage/csi-node-driver-registrar:v2.11.1
+  #   image: registry.k8s.io/sig-storage/csi-node-driver-registrar:v2.14.0
   #   network_mode: "service:base"
   #   command:
   #     - "--v=5"
