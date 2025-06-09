@@ -153,3 +153,17 @@ It specifies how volumes should be bound to PVs (Persistent Volumes). There are 
 
 * `Immediate`: PVs are bound as soon as a PVC is created, even if a suitable storage volume isn't immediately available. This is suitable for scenarios where waiting for storage is not an option.
 * `WaitForFirstConsumer`: PVs are bound only when a pod using the PVC is scheduled. This is useful when you want to ensure that storage is provisioned only when it's actually needed.
+
+# Persistent Storage
+
+The Persistent storage supports lifecycle camabilities.
+You can prevent the disk from being deleted on the Proxmox side when the PersistentVolume is removed.
+
+```yaml
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  annotations:
+    csi.proxmox.sinextra.dev/lifecycle: "keep"
+...
+```

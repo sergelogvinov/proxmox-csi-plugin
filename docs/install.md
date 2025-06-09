@@ -17,6 +17,8 @@ Create `CSI` role in Proxmox:
 
 ```shell
 pveum role add CSI -privs "VM.Audit VM.Config.Disk Datastore.Allocate Datastore.AllocateSpace Datastore.Audit"
+# Or if you need to use Replication feature
+pveum role add CSI -privs "VM.Audit VM.Config VM.Allocate Datastore.Allocate Datastore.AllocateSpace Datastore.Audit"
 ```
 
 Next create a user `kubernetes-csi@pve` for the CSI plugin and grant it the above role
