@@ -16,10 +16,10 @@ metadata:
   name: proxmox-csi-plugin-controller
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.3.8
+    helm.sh/chart: proxmox-csi-plugin-0.3.9
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
-    app.kubernetes.io/version: "v0.11.0"
+    app.kubernetes.io/version: "v0.12.0"
     app.kubernetes.io/managed-by: Helm
 ---
 # Source: proxmox-csi-plugin/templates/serviceaccount.yaml
@@ -29,10 +29,10 @@ metadata:
   name: proxmox-csi-plugin-node
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.3.8
+    helm.sh/chart: proxmox-csi-plugin-0.3.9
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
-    app.kubernetes.io/version: "v0.11.0"
+    app.kubernetes.io/version: "v0.12.0"
     app.kubernetes.io/managed-by: Helm
 ---
 # Source: proxmox-csi-plugin/templates/storageclass.yaml
@@ -68,10 +68,10 @@ metadata:
   name: proxmox-csi-plugin-controller
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.3.8
+    helm.sh/chart: proxmox-csi-plugin-0.3.9
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
-    app.kubernetes.io/version: "v0.11.0"
+    app.kubernetes.io/version: "v0.12.0"
     app.kubernetes.io/managed-by: Helm
 rules:
   - apiGroups: [""]
@@ -114,10 +114,10 @@ metadata:
   name: proxmox-csi-plugin-node
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.3.8
+    helm.sh/chart: proxmox-csi-plugin-0.3.9
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
-    app.kubernetes.io/version: "v0.11.0"
+    app.kubernetes.io/version: "v0.12.0"
     app.kubernetes.io/managed-by: Helm
 rules:
   - apiGroups:
@@ -162,10 +162,10 @@ metadata:
   name: proxmox-csi-plugin-controller
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.3.8
+    helm.sh/chart: proxmox-csi-plugin-0.3.9
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
-    app.kubernetes.io/version: "v0.11.0"
+    app.kubernetes.io/version: "v0.12.0"
     app.kubernetes.io/managed-by: Helm
 rules:
   - apiGroups: ["coordination.k8s.io"]
@@ -204,10 +204,10 @@ metadata:
   name: proxmox-csi-plugin-node
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.3.8
+    helm.sh/chart: proxmox-csi-plugin-0.3.9
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
-    app.kubernetes.io/version: "v0.11.0"
+    app.kubernetes.io/version: "v0.12.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   updateStrategy:
@@ -243,7 +243,7 @@ spec:
               - DAC_OVERRIDE
             seccompProfile:
               type: RuntimeDefault
-          image: "ghcr.io/sergelogvinov/proxmox-csi-node:v0.11.0"
+          image: "ghcr.io/sergelogvinov/proxmox-csi-node:v0.12.0"
           imagePullPolicy: IfNotPresent
           args:
             - "-v=5"
@@ -344,10 +344,10 @@ metadata:
   name: proxmox-csi-plugin-controller
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.3.8
+    helm.sh/chart: proxmox-csi-plugin-0.3.9
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
-    app.kubernetes.io/version: "v0.11.0"
+    app.kubernetes.io/version: "v0.12.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   replicas: 1
@@ -392,7 +392,7 @@ spec:
             readOnlyRootFilesystem: true
             seccompProfile:
               type: RuntimeDefault
-          image: "ghcr.io/sergelogvinov/proxmox-csi-controller:v0.11.0"
+          image: "ghcr.io/sergelogvinov/proxmox-csi-controller:v0.12.0"
           imagePullPolicy: IfNotPresent
           args:
             - "-v=5"
@@ -428,7 +428,7 @@ spec:
           volumeMounts:
             - name: socket-dir
               mountPath: /csi
-          resources: 
+          resources:
             requests:
               cpu: 10m
               memory: 16Mi
@@ -463,7 +463,7 @@ spec:
           volumeMounts:
             - name: socket-dir
               mountPath: /csi
-          resources: 
+          resources:
             requests:
               cpu: 10m
               memory: 16Mi
@@ -487,7 +487,7 @@ spec:
           volumeMounts:
             - name: socket-dir
               mountPath: /csi
-          resources: 
+          resources:
             requests:
               cpu: 10m
               memory: 16Mi
@@ -508,7 +508,7 @@ spec:
           volumeMounts:
             - name: socket-dir
               mountPath: /csi
-          resources: 
+          resources:
             requests:
               cpu: 10m
               memory: 16Mi

@@ -86,7 +86,7 @@ spec:
           volumeMounts:
             - name: socket-dir
               mountPath: /csi
-          resources: {{ toYaml .Values.controller.attacher.resources | nindent 12 }}
+          resources: {{- toYaml .Values.controller.attacher.resources | nindent 12 }}
         - name: csi-provisioner
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
@@ -116,7 +116,7 @@ spec:
           volumeMounts:
             - name: socket-dir
               mountPath: /csi
-          resources: {{ toYaml .Values.controller.provisioner.resources | nindent 12 }}
+          resources: {{- toYaml .Values.controller.provisioner.resources | nindent 12 }}
         - name: csi-resizer
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
@@ -134,7 +134,7 @@ spec:
           volumeMounts:
             - name: socket-dir
               mountPath: /csi
-          resources: {{ toYaml .Values.controller.resizer.resources | nindent 12 }}
+          resources: {{- toYaml .Values.controller.resizer.resources | nindent 12 }}
         - name: liveness-probe
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
@@ -146,7 +146,7 @@ spec:
           volumeMounts:
             - name: socket-dir
               mountPath: /csi
-          resources: {{ toYaml .Values.livenessprobe.resources | nindent 12 }}
+          resources: {{- toYaml .Values.livenessprobe.resources | nindent 12 }}
       volumes:
         - name: socket-dir
           emptyDir: {}
