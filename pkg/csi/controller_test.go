@@ -377,7 +377,52 @@ func (ts *baseCSITestSuite) setupTestSuite(config string) error {
 		},
 	}
 
-	kclient := fake.NewSimpleClientset(nodes)
+	pv := &corev1.PersistentVolumeList{
+		Items: []corev1.PersistentVolume{
+			{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "PersistentVolume",
+					APIVersion: "v1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "pvc-123",
+				},
+			},
+			{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "PersistentVolume",
+					APIVersion: "v1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "pvc-123-lifecycle",
+					Annotations: map[string]string{
+						csi.PVAnnotationLifecycle: "keep",
+					},
+				},
+			},
+			{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "PersistentVolume",
+					APIVersion: "v1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "pvc-error",
+				},
+			},
+			{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "PersistentVolume",
+					APIVersion: "v1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        "pvc-non-exist",
+					Annotations: map[string]string{},
+				},
+			},
+		},
+	}
+
+	kclient := fake.NewClientset(nodes, pv)
 
 	cluster, err := proxmox.NewCluster(&cfg, &http.Client{})
 	if err != nil {
