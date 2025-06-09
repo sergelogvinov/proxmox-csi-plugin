@@ -5,6 +5,23 @@
 
 * enable support for capmox ([6145c7d](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/6145c7d91cfc47c131ac453e2a90a915e5694b2b))
 
+## [0.12.0](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.11.0...v0.12.0) (2025-06-09)
+
+
+### Features
+
+* **chart:** add CSIStorageCapacity as option ([2a0f8c7](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/2a0f8c75fde0fd3cf421dbba7167f0ca46f505b7))
+* configurable maximum volume attachments per node ([0a4a98f](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/0a4a98ffedef116d91d20cf60a8b9bb02e30e490))
+* enforce single commit requirement ([f7b6ff1](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/f7b6ff1bb570e28dc3b26521507748025fde0016))
+* lifecycle management for pv ([0f7cd72](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/0f7cd7237029ab20ef94e44b43c457785c834614))
+
+
+### Bug Fixes
+
+* **chart:** add missing volumeattributesclasses rule to ClusterRole ([1f10218](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/1f10218dce4c78191d390b5fa839c6cd2516e33e))
+* empty named vms ([2da5ee4](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/2da5ee4c2450cbc00c7a38bb032ac7ee6fd74ded))
+* remove the pv from the dead node ([b0bcd03](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/b0bcd037611e1a97119d5593baed41156fc64218))
+
 ## [0.11.0](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.10.0...v0.11.0) (2025-02-08)
 
 
