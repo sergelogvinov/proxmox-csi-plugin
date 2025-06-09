@@ -1104,7 +1104,6 @@ func (ts *configuredTestSuite) TestControllerUnpublishVolumeError() {
 				NodeId:   "cluster-1-node-3",
 				VolumeId: "cluster-1/pve-1/local-lvm/vm-9999-pvc-123",
 			},
-			expectedError: status.Error(codes.InvalidArgument, "nodes \"cluster-1-node-3\" not found"),
 		},
 		{
 			msg: "WrongPVZone",

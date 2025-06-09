@@ -585,6 +585,12 @@ func (d *ControllerService) ControllerUnpublishVolume(ctx context.Context, reque
 
 	vmr, err := d.getVMRefbyNodeID(ctx, cl, nodeID)
 	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			klog.V(3).InfoS("ControllerUnpublishVolume: node does not exist", "volumeID", vol.VolumeID(), "nodeID", nodeID)
+
+			return &csi.ControllerUnpublishVolumeResponse{}, nil
+		}
+
 		return nil, err
 	}
 
