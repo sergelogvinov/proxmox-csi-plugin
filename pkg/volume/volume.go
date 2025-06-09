@@ -108,3 +108,13 @@ func (v *Volume) VMID() string {
 
 	return parts[1]
 }
+
+// PV function returns the kubernetes Persistent Volume (PV) name associated with the volume.
+func (v *Volume) PV() string {
+	parts := strings.SplitN(v.disk, "-", 3)
+	if len(parts) != 3 {
+		return ""
+	}
+
+	return parts[2]
+}

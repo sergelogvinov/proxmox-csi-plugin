@@ -316,7 +316,7 @@ func (d *ControllerService) CreateVolume(_ context.Context, request *csi.CreateV
 }
 
 // DeleteVolume deletes a volume.
-func (d *ControllerService) DeleteVolume(_ context.Context, request *csi.DeleteVolumeRequest) (*csi.DeleteVolumeResponse, error) {
+func (d *ControllerService) DeleteVolume(ctx context.Context, request *csi.DeleteVolumeRequest) (*csi.DeleteVolumeResponse, error) {
 	klog.V(4).InfoS("DeleteVolume: called", "args", protosanitizer.StripSecrets(request))
 
 	volumeID := request.GetVolumeId()
@@ -334,6 +334,17 @@ func (d *ControllerService) DeleteVolume(_ context.Context, request *csi.DeleteV
 		klog.ErrorS(err, "DeleteVolume: failed to get proxmox cluster", "cluster", vol.Cluster())
 
 		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	pv, err := d.Kclient.CoreV1().PersistentVolumes().Get(ctx, vol.PV(), metav1.GetOptions{})
+	if err != nil {
+		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to get PersistentVolumes: %v", err))
+	}
+
+	if pv.Annotations[PVAnnotationLifecycle] == "keep" {
+		klog.V(2).InfoS("DeleteVolume: volume lifecycle is keep, skipping deletion", "volumeID", vol.VolumeID())
+
+		return &csi.DeleteVolumeResponse{}, nil
 	}
 
 	if vol.Zone() != "" {
