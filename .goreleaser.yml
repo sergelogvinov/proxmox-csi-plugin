@@ -56,9 +56,9 @@ snapshot:
 #       - ghcr.io/sergelogvinov/{{ .ProjectName }}:{{ .Version }}-amd64
 #       - ghcr.io/sergelogvinov/{{ .ProjectName }}:{{ .Version }}-arm64
 
-homebrew_casks:
+brews:
   - name: pvecsictl
-    directory: Casks
+    directory: Formula
     homepage: https://github.com/sergelogvinov/proxmox-csi-plugin
     description: "Proxmox VE CSI Mutate tool"
     license: Apache-2.0
@@ -72,4 +72,7 @@ homebrew_casks:
       branch: main
       token: "{{ .Env.HOMEBREW_TOKEN }}"
 
-    binary: pvecsictl
+    test: |
+      system "#{bin}/pvecsictl -v"
+    install: |
+      bin.install "{{ .Binary }}" => "pvecsictl"
