@@ -5,6 +5,13 @@
 
 * enable support for capmox ([6145c7d](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/6145c7d91cfc47c131ac453e2a90a915e5694b2b))
 
+## [0.12.1](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.12.0...v0.12.1) (2025-06-10)
+
+
+### Bug Fixes
+
+* unpublish when the node no longer exists ([a5d8c70](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/a5d8c70240602788baf93c294bd1366c0fc06486))
+
 ## [0.12.0](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.11.0...v0.12.0) (2025-06-09)
 
 
