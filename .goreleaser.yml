@@ -62,6 +62,8 @@ homebrew_casks:
     homepage: https://github.com/sergelogvinov/proxmox-csi-plugin
     description: "Proxmox VE CSI Mutate tool"
     license: Apache-2.0
+    conflicts:
+      - formula: pvecsictl
 
     commit_author:
       name: sergelogvinov
@@ -72,4 +74,9 @@ homebrew_casks:
       branch: main
       token: "{{ .Env.HOMEBREW_TOKEN }}"
 
-    binary: pvecsictl
+    binary: "pvecsictl"
+    hooks:
+      pre:
+        install: |
+          system_command "/bin/mv", args: ["#{staged_path}/pvecsictl-darwin-#{Hardware::CPU.arch}", "#{staged_path}/pvecsictl"]
+          system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/pvecsictl"]
