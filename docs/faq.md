@@ -7,6 +7,16 @@ But you can do it manually by following tool [pvecsictl](../docs/pvecsictl.md)
 
 The __shared storages__ like nfs, ceph can be migrated between Proxmox nodes automatically.
 
+## Can I migrate a VM between Proxmox nodes with a PVC?
+
+Kubernetes has many immutable objects, and PersistentVolumeClaim (PVC) is one of them.
+Theoretically, you can migrate a VM with a PVC if all disk volumes are located on shared storage.
+
+Plunig requires node labels `topology.kubernetes.io/region` and `topology.kubernetes.io/zone` to be set properly.
+Proxmox CCM (and many other CCMs) uses [Cloud-Provider](https://github.com/kubernetes/cloud-provider.git) framework, which does not support label updates after the node initialization. So, you need to update the labels manually after VM migration.
+
+Make sure that other kubernetes components like CNI can handle the node labels changes.
+
 ## Create a PV/PVC with already existing disk
 
 If you have a disk already created in Proxmox, you can use it with the CSI plugin.
@@ -80,4 +90,21 @@ And change the passphrase in kubernetes secret resource.
 ```shell
 # Remove the old passphrase
 kubectl -n csi-proxmox exec -ti proxmox-csi-plugin-node-hjchn -- /sbin/cryptsetup luksRemoveKey /dev/sdb
+```
+
+## Can I use terraform with Proxmox CSI?
+
+Yes, you can. And I recommend it.
+Do not forget to set ignore changes for all disk. Otherwise, terraform will remove the dynamic PV/PVCs on every apply.
+
+```hcl
+# bpg/proxmox plugin
+
+resource "proxmox_virtual_environment_vm" "vm" {
+
+  lifecycle {
+    ignore_changes = [
+      disk,
+    ]
+  }
 ```

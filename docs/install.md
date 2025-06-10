@@ -40,6 +40,16 @@ kubectl create ns csi-proxmox
 kubectl label ns csi-proxmox pod-security.kubernetes.io/enforce=privileged
 ```
 
+All examples below assume that plugin controller runs on control-plane. Change the `nodeSelector` to match your environment if needed.
+
+```yaml
+nodeSelector:
+  node-role.kubernetes.io/control-plane: ""
+tolerations:
+  - key: node-role.kubernetes.io/control-plane
+    effect: NoSchedule
+```
+
 ### Install the plugin by using kubectl
 
 Create a Proxmox cloud config to connect to your cluster with the Proxmox user you just created
