@@ -8,7 +8,7 @@ metadata:
 spec:
   podManagementPolicy: Parallel # default is OrderedReady
   serviceName: test
-  replicas: 1
+  replicas: 4
   template:
     metadata:
       labels:
@@ -21,6 +21,16 @@ spec:
       nodeSelector:
         # kubernetes.io/hostname: kube-01a
         # topology.kubernetes.io/zone: hvm-1
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchExpressions:
+                  - key: app
+                    operator: In
+                    values:
+                      - alpine
       containers:
         - name: alpine
           image: alpine
@@ -45,6 +55,6 @@ spec:
         accessModes: ["ReadWriteOnce"]
         resources:
           requests:
-            storage: 50Gi
+            storage: 10Gi
         storageClassName: proxmox-lvm
         # volumeAttributesClassName: test

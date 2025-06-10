@@ -18,9 +18,46 @@ package proxmox
 
 import (
 	"fmt"
+	"sync"
 
 	pxapi "github.com/Telmate/proxmox-api-go/proxmox"
 )
+
+// VMLocks is a structure that protects to multiple VMs changes.
+type VMLocks struct {
+	mux   sync.Mutex
+	locks map[string]*sync.Mutex
+}
+
+// NewVMLocks creates a new instance of VMLocks.
+func NewVMLocks() *VMLocks {
+	return &VMLocks{
+		locks: make(map[string]*sync.Mutex),
+	}
+}
+
+// Lock method locks a VM by its name.
+func (v *VMLocks) Lock(name string) {
+	v.mux.Lock()
+	defer v.mux.Unlock()
+
+	if _, exists := v.locks[name]; !exists {
+		v.locks[name] = &sync.Mutex{}
+	}
+
+	v.locks[name].Lock()
+}
+
+// Unlock method unlocks a VM by its name.
+func (v *VMLocks) Unlock(name string) {
+	v.mux.Lock()
+	defer v.mux.Unlock()
+
+	if lock, exists := v.locks[name]; exists {
+		lock.Unlock()
+		delete(v.locks, name)
+	}
+}
 
 // CreateQemuVM creates a new simple Qemu VM on the given node with the given name.
 func CreateQemuVM(client *pxapi.Client, vmr *pxapi.VmRef, name string) error {
