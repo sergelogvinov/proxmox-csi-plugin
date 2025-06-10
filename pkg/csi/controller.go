@@ -23,7 +23,6 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"sync"
 
 	pxapi "github.com/Telmate/proxmox-api-go/proxmox"
 	"github.com/container-storage-interface/spec/lib/go/csi"
@@ -62,10 +61,11 @@ var controllerCaps = []csi.ControllerServiceCapability_RPC_Type{
 
 // ControllerService is the controller service for the CSI driver
 type ControllerService struct {
-	Cluster     *cluster.Cluster
-	Kclient     clientkubernetes.Interface
-	Provider    cluster.Provider
-	volumeLocks sync.Mutex
+	Cluster  *cluster.Cluster
+	Kclient  clientkubernetes.Interface
+	Provider cluster.Provider
+
+	vmLocks *proxmox.VMLocks
 
 	csi.UnimplementedControllerServer
 }
@@ -82,11 +82,22 @@ func NewControllerService(kclient *clientkubernetes.Clientset, cloudConfig strin
 		return nil, fmt.Errorf("failed to create proxmox cluster client: %v", err)
 	}
 
-	return &ControllerService{
+	d := &ControllerService{
 		Cluster:  cluster,
 		Kclient:  kclient,
 		Provider: cfg.Features.Provider,
-	}, nil
+	}
+
+	d.Init()
+
+	return d, nil
+}
+
+// Init initializes the controller service
+func (d *ControllerService) Init() {
+	if d.vmLocks == nil {
+		d.vmLocks = proxmox.NewVMLocks()
+	}
 }
 
 // CreateVolume creates a volume
@@ -505,8 +516,8 @@ func (d *ControllerService) ControllerPublishVolume(ctx context.Context, request
 		return nil, status.Error(codes.NotFound, "volume not found")
 	}
 
-	d.volumeLocks.Lock()
-	defer d.volumeLocks.Unlock()
+	d.vmLocks.Lock(nodeID)
+	defer d.vmLocks.Unlock(nodeID)
 
 	if params.Replicate != nil && *params.Replicate {
 		vmrVol, err := getVMRefByVolume(cl, vol)
@@ -593,6 +604,9 @@ func (d *ControllerService) ControllerUnpublishVolume(ctx context.Context, reque
 
 		return nil, err
 	}
+
+	d.vmLocks.Lock(nodeID)
+	defer d.vmLocks.Unlock(nodeID)
 
 	mc := metrics.NewMetricContext("detachVolume")
 	if err := detachVolume(cl, vmr, vol.Disk()); mc.ObserveRequest(err) != nil {
@@ -883,9 +897,6 @@ func (d *ControllerService) ControllerModifyVolume(_ context.Context, request *c
 
 		return nil, status.Error(codes.NotFound, err.Error())
 	}
-
-	d.volumeLocks.Lock()
-	defer d.volumeLocks.Unlock()
 
 	klog.V(5).InfoS("ControllerModifyVolume: update volume", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "vmID", vmr.VmId(), "parameters", paramsVAC.ToMap())
 

@@ -333,11 +333,6 @@ func setupMockResponders() {
 }
 
 func (ts *baseCSITestSuite) setupTestSuite(config string) error {
-	cfg, err := proxmox.ReadCloudConfig(strings.NewReader(config))
-	if err != nil {
-		return fmt.Errorf("failed to read config: %v", err)
-	}
-
 	nodes := &corev1.NodeList{
 		Items: []corev1.Node{
 			{
@@ -424,6 +419,11 @@ func (ts *baseCSITestSuite) setupTestSuite(config string) error {
 
 	kclient := fake.NewClientset(nodes, pv)
 
+	cfg, err := proxmox.ReadCloudConfig(strings.NewReader(config))
+	if err != nil {
+		return fmt.Errorf("failed to read config: %v", err)
+	}
+
 	cluster, err := proxmox.NewCluster(&cfg, &http.Client{})
 	if err != nil {
 		return fmt.Errorf("failed to create proxmox cluster client: %v", err)
@@ -434,6 +434,8 @@ func (ts *baseCSITestSuite) setupTestSuite(config string) error {
 		Kclient:  kclient,
 		Provider: cfg.Features.Provider,
 	}
+
+	ts.s.Init()
 
 	return nil
 }
