@@ -108,3 +108,15 @@ resource "proxmox_virtual_environment_vm" "vm" {
     ]
   }
 ```
+
+## Can I use only one shared storage class in the cluster?
+
+Yes, you can use only one shared storage class in the cluster.
+To avoid unnecessary API calls, you can disable disk capacity gathering in the plugin.
+
+```yaml
+# Helm chart values.yaml
+
+options:
+  enableCapacity: false
+```

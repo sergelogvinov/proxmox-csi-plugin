@@ -216,6 +216,14 @@ func setupMockResponders() {
 		},
 	)
 
+	httpmock.RegisterResponder("GET", "https://127.0.0.1:8006/api2/json/storage/storage",
+		func(_ *http.Request) (*http.Response, error) {
+			return httpmock.NewJsonResponse(200, map[string]interface{}{
+				"data": map[string]interface{}{},
+			})
+		},
+	)
+
 	httpmock.RegisterResponder("GET", "https://127.0.0.1:8006/api2/json/storage/local-lvm",
 		func(_ *http.Request) (*http.Response, error) {
 			return httpmock.NewJsonResponse(200, map[string]interface{}{
@@ -1171,7 +1179,7 @@ func (ts *configuredTestSuite) TestGetCapacity() {
 			request: &proto.GetCapacityRequest{
 				AccessibleTopology: &proto.Topology{},
 			},
-			expectedError: status.Error(codes.InvalidArgument, "region, zone and storageName must be provided"),
+			expectedError: status.Error(codes.InvalidArgument, "region and storage must be provided"),
 		},
 		{
 			msg: "TopologyRegion",
@@ -1182,10 +1190,10 @@ func (ts *configuredTestSuite) TestGetCapacity() {
 					},
 				},
 				Parameters: map[string]string{
-					csi.StorageIDKey: "storage",
+					csi.StorageIDKey: "local-lvm",
 				},
 			},
-			expectedError: status.Error(codes.InvalidArgument, "region, zone and storageName must be provided"),
+			expectedError: status.Error(codes.Internal, "proxmox cluster region not found"),
 		},
 		{
 			msg: "TopologyZone",
@@ -1196,10 +1204,10 @@ func (ts *configuredTestSuite) TestGetCapacity() {
 					},
 				},
 				Parameters: map[string]string{
-					csi.StorageIDKey: "storage",
+					csi.StorageIDKey: "local-lvm",
 				},
 			},
-			expectedError: status.Error(codes.InvalidArgument, "region, zone and storageName must be provided"),
+			expectedError: status.Error(codes.InvalidArgument, "region and storage must be provided"),
 		},
 		{
 			msg: "TopologyStorageName",
@@ -1211,7 +1219,7 @@ func (ts *configuredTestSuite) TestGetCapacity() {
 					},
 				},
 			},
-			expectedError: status.Error(codes.InvalidArgument, "region, zone and storageName must be provided"),
+			expectedError: status.Error(codes.InvalidArgument, "region and storage must be provided"),
 		},
 		{
 			msg: "Topology",
@@ -1223,7 +1231,7 @@ func (ts *configuredTestSuite) TestGetCapacity() {
 					},
 				},
 				Parameters: map[string]string{
-					csi.StorageIDKey: "storage",
+					csi.StorageIDKey: "local-lvm",
 				},
 			},
 			expectedError: status.Error(codes.Internal, "proxmox cluster region not found"),

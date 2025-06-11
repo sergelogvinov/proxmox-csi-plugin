@@ -9,3 +9,8 @@ parameters:
 provisioner: csi.proxmox.sinextra.dev
 reclaimPolicy: Delete
 volumeBindingMode: WaitForFirstConsumer
+# allowedTopologies:
+#   - matchLabelExpressions:
+#       - key: topology.kubernetes.io/region
+#         values:
+#           - region-1
