@@ -644,8 +644,8 @@ func (d *ControllerService) GetCapacity(_ context.Context, request *csi.GetCapac
 		zone := topology.GetSegments()[corev1.LabelTopologyZone]
 		storageID := request.GetParameters()[StorageIDKey]
 
-		if region == "" || zone == "" || storageID == "" {
-			return nil, status.Error(codes.InvalidArgument, "region, zone and storageName must be provided")
+		if region == "" || storageID == "" {
+			return nil, status.Error(codes.InvalidArgument, "region and storage must be provided")
 		}
 
 		klog.V(3).InfoS("GetCapacity", "region", region, "zone", zone, "storageID", storageID)
@@ -655,6 +655,29 @@ func (d *ControllerService) GetCapacity(_ context.Context, request *csi.GetCapac
 			klog.ErrorS(err, "GetCapacity: failed to get proxmox cluster", "cluster", region)
 
 			return nil, status.Error(codes.Internal, err.Error())
+		}
+
+		storageConfig, err := cl.GetStorageConfig(storageID)
+		if err != nil {
+			klog.ErrorS(err, "GetCapacity: failed to get proxmox storage config", "cluster", region, "storageID", storageID)
+
+			return nil, status.Error(codes.Internal, err.Error())
+		}
+
+		shared := 0
+		if storageConfig["shared"] != nil && int(storageConfig["shared"].(float64)) == 1 { //nolint:errcheck
+			shared = 1
+		}
+
+		if zone == "" {
+			if shared == 0 {
+				return nil, status.Error(codes.InvalidArgument, "zone must be provided")
+			}
+
+			zone, err = getNodeWithStorage(cl, storageID)
+			if err != nil {
+				return nil, status.Error(codes.Internal, err.Error())
+			}
 		}
 
 		vmr := pxapi.NewVmRef(vmID)
@@ -675,6 +698,8 @@ func (d *ControllerService) GetCapacity(_ context.Context, request *csi.GetCapac
 		} else {
 			availableCapacity = int64(storage["avail"].(float64)) //nolint:errcheck
 		}
+
+		klog.V(5).InfoS("GetCapacity: collected", "region", region, "zone", zone, "storageID", storageID, "shared", shared, "size", availableCapacity)
 
 		return &csi.GetCapacityResponse{
 			// MinimumVolumeSize: MinVolumeSize * 1024 * 1024 * 1024,
