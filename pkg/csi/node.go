@@ -549,8 +549,10 @@ func (n *NodeService) NodeGetInfo(ctx context.Context, _ *csi.NodeGetInfoRequest
 		return nil, fmt.Errorf("failed to get region for node %s", n.nodeID)
 	}
 
+	sharedStorage := os.Getenv("SHARED_STORAGE") == "1"
+
 	zone := node.Labels[corev1.LabelTopologyZone]
-	if zone == "" {
+	if zone == "" && !sharedStorage {
 		return nil, fmt.Errorf("failed to get zone for node %s", n.nodeID)
 	}
 
