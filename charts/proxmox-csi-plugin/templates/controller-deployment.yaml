@@ -27,6 +27,9 @@ spec:
       {{- end }}
       labels:
         {{- include "proxmox-csi-plugin.selectorLabels" . | nindent 8 }}
+        {{- with default .Values.podLabels .Values.controller.podLabels -}}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
     spec:
       {{- if .Values.priorityClassName }}
       priorityClassName: {{ .Values.priorityClassName }}
