@@ -19,7 +19,7 @@ metadata:
     helm.sh/chart: proxmox-csi-plugin-0.3.11
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
-    app.kubernetes.io/version: "8352a44"
+    app.kubernetes.io/version: "5450f6c"
     app.kubernetes.io/managed-by: Helm
 ---
 # Source: proxmox-csi-plugin/templates/serviceaccount.yaml
@@ -32,7 +32,7 @@ metadata:
     helm.sh/chart: proxmox-csi-plugin-0.3.11
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
-    app.kubernetes.io/version: "8352a44"
+    app.kubernetes.io/version: "5450f6c"
     app.kubernetes.io/managed-by: Helm
 ---
 # Source: proxmox-csi-plugin/templates/storageclass.yaml
@@ -72,7 +72,7 @@ metadata:
     helm.sh/chart: proxmox-csi-plugin-0.3.11
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
-    app.kubernetes.io/version: "8352a44"
+    app.kubernetes.io/version: "5450f6c"
     app.kubernetes.io/managed-by: Helm
 rules:
   - apiGroups: [""]
@@ -118,7 +118,7 @@ metadata:
     helm.sh/chart: proxmox-csi-plugin-0.3.11
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
-    app.kubernetes.io/version: "8352a44"
+    app.kubernetes.io/version: "5450f6c"
     app.kubernetes.io/managed-by: Helm
 rules:
   - apiGroups:
@@ -166,7 +166,7 @@ metadata:
     helm.sh/chart: proxmox-csi-plugin-0.3.11
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
-    app.kubernetes.io/version: "8352a44"
+    app.kubernetes.io/version: "5450f6c"
     app.kubernetes.io/managed-by: Helm
 rules:
   - apiGroups: ["coordination.k8s.io"]
@@ -208,7 +208,7 @@ metadata:
     helm.sh/chart: proxmox-csi-plugin-0.3.11
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
-    app.kubernetes.io/version: "8352a44"
+    app.kubernetes.io/version: "5450f6c"
     app.kubernetes.io/managed-by: Helm
 spec:
   updateStrategy:
@@ -351,7 +351,7 @@ metadata:
     helm.sh/chart: proxmox-csi-plugin-0.3.11
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
-    app.kubernetes.io/version: "8352a44"
+    app.kubernetes.io/version: "5450f6c"
     app.kubernetes.io/managed-by: Helm
 spec:
   replicas: 1
