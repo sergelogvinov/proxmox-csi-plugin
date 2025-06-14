@@ -5,6 +5,15 @@
 
 * enable support for capmox ([6145c7d](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/6145c7d91cfc47c131ac453e2a90a915e5694b2b))
 
+## [0.13.0](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.12.1...v0.13.0) (2025-06-14)
+
+
+### Features
+
+* **chart:** customize pod labels ([93c1175](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/93c11750ac952ce006ebe50758e95f4e1f85c61b))
+* concurrent attach/detach pv ([3db4ca4](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/3db4ca40b8a301bb8c0426db34c23d12939f24bf))
+* get capacity with shared storages ([fa9c34b](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/fa9c34bc0803236e793a7ce60fcc2c15af94ec05))
+
 ## [0.12.1](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.12.0...v0.12.1) (2025-06-10)
 
 
