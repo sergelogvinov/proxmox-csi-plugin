@@ -39,12 +39,12 @@ func NewVMLocks() *VMLocks {
 // Lock method locks a VM by its name.
 func (v *VMLocks) Lock(name string) {
 	v.mux.Lock()
-	defer v.mux.Unlock()
 
 	if _, exists := v.locks[name]; !exists {
 		v.locks[name] = &sync.Mutex{}
 	}
 
+	v.mux.Unlock()
 	v.locks[name].Lock()
 }
 
@@ -55,7 +55,6 @@ func (v *VMLocks) Unlock(name string) {
 
 	if lock, exists := v.locks[name]; exists {
 		lock.Unlock()
-		delete(v.locks, name)
 	}
 }
 
