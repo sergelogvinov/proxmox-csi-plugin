@@ -222,7 +222,7 @@ func isVolumeAttached(vmConfig map[string]interface{}, pvc string) (int, bool) {
 	return 0, false
 }
 
-func waitForVolumeAttach(cl *pxapi.Client, vmr *pxapi.VmRef, lun int) error {
+func waitForVolumeAttach(cl *pxapi.Client, vmr *pxapi.VmRef, lun int, pvc string) error {
 	waited := 0
 	for waited < TaskTimeout {
 		config, err := cl.GetVmConfig(vmr)
@@ -231,7 +231,7 @@ func waitForVolumeAttach(cl *pxapi.Client, vmr *pxapi.VmRef, lun int) error {
 		}
 
 		device := fmt.Sprintf("%s%d", deviceNamePrefix, lun)
-		if config[device] != nil {
+		if config[device] != nil && strings.Contains(config[device].(string), pvc) { //nolint:errcheck
 			return nil
 		}
 
@@ -242,7 +242,7 @@ func waitForVolumeAttach(cl *pxapi.Client, vmr *pxapi.VmRef, lun int) error {
 	return fmt.Errorf("timeout waiting for disk to attach")
 }
 
-func waitForVolumeDetach(cl *pxapi.Client, vmr *pxapi.VmRef, lun int) error {
+func waitForVolumeDetach(cl *pxapi.Client, vmr *pxapi.VmRef, lun int, pvc string) error {
 	waited := 0
 	for waited < TaskTimeout {
 		config, err := cl.GetVmConfig(vmr)
@@ -252,6 +252,8 @@ func waitForVolumeDetach(cl *pxapi.Client, vmr *pxapi.VmRef, lun int) error {
 
 		device := fmt.Sprintf("%s%d", deviceNamePrefix, lun)
 		if config[device] == nil {
+			return nil
+		} else if !strings.Contains(config[device].(string), pvc) { //nolint:errcheck
 			return nil
 		}
 
@@ -316,7 +318,7 @@ func attachVolume(cl *pxapi.Client, vmr *pxapi.VmRef, storageName string, pvc st
 					return nil, fmt.Errorf("failed to attach disk: %v, vmParams=%+v", err, vmParams)
 				}
 
-				if err := waitForVolumeAttach(cl, vmr, lun); err != nil {
+				if err := waitForVolumeAttach(cl, vmr, lun, pvc); err != nil {
 					return nil, fmt.Errorf("failed to wait for disk attach: %v", err)
 				}
 
@@ -394,7 +396,7 @@ func detachVolume(cl *pxapi.Client, vmr *pxapi.VmRef, pvc string) error {
 		return fmt.Errorf("failed to set vm config: %v, vmParams=%+v", err, vmParams)
 	}
 
-	if err := waitForVolumeDetach(cl, vmr, lun); err != nil {
+	if err := waitForVolumeDetach(cl, vmr, lun, pvc); err != nil {
 		return fmt.Errorf("failed to wait for disk detach: %v", err)
 	}
 
