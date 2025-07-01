@@ -3,12 +3,12 @@ module github.com/sergelogvinov/proxmox-csi-plugin
 go 1.24.4
 
 require (
-	github.com/Telmate/proxmox-api-go v0.0.0-20241127232213-af1f4e86b570
+	github.com/Telmate/proxmox-api-go v0.0.0-20250202141955-0f3daee49334
 	github.com/container-storage-interface/spec v1.11.0
 	github.com/golang/protobuf v1.5.4
 	github.com/jarcoal/httpmock v1.4.0
 	github.com/kubernetes-csi/csi-lib-utils v0.22.0
-	github.com/sergelogvinov/proxmox-cloud-controller-manager v0.7.0
+	github.com/sergelogvinov/proxmox-cloud-controller-manager v0.9.0
 	github.com/siderolabs/go-blockdevice v0.4.8
 	github.com/siderolabs/go-retry v0.3.3
 	github.com/sirupsen/logrus v1.9.3
@@ -61,6 +61,7 @@ require (
 	github.com/x448/float16 v0.8.4 // indirect
 	go.opentelemetry.io/otel v1.35.0 // indirect
 	go.opentelemetry.io/otel/trace v1.35.0 // indirect
+	golang.org/x/crypto v0.38.0 // indirect
 	golang.org/x/net v0.40.0 // indirect
 	golang.org/x/oauth2 v0.30.0 // indirect
 	golang.org/x/sys v0.33.0 // indirect
