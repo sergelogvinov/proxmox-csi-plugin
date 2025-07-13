@@ -131,7 +131,6 @@ func TestNodeStageVolumeErrors(t *testing.T) {
 			t.Parallel()
 
 			resp, err := env.service.NodeStageVolume(t.Context(), testCase.request)
-
 			if testCase.expectedError != nil {
 				assert.NotNil(t, err)
 				assert.Contains(t, err.Error(), testCase.expectedError.Error())

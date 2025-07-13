@@ -56,7 +56,6 @@ func TestParseEndpoint(t *testing.T) {
 			t.Parallel()
 
 			scheme, addr, err := ParseEndpoint(testCase.endpoint)
-
 			if testCase.expectedError != nil {
 				assert.NotNil(t, err)
 				assert.Equal(t, err.Error(), testCase.expectedError.Error())
