@@ -6,6 +6,7 @@ metadata:
 parameters:
   csi.storage.k8s.io/fstype: xfs
   storage: rbd
+  storageFormat: qcow2
 provisioner: csi.proxmox.sinextra.dev
 reclaimPolicy: Delete
 volumeBindingMode: WaitForFirstConsumer

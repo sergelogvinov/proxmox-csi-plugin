@@ -47,6 +47,7 @@ parameters:
   # Proxmox csi options
   ## Proxmox storage ID
   storage: data
+  storageFormat: raw|qcow2
 
   ## Optional: Proxmox csi options
   cache: directsync|none|writeback|writethrough
@@ -124,6 +125,8 @@ metadata:
 * `inodeSize` - Specify the size of each inode in bytes.
 
 * `storage` - proxmox storage ID
+* `storageFormat` - disk format: `raw`, `qcow2` [Official documentation](https://pve.proxmox.com/wiki/Storage)
+
 * `cache` - qemu cache param: `directsync`, `none`, `writeback`, `writethrough` [Official documentation](https://pve.proxmox.com/wiki/Performance_Tweaks)
 * `ssd` - set true if SSD/NVME disk
 

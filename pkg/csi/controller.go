@@ -237,8 +237,14 @@ func (d *ControllerService) CreateVolume(_ context.Context, request *csi.CreateV
 	}
 
 	vol := volume.NewVolume(region, zone, params[StorageIDKey], fmt.Sprintf("vm-%d-%s", vmr.VmId(), pvc))
+
 	if storageConfig["path"] != nil && storageConfig["path"].(string) != "" { //nolint:errcheck
-		vol = volume.NewVolume(region, zone, params[StorageIDKey], fmt.Sprintf("%d/vm-%d-%s.raw", vmr.VmId(), vmr.VmId(), pvc))
+		format := "raw"
+		if params[StorageFormatKey] == "qcow2" {
+			format = params[StorageFormatKey]
+		}
+
+		vol = volume.NewVolume(region, zone, params[StorageIDKey], fmt.Sprintf("%d/vm-%d-%s.%s", vmr.VmId(), vmr.VmId(), pvc, format))
 	}
 
 	// Check if volume already exists, and use it if it has the same size, otherwise create a new one
