@@ -53,11 +53,19 @@ linters:
     - thelper
     - varnamelen
     - wrapcheck
+    - wsl
 
     # temporarily disabled linters
     - copyloopvar
     - intrange
+    - noinlineerr
   settings:
+    wsl_v5:
+      allow-first-in-block: true
+      allow-whole-block: false
+      branch-max-lines: 2
+      disable:
+        - err
     cyclop:
       max-complexity: 30
     dupl:

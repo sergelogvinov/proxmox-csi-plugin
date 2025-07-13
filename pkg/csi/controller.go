@@ -61,13 +61,13 @@ var controllerCaps = []csi.ControllerServiceCapability_RPC_Type{
 
 // ControllerService is the controller service for the CSI driver
 type ControllerService struct {
+	csi.UnimplementedControllerServer
+
 	Cluster  *cluster.Cluster
 	Kclient  clientkubernetes.Interface
 	Provider cluster.Provider
 
 	vmLocks *proxmox.VMLocks
-
-	csi.UnimplementedControllerServer
 }
 
 // NewControllerService returns a new controller service

@@ -166,11 +166,11 @@ func (c *swapCmd) runSwap(cmd *cobra.Command, args []string) error {
 				return nil
 			}
 
-			if err = waitPods(args[0]); err != nil {
+			if err := waitPods(args[0]); err != nil {
 				return err
 			}
 
-			if err = waitPods(args[1]); err != nil {
+			if err := waitPods(args[1]); err != nil {
 				return err
 			}
 

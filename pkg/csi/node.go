@@ -59,20 +59,20 @@ var volumeCaps = []csi.VolumeCapability_AccessMode_Mode{
 }
 
 const (
-	// VolumesPerNodeHardLimit is the technical limititation of the number of volumes that can be attached to a single node.
+	// VolumesPerNodeHardLimit is the technical limitation of the number of volumes that can be attached to a single node.
 	// This is currently limited by the QEMU limit of 30 iscsi volumes, see `man qm` for details.`
 	VolumesPerNodeHardLimit = 30
 )
 
 // NodeService is the node service for the CSI driver
 type NodeService struct {
+	csi.UnimplementedNodeServer
+
 	nodeID  string
 	kclient kubernetes.Interface
 
 	Mount       mount.IMount
 	volumeLocks sync.Mutex
-
-	csi.UnimplementedNodeServer
 }
 
 // NewNodeService returns a new NodeService
@@ -605,7 +605,7 @@ func isValidVolumeCapabilities(volCaps []*csi.VolumeCapability) bool {
 }
 
 func collectMountOptions(fsType string, mntFlags []string) []string {
-	var options []string
+	options := []string{}
 	options = append(options, mntFlags...)
 
 	// By default, xfs does not allow mounting of two volumes with the same filesystem uuid.

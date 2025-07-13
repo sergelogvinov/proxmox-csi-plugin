@@ -43,6 +43,7 @@ var _ proto.ControllerServer = (*csi.ControllerService)(nil)
 
 type baseCSITestSuite struct {
 	suite.Suite
+
 	s *csi.ControllerService
 }
 
@@ -466,6 +467,7 @@ func TestSuiteCSI(t *testing.T) {
 // configuredTestSuite wraps the base suite with a specific configuration
 type configuredTestSuite struct {
 	*baseCSITestSuite
+
 	configCase configTestCase
 }
 
@@ -649,7 +651,7 @@ func (ts *configuredTestSuite) TestCreateVolume() {
 			expectedError: status.Error(codes.Internal, "cannot find best region"),
 		},
 		{
-			msg: "UnknowRegion",
+			msg: "UnknownRegion",
 			request: &proto.CreateVolumeRequest{
 				Name:               "volume-id",
 				Parameters:         volParam,
@@ -826,7 +828,6 @@ func (ts *configuredTestSuite) TestCreateVolume() {
 
 		ts.Run(fmt.Sprint(testCase.msg), func() {
 			resp, err := ts.s.CreateVolume(context.Background(), testCase.request)
-
 			if testCase.expectedError == nil {
 				ts.Require().NoError(err)
 				ts.Require().Equal(resp, testCase.expected)
@@ -910,7 +911,6 @@ func (ts *configuredTestSuite) TestDeleteVolume() {
 
 		ts.Run(fmt.Sprint(testCase.msg), func() {
 			resp, err := ts.s.DeleteVolume(context.Background(), testCase.request)
-
 			if testCase.expectedError == nil {
 				ts.Require().NoError(err)
 				ts.Require().Equal(resp, testCase.expected)
@@ -1056,7 +1056,6 @@ func (ts *configuredTestSuite) TestControllerPublishVolumeError() {
 
 		ts.Run(fmt.Sprint(testCase.msg), func() {
 			resp, err := ts.s.ControllerPublishVolume(context.Background(), testCase.request)
-
 			if testCase.expectedError == nil {
 				ts.Require().NoError(err)
 				ts.Require().Equal(resp, testCase.expected)
@@ -1136,7 +1135,6 @@ func (ts *configuredTestSuite) TestControllerUnpublishVolumeError() {
 
 		ts.Run(fmt.Sprint(testCase.msg), func() {
 			_, err := ts.s.ControllerUnpublishVolume(context.Background(), testCase.request)
-
 			if testCase.expectedError == nil {
 				ts.Require().NoError(err)
 			} else {
@@ -1275,7 +1273,6 @@ func (ts *configuredTestSuite) TestGetCapacity() {
 
 		ts.Run(fmt.Sprint(testCase.msg), func() {
 			resp, err := ts.s.GetCapacity(context.Background(), testCase.request)
-
 			if testCase.expectedError == nil {
 				ts.Require().NoError(err)
 				ts.Require().Equal(testCase.expected, resp)
@@ -1418,7 +1415,6 @@ func (ts *configuredTestSuite) TestControllerExpandVolumeError() {
 
 		ts.Run(fmt.Sprint(testCase.msg), func() {
 			resp, err := ts.s.ControllerExpandVolume(context.Background(), testCase.request)
-
 			if testCase.expectedError == nil {
 				ts.Require().NoError(err)
 				ts.Require().Equal(testCase.expected, resp)
