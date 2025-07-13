@@ -116,5 +116,5 @@ func (v *Volume) PV() string {
 		return ""
 	}
 
-	return parts[2]
+	return strings.SplitN(parts[2], ".", 2)[0]
 }
