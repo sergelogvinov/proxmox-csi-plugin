@@ -28,6 +28,8 @@ import (
 const (
 	// StorageIDKey is the ID of the Proxmox storage
 	StorageIDKey = "storage"
+	// StorageFormatKey is the disk format, can be one of "raw", "qcow2", only for file storage devices
+	StorageFormatKey = "storageFormat"
 	// StorageCacheKey is the cache type, can be one of "directsync", "none", "writeback", "writethrough"
 	StorageCacheKey = "cache"
 	// StorageSSDKey is it ssd disk
