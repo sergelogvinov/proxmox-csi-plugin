@@ -30,8 +30,9 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	proxmox "github.com/sergelogvinov/proxmox-cloud-controller-manager/pkg/cluster"
+	csiconfig "github.com/sergelogvinov/proxmox-csi-plugin/pkg/config"
 	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/csi"
+	pxpool "github.com/sergelogvinov/proxmox-csi-plugin/pkg/proxmoxpool"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -428,12 +429,12 @@ func (ts *baseCSITestSuite) setupTestSuite(config string) error {
 
 	kclient := fake.NewClientset(nodes, pv)
 
-	cfg, err := proxmox.ReadCloudConfig(strings.NewReader(config))
+	cfg, err := csiconfig.ReadCloudConfig(strings.NewReader(config))
 	if err != nil {
 		return fmt.Errorf("failed to read config: %v", err)
 	}
 
-	cluster, err := proxmox.NewCluster(&cfg, &http.Client{})
+	cluster, err := pxpool.NewProxmoxPool(cfg.Clusters, &http.Client{})
 	if err != nil {
 		return fmt.Errorf("failed to create proxmox cluster client: %v", err)
 	}
