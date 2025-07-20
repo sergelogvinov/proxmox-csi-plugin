@@ -52,7 +52,8 @@ tolerations:
 
 ### Install the plugin by using kubectl
 
-Create a Proxmox cloud config to connect to your cluster with the Proxmox user you just created
+Create a Proxmox cloud config to connect to your cluster with the Proxmox user you just created.
+More information about the configuration can be found in [config.md](config.md).
 
 ```yaml
 # config.yaml
