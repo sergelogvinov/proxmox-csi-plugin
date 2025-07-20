@@ -24,9 +24,10 @@ import (
 
 	cobra "github.com/spf13/cobra"
 
-	proxmox "github.com/sergelogvinov/proxmox-cloud-controller-manager/pkg/cluster"
+	csiconfig "github.com/sergelogvinov/proxmox-csi-plugin/pkg/config"
 	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/csi"
 	vm "github.com/sergelogvinov/proxmox-csi-plugin/pkg/proxmox"
+	pxpool "github.com/sergelogvinov/proxmox-csi-plugin/pkg/proxmoxpool"
 	tools "github.com/sergelogvinov/proxmox-csi-plugin/pkg/tools"
 	volume "github.com/sergelogvinov/proxmox-csi-plugin/pkg/volume"
 
@@ -36,7 +37,7 @@ import (
 )
 
 type migrateCmd struct {
-	pclient   *proxmox.Cluster
+	pclient   *pxpool.ProxmoxPool
 	kclient   *clientkubernetes.Clientset
 	namespace string
 }
@@ -188,7 +189,7 @@ func (c *migrateCmd) runMigration(cmd *cobra.Command, args []string) error {
 func (c *migrateCmd) migrationValidate(cmd *cobra.Command, _ []string) error {
 	flags := cmd.Flags()
 
-	cfg, err := proxmox.ReadCloudConfigFromFile(cloudconfig)
+	cfg, err := csiconfig.ReadCloudConfigFromFile(cloudconfig)
 	if err != nil {
 		return fmt.Errorf("failed to read config: %v", err)
 	}
@@ -199,12 +200,12 @@ func (c *migrateCmd) migrationValidate(cmd *cobra.Command, _ []string) error {
 		}
 	}
 
-	c.pclient, err = proxmox.NewCluster(&cfg, nil)
+	c.pclient, err = pxpool.NewProxmoxPool(cfg.Clusters, nil)
 	if err != nil {
 		return fmt.Errorf("failed to create Proxmox cluster client: %v", err)
 	}
 
-	if err = c.pclient.CheckClusters(); err != nil {
+	if err = c.pclient.CheckClusters(context.TODO()); err != nil {
 		return fmt.Errorf("failed to initialize Proxmox clusters: %v", err)
 	}
 

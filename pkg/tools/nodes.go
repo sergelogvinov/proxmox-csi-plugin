@@ -20,7 +20,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/sergelogvinov/proxmox-cloud-controller-manager/pkg/provider"
+	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/utils/provider"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

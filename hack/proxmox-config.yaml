@@ -1,0 +1,11 @@
+clusters:
+  - url: https://cluster-api-1.exmple.com:8006/api2/json
+    insecure: false
+    token_id: "user!token-id"
+    token_secret: "secret"
+    region: cluster-1
+  - url: https://cluster-api-2.exmple.com:8006/api2/json
+    insecure: false
+    token_id: "user!token-id"
+    token_secret: "secret"
+    region: cluster-2

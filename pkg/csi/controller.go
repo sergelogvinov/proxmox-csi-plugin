@@ -30,10 +30,11 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	cluster "github.com/sergelogvinov/proxmox-cloud-controller-manager/pkg/cluster"
+	csiconfig "github.com/sergelogvinov/proxmox-csi-plugin/pkg/config"
 	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/helpers/ptr"
 	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/metrics"
 	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/proxmox"
+	pxpool "github.com/sergelogvinov/proxmox-csi-plugin/pkg/proxmoxpool"
 	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/tools"
 	volume "github.com/sergelogvinov/proxmox-csi-plugin/pkg/volume"
 
@@ -63,21 +64,21 @@ var controllerCaps = []csi.ControllerServiceCapability_RPC_Type{
 type ControllerService struct {
 	csi.UnimplementedControllerServer
 
-	Cluster  *cluster.Cluster
+	Cluster  *pxpool.ProxmoxPool
 	Kclient  clientkubernetes.Interface
-	Provider cluster.Provider
+	Provider csiconfig.Provider
 
 	vmLocks *proxmox.VMLocks
 }
 
 // NewControllerService returns a new controller service
 func NewControllerService(kclient *clientkubernetes.Clientset, cloudConfig string) (*ControllerService, error) {
-	cfg, err := cluster.ReadCloudConfigFromFile(cloudConfig)
+	cfg, err := csiconfig.ReadCloudConfigFromFile(cloudConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read config: %v", err)
 	}
 
-	cluster, err := cluster.NewCluster(&cfg, nil)
+	cluster, err := pxpool.NewProxmoxPool(cfg.Clusters, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create proxmox cluster client: %v", err)
 	}
@@ -949,8 +950,8 @@ func (d *ControllerService) getVMRefbyNodeID(ctx context.Context, cl *pxapi.Clie
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
-	if d.Provider == cluster.ProviderCapmox {
-		vmr, _, err = d.Cluster.FindVMByUUID(node.Status.NodeInfo.SystemUUID)
+	if d.Provider == csiconfig.ProviderCapmox {
+		vmr, _, err = d.Cluster.FindVMByUUID(ctx, node.Status.NodeInfo.SystemUUID)
 		if err != nil {
 			return nil, status.Error(codes.Internal, err.Error())
 		}
