@@ -8,6 +8,6 @@ storage: {{ .storage | required "Proxmox Storage name must be provided." }}
 cache: {{ . }}
 {{- end }}
 {{- if .ssd }}
-ssd: "true"
+ssd: {{ .ssd | quote }}
 {{- end }}
 {{- end }}
