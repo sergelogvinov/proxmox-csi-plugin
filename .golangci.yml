@@ -59,6 +59,7 @@ linters:
     - copyloopvar
     - intrange
     - noinlineerr
+    - noctx
   settings:
     wsl_v5:
       allow-first-in-block: true

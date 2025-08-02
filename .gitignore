@@ -35,4 +35,6 @@ kubeconfig
 /cosign.key
 /cosign.pub
 
-.idea
+# IDEs and editors
+/.idea
+/.vscode/
