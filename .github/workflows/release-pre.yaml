@@ -10,7 +10,7 @@ jobs:
     name: "Check release docs"
     timeout-minutes: 15
     runs-on: ubuntu-24.04
-    if:  startsWith(github.head_ref, 'release-')
+    if: startsWith(github.head_ref, 'release-')
     permissions:
       contents: read
       packages: write
@@ -21,7 +21,7 @@ jobs:
         run: git fetch --prune --unshallow
 
       - name: Release version
-        if:  startsWith(github.head_ref, 'release-please')
+        if: startsWith(github.head_ref, 'release-please')
         run: jq -r '"TAG=v"+.[]' hack/release-please-manifest.json >> "$GITHUB_ENV"
 
       - name: Helm docs
@@ -38,7 +38,7 @@ jobs:
     name: "Check cli tool"
     timeout-minutes: 15
     runs-on: ubuntu-24.04
-    if:  startsWith(github.head_ref, 'release-')
+    if: startsWith(github.head_ref, 'release-')
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -48,7 +48,7 @@ jobs:
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6
         with:
-          version: 'v2.9.0'
+          version: "v2.9.0"
           args: check
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

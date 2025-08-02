@@ -4,7 +4,7 @@ on:
   workflow_dispatch: {}
   push:
     tags:
-      - 'v*'
+      - "v*"
 
 jobs:
   build-publish:
@@ -22,7 +22,7 @@ jobs:
         run: git fetch --prune --unshallow
 
       - name: Install Cosign
-        uses: sigstore/cosign-installer@v3.9.1
+        uses: sigstore/cosign-installer@v3.9.2
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
         with:
@@ -74,7 +74,7 @@ jobs:
         timeout-minutes: 5
         uses: actions/setup-go@v5
         with:
-          go-version-file: 'go.mod'
+          go-version-file: "go.mod"
 
       - name: Generate token
         uses: actions/create-github-app-token@df432ceedc7162793a195dd1713ff69aefc7379e # v2.0.6
@@ -87,7 +87,7 @@ jobs:
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6
         with:
-          version: 'v2.9.0'
+          version: "v2.9.0"
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

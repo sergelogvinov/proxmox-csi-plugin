@@ -5,11 +5,11 @@ on:
     branches:
       - main
     paths:
-      - 'go.mod'
-      - 'go.sum'
-      - 'cmd/**'
-      - 'pkg/**'
-      - 'Dockerfile'
+      - "go.mod"
+      - "go.sum"
+      - "cmd/**"
+      - "pkg/**"
+      - "Dockerfile"
 
 jobs:
   build:
@@ -27,12 +27,12 @@ jobs:
         timeout-minutes: 5
         uses: actions/setup-go@v5
         with:
-          go-version-file: 'go.mod'
+          go-version-file: "go.mod"
 
       - name: Lint
         uses: golangci/golangci-lint-action@v8
         with:
-          version: v2.2.2
+          version: v2.3.0
           args: --timeout=5m --config=.golangci.yml
       - name: Unit
         run: make unit
