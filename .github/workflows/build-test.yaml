@@ -21,7 +21,7 @@ jobs:
       contents: read
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up go
         timeout-minutes: 5
@@ -32,7 +32,7 @@ jobs:
       - name: Lint
         uses: golangci/golangci-lint-action@v8
         with:
-          version: v2.3.0
+          version: v2.4.0
           args: --timeout=5m --config=.golangci.yml
       - name: Unit
         run: make unit
