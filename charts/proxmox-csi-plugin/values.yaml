@@ -165,7 +165,7 @@ controller:
     image:
       repository: registry.k8s.io/sig-storage/csi-resizer
       pullPolicy: IfNotPresent
-      tag: v1.13.2
+      tag: v1.14.0
     # -- Resizer arguments.
     # example: --feature-gates=VolumeAttributesClass=true
     args: []
@@ -224,7 +224,7 @@ livenessprobe:
   image:
     repository: registry.k8s.io/sig-storage/livenessprobe
     pullPolicy: IfNotPresent
-    tag: v2.15.0
+    tag: v2.16.0
   # -- Failure threshold for livenessProbe
   failureThreshold: 5
   # -- Initial delay seconds for livenessProbe

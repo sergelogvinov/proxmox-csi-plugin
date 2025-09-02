@@ -57,6 +57,10 @@ build-all-archs:
 clean: ## Clean
 	rm -rf bin .cache
 
+.PHONY: tools
+tools:
+	go install github.com/google/go-licenses@latest
+
 build-pvecsictl:
 	CGO_ENABLED=0 GOOS=$(OS) GOARCH=$(ARCH) go build $(GO_LDFLAGS) \
 		-o bin/pvecsictl-$(ARCH) ./cmd/pvecsictl
@@ -83,6 +87,10 @@ unit: ## Unit Tests
 
 .PHONY: test
 test: lint unit ## Run all tests
+
+.PHONY: licenses
+licenses:
+	go-licenses check ./... --disallowed_types=forbidden,restricted,unknown
 
 .PHONY: conformance
 conformance: ## Conformance
