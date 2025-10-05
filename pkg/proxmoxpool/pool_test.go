@@ -19,6 +19,7 @@ package proxmoxpool_test
 import (
 	"fmt"
 	"net/http"
+	"os"
 	"testing"
 
 	"github.com/jarcoal/httpmock"
@@ -28,7 +29,6 @@ import (
 )
 
 func newClusterEnv() []*pxpool.ProxmoxCluster {
-	// copilot convert the cfg call to an array of []*proxmox_pool.ProxmoxCluster:
 	cfg := []*pxpool.ProxmoxCluster{
 		{
 			URL:         "https://127.0.0.1:8006/api2/json",
@@ -49,6 +49,20 @@ func newClusterEnv() []*pxpool.ProxmoxCluster {
 	return cfg
 }
 
+func newClusterEnvWithFiles(tokenIDPath, tokenSecretPath string) []*pxpool.ProxmoxCluster {
+	cfg := []*pxpool.ProxmoxCluster{
+		{
+			URL:             "https://127.0.0.1:8006/api2/json",
+			Insecure:        false,
+			TokenIDFile:     tokenIDPath,
+			TokenSecretFile: tokenSecretPath,
+			Region:          "cluster-1",
+		},
+	}
+
+	return cfg
+}
+
 func TestNewClient(t *testing.T) {
 	cfg := newClusterEnv()
 	assert.NotNil(t, cfg)
@@ -60,6 +74,29 @@ func TestNewClient(t *testing.T) {
 	pClient, err = pxpool.NewProxmoxPool(cfg, nil)
 	assert.Nil(t, err)
 	assert.NotNil(t, pClient)
+}
+
+func TestNewClientWithCredentialsFromFile(t *testing.T) {
+	tempDir := t.TempDir()
+
+	tokenIDFile, err := os.CreateTemp(tempDir, "token_id")
+	assert.Nil(t, err)
+
+	tokenSecretFile, err := os.CreateTemp(tempDir, "token_secret")
+	assert.Nil(t, err)
+
+	_, err = tokenIDFile.WriteString("user!token-id")
+	assert.Nil(t, err)
+	_, err = tokenSecretFile.WriteString("secret")
+	assert.Nil(t, err)
+
+	cfg := newClusterEnvWithFiles(tokenIDFile.Name(), tokenSecretFile.Name())
+
+	pxClient, err := pxpool.NewProxmoxPool(cfg, nil)
+	assert.Nil(t, err)
+	assert.NotNil(t, pxClient)
+	assert.Equal(t, "user!token-id", cfg[0].TokenID)
+	assert.Equal(t, "secret", cfg[0].TokenSecret)
 }
 
 func TestCheckClusters(t *testing.T) {

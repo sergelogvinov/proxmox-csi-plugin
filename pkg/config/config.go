@@ -57,12 +57,16 @@ func ReadCloudConfig(config io.Reader) (ClustersConfig, error) {
 	}
 
 	for idx, c := range cfg.Clusters {
-		if c.Username != "" && c.Password != "" {
-			if c.TokenID != "" || c.TokenSecret != "" {
-				return ClustersConfig{}, fmt.Errorf("cluster #%d: token_id and token_secret are not allowed when username and password are set", idx+1)
-			}
-		} else if c.TokenID == "" || c.TokenSecret == "" {
-			return ClustersConfig{}, fmt.Errorf("cluster #%d: either username and password or token_id and token_secret are required", idx+1)
+		hasUserAuth := c.Username != "" && c.Password != ""
+		hasTokenAuth := c.TokenID != "" || c.TokenSecret != ""
+		hasTokenFileAuth := c.TokenIDFile != "" || c.TokenSecretFile != ""
+
+		if (hasTokenAuth && hasUserAuth) || (hasTokenFileAuth && hasUserAuth) || (hasTokenAuth && hasTokenFileAuth) {
+			return ClustersConfig{}, fmt.Errorf("cluster #%d: must specify one of user, token or file credentials, not multiple", idx+1)
+		}
+
+		if !hasTokenAuth && !hasTokenFileAuth && !hasUserAuth {
+			return ClustersConfig{}, fmt.Errorf("cluster #%d: user, token or file credentials are required", idx+1)
 		}
 
 		if c.Region == "" {

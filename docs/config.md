@@ -14,7 +14,9 @@ clusters:
     insecure: false
     # Proxmox api token
     token_id: "kubernetes-csi@pve!csi"
+    token_id_file: "/etc/proxmox/token_id"          # Optional, alternative to token_id
     token_secret: "secret"
+    token_secret_file: "/etc/proxmox/token_secret"  # Optional, alternative to token_secret
     # Region name, which is cluster name
     region: Region-1
 
@@ -33,7 +35,9 @@ You can define multiple clusters in the `clusters` section.
 * `url` - The URL of the Proxmox cluster API.
 * `insecure` - Set to `true` to skip TLS certificate verification.
 * `token_id` - The Proxmox API token ID.
+* `token_id_file` - The path to a file containing the Proxmox API token ID. This is an alternative to `token_id`.
 * `token_secret` - The name of the Kubernetes Secret that contains the Proxmox API token.
+* `token_secret_file` - The path to a file containing the Proxmox API token secret. This is an alternative to `token_secret`.
 * `region` - The name of the region, which is also used as `topology.kubernetes.io/region` label.
 
 ## Feature flags

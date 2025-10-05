@@ -35,13 +35,15 @@ import (
 
 // ProxmoxCluster defines a Proxmox cluster configuration.
 type ProxmoxCluster struct {
-	URL         string `yaml:"url"`
-	Insecure    bool   `yaml:"insecure,omitempty"`
-	TokenID     string `yaml:"token_id,omitempty"`
-	TokenSecret string `yaml:"token_secret,omitempty"`
-	Username    string `yaml:"username,omitempty"`
-	Password    string `yaml:"password,omitempty"`
-	Region      string `yaml:"region,omitempty"`
+	URL             string `yaml:"url"`
+	Insecure        bool   `yaml:"insecure,omitempty"`
+	TokenID         string `yaml:"token_id,omitempty"`
+	TokenIDFile     string `yaml:"token_id_file,omitempty"`
+	TokenSecret     string `yaml:"token_secret,omitempty"`
+	TokenSecretFile string `yaml:"token_secret_file,omitempty"`
+	Username        string `yaml:"username,omitempty"`
+	Password        string `yaml:"password,omitempty"`
+	Region          string `yaml:"region,omitempty"`
 }
 
 // ProxmoxPool is a Proxmox client.
@@ -64,6 +66,24 @@ func NewProxmoxPool(config []*ProxmoxCluster, hClient *http.Client) (*ProxmoxPoo
 			pClient, err := pxapi.NewClient(cfg.URL, hClient, os.Getenv("PM_HTTP_HEADERS"), tlsconf, "", 600)
 			if err != nil {
 				return nil, err
+			}
+
+			if cfg.TokenID == "" && cfg.TokenIDFile != "" {
+				var err error
+
+				cfg.TokenID, err = readValueFromFile(cfg.TokenIDFile)
+				if err != nil {
+					return nil, err
+				}
+			}
+
+			if cfg.TokenSecret == "" && cfg.TokenSecretFile != "" {
+				var err error
+
+				cfg.TokenSecret, err = readValueFromFile(cfg.TokenSecretFile)
+				if err != nil {
+					return nil, err
+				}
 			}
 
 			if cfg.Username != "" && cfg.Password != "" {
@@ -260,4 +280,17 @@ func (c *ProxmoxPool) getSMBSetting(vmInfo map[string]interface{}, name string) 
 	}
 
 	return ""
+}
+
+func readValueFromFile(path string) (string, error) {
+	if path == "" {
+		return "", fmt.Errorf("path cannot be empty")
+	}
+
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return "", fmt.Errorf("failed to read file '%s': %w", path, err)
+	}
+
+	return strings.TrimSpace(string(content)), nil
 }
