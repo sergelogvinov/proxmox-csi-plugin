@@ -5,6 +5,19 @@
 
 * enable support for capmox ([6145c7d](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/6145c7d91cfc47c131ac453e2a90a915e5694b2b))
 
+## [0.14.0](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.13.0...v0.14.0) (2025-10-05)
+
+
+### Features
+
+* add config options token_id_file & token_secret_file ([64dc356](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/64dc356ec37085ab8d5de4d136537e08e94c3d49))
+
+
+### Bug Fixes
+
+* **chart:** ssd parameter ([dc07d1b](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/dc07d1b1884778b5614a6c853d1e8c87d6d5cb3c))
+* pveum role add command missing '.Disk' in install.md ([ea55e23](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/ea55e23f07496626779de896deab0c1303f47c79))
+
 ## [0.13.0](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.12.1...v0.13.0) (2025-07-20)
 
 
