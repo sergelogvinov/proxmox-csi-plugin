@@ -31,6 +31,23 @@ pveum user token add kubernetes-csi@pve csi -privsep 0
 
 All VMs in the cluster must have the `SCSI Controller` set to `VirtIO SCSI single` or `VirtIO SCSI` type to be able to attach disks.
 
+## Prepare Kubernetes cluster
+
+Proxmox CSI Plugin relies on the well-known Kubernetes topology node labels to define the disk location.
+* `topology.kubernetes.io/region` - Proxmox cluster name
+* `topology.kubernetes.io/zone` - Proxmox node name
+
+
+```shell
+kubectl label nodes region1-node-1 topology.kubernetes.io/region=Region1
+kubectl label nodes region1-node-1 topology.kubernetes.io/zone=pve-1
+```
+> Note: All nodes provisioned by Proxmox CSI Plugin should be labeled.
+
+
+Alternatively, you can use [Proxmox Cloud Controller Manager](https://github.com/sergelogvinov/proxmox-cloud-controller-manager). Proxmox CCM will manage topology labels for you.
+
+
 ## Install CSI Driver
 
 Create a namespace `csi-proxmox` for the plugin and grant it the `privileged` permissions
