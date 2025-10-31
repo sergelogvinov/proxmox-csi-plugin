@@ -544,16 +544,6 @@ func (n *NodeService) NodeGetInfo(ctx context.Context, _ *csi.NodeGetInfoRequest
 		return nil, fmt.Errorf("failed to get node %s: %w", n.nodeID, err)
 	}
 
-	region := node.Labels[corev1.LabelTopologyRegion]
-	if region == "" {
-		return nil, fmt.Errorf("failed to get region for node %s", n.nodeID)
-	}
-
-	zone := node.Labels[corev1.LabelTopologyZone]
-	if zone == "" {
-		return nil, fmt.Errorf("failed to get zone for node %s", n.nodeID)
-	}
-
 	nodeMaxVolumeAttachments, err := strconv.ParseInt(node.Labels[NodeLabelMaxVolumeAttachments], 10, 64)
 	if err != nil {
 		nodeMaxVolumeAttachments = DefaultMaxVolumesPerNode
@@ -568,6 +558,11 @@ func (n *NodeService) NodeGetInfo(ctx context.Context, _ *csi.NodeGetInfoRequest
 			DefaultMaxVolumesPerNode)
 
 		nodeMaxVolumeAttachments = DefaultMaxVolumesPerNode
+	}
+
+	region, zone := getNodeTopology(node.Labels)
+	if region == "" || zone == "" {
+		return nil, fmt.Errorf("failed to get region or zone for node %s", n.nodeID)
 	}
 
 	return &csi.NodeGetInfoResponse{

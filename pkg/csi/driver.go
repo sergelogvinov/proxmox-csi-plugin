@@ -49,5 +49,14 @@ const (
 
 // constants for node labels
 const (
+	// ProxmoxCCMTopology is the base topology label from Proxmox CCM
+	ProxmoxCCMTopology = "topology.proxmox.sinextra.dev"
+
+	// ProxmoxRegion is the Proxmox region (cluster name) label
+	ProxmoxRegion = ProxmoxCCMTopology + "/region"
+	// ProxmoxNode is the Proxmox node name label
+	ProxmoxNode = ProxmoxCCMTopology + "/node"
+
+	// NodeLabelMaxVolumeAttachments is the node label for maximum volume attachments
 	NodeLabelMaxVolumeAttachments = DriverName + "/max-volume-attachments"
 )

@@ -166,12 +166,6 @@ func (d *ControllerService) CreateVolume(_ context.Context, request *csi.CreateV
 		}
 	}
 
-	if region == "" || zone == "" {
-		klog.ErrorS(err, "CreateVolume: region or zone is empty", "cluster", region, "accessibleTopology", accessibleTopology)
-
-		return nil, status.Error(codes.Internal, "cannot find best region and zone")
-	}
-
 	storageConfig, err := cl.GetStorageConfig(params[StorageIDKey])
 	if err != nil {
 		klog.ErrorS(err, "CreateVolume: failed to get proxmox storage config", "cluster", region, "storageID", params[StorageIDKey])
@@ -647,8 +641,7 @@ func (d *ControllerService) GetCapacity(_ context.Context, request *csi.GetCapac
 
 	topology := request.GetAccessibleTopology()
 	if topology != nil {
-		region := topology.GetSegments()[corev1.LabelTopologyRegion]
-		zone := topology.GetSegments()[corev1.LabelTopologyZone]
+		region, zone := getNodeTopology(topology.GetSegments())
 		storageID := request.GetParameters()[StorageIDKey]
 
 		if region == "" || storageID == "" {
@@ -959,7 +952,7 @@ func (d *ControllerService) getVMRefbyNodeID(ctx context.Context, cl *pxapi.Clie
 		return vmr, nil
 	}
 
-	vmrid, zone, err := tools.ProxmoxVMIDbyProviderID(ctx, node)
+	vmrid, err := tools.ProxmoxVMIDbyNode(ctx, node)
 	if err != nil {
 		klog.InfoS("ControllerPublishVolume: failed to get proxmox vmrID from ProviderID", "nodeID", nodeID)
 
@@ -972,6 +965,8 @@ func (d *ControllerService) getVMRefbyNodeID(ctx context.Context, cl *pxapi.Clie
 	}
 
 	if vmr == nil {
+		_, zone := getNodeTopology(node.Labels)
+
 		vmr = pxapi.NewVmRef(vmrid)
 		vmr.SetNode(zone)
 		vmr.SetVmType("qemu")

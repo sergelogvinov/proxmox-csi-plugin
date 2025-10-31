@@ -171,16 +171,32 @@ func (c *ProxmoxPool) FindVMByNode(_ context.Context, node *v1.Node) (*pxapi.VmR
 // FindVMByName find a VM by name in all Proxmox clusters.
 func (c *ProxmoxPool) FindVMByName(_ context.Context, name string) (*pxapi.VmRef, string, error) {
 	for region, px := range c.clients {
-		vmr, err := px.GetVmRefByName(name)
+		vms, err := px.GetResourceList("vm")
 		if err != nil {
-			if strings.Contains(err.Error(), "not found") {
+			return nil, "", fmt.Errorf("error get resources %v", err)
+		}
+
+		for vmii := range vms {
+			vm, ok := vms[vmii].(map[string]interface{})
+			if !ok {
+				return nil, "", fmt.Errorf("failed to cast response to map, vm: %v", vm)
+			}
+
+			if vm["type"].(string) != "qemu" { //nolint:errcheck
 				continue
 			}
 
-			return nil, "", err
-		}
+			if vm["name"] != nil {
+				vmname := vm["name"].(string)
+				if vmname == name || strings.HasPrefix(vmname, name+".") {
+					vmr := pxapi.NewVmRef(int(vm["vmid"].(float64))) //nolint:errcheck
+					vmr.SetNode(vm["node"].(string))                 //nolint:errcheck
+					vmr.SetVmType("qemu")
 
-		return vmr, region, nil
+					return vmr, region, nil
+				}
+			}
+		}
 	}
 
 	return nil, "", fmt.Errorf("vm '%s' not found", name)

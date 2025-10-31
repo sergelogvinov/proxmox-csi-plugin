@@ -185,6 +185,12 @@ func TestFindVMByNameExist(t *testing.T) {
 					"vmid": 100,
 					"name": "test1-vm",
 				},
+				map[string]interface{}{
+					"node": "node-1",
+					"type": "qemu",
+					"vmid": 101,
+					"name": "test3-vm.domain.local",
+				},
 			},
 		}),
 	)
@@ -224,6 +230,12 @@ func TestFindVMByNameExist(t *testing.T) {
 			msg:             "Test1-VM",
 			vmName:          "test1-vm",
 			expectedVMID:    100,
+			expectedCluster: "cluster-1",
+		},
+		{
+			msg:             "Test3-VM with FQDN node name",
+			vmName:          "test3-vm",
+			expectedVMID:    101,
 			expectedCluster: "cluster-1",
 		},
 		{

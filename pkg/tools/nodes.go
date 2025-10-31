@@ -19,6 +19,7 @@ package tools
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/utils/provider"
 
@@ -26,6 +27,14 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	clientkubernetes "k8s.io/client-go/kubernetes"
+)
+
+const (
+	// Group name
+	Group = "proxmox.sinextra.dev"
+
+	// AnnotationProxmoxInstanceID is the annotation used to store the Proxmox node virtual machine ID.
+	AnnotationProxmoxInstanceID = Group + "/instance-id"
 )
 
 // CSINodes returns a list of nodes that have the specified CSI driver name.
@@ -88,9 +97,14 @@ func UncondonNodes(ctx context.Context, kclient *clientkubernetes.Clientset, nod
 	return nil
 }
 
-// ProxmoxVMIDbyProviderID returns the Proxmox VM ID from the specified kubernetes node name.
-func ProxmoxVMIDbyProviderID(_ context.Context, node *corev1.Node) (int, string, error) {
+// ProxmoxVMIDbyNode returns the Proxmox VM ID from the specified kubernetes node.
+func ProxmoxVMIDbyNode(_ context.Context, node *corev1.Node) (int, error) {
 	vmID, err := provider.GetVMID(node.Spec.ProviderID)
+	if err != nil {
+		if vmID, err := strconv.Atoi(node.Annotations[AnnotationProxmoxInstanceID]); err == nil {
+			return vmID, nil
+		}
+	}
 
-	return vmID, node.Labels[corev1.LabelTopologyZone], err
+	return vmID, err
 }

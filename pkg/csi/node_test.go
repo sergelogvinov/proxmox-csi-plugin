@@ -513,13 +513,13 @@ func TestNodeServiceNodeGetInfo(t *testing.T) {
 			msg:           "RegionNode",
 			kclient:       fake.NewSimpleClientset(nodes),
 			nodeName:      "node-zone",
-			expectedError: fmt.Errorf("failed to get region for node node-zone"),
+			expectedError: fmt.Errorf("failed to get region or zone for node node-zone"),
 		},
 		{
 			msg:           "ZoneNode",
 			kclient:       fake.NewSimpleClientset(nodes),
 			nodeName:      "node-region",
-			expectedError: fmt.Errorf("failed to get zone for node node-region"),
+			expectedError: fmt.Errorf("failed to get region or zone for node node-region"),
 		},
 		{
 			msg:      "GoodNode",
