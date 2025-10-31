@@ -61,9 +61,7 @@ func locationFromTopologyRequirement(tr *proto.TopologyRequirement) (region, zon
 	for _, top := range tr.GetPreferred() {
 		segment := top.GetSegments()
 
-		tsr := segment[corev1.LabelTopologyRegion]
-		tsz := segment[corev1.LabelTopologyZone]
-
+		tsr, tsz := getNodeTopology(segment)
 		if tsr != "" && tsz != "" {
 			return tsr, tsz
 		}
@@ -76,9 +74,7 @@ func locationFromTopologyRequirement(tr *proto.TopologyRequirement) (region, zon
 	for _, top := range tr.GetRequisite() {
 		segment := top.GetSegments()
 
-		tsr := segment[corev1.LabelTopologyRegion]
-		tsz := segment[corev1.LabelTopologyZone]
-
+		tsr, tsz := getNodeTopology(segment)
 		if tsr != "" && tsz != "" {
 			return tsr, tsz
 		}
@@ -89,4 +85,18 @@ func locationFromTopologyRequirement(tr *proto.TopologyRequirement) (region, zon
 	}
 
 	return region, ""
+}
+
+func getNodeTopology(labels map[string]string) (region, zone string) {
+	region = labels[ProxmoxRegion]
+	if region == "" {
+		region = labels[corev1.LabelTopologyRegion]
+	}
+
+	zone = labels[ProxmoxNode]
+	if zone == "" {
+		zone = labels[corev1.LabelTopologyZone]
+	}
+
+	return region, zone
 }
