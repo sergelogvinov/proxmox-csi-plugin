@@ -126,7 +126,7 @@ func TestFindVMByNameNonExist(t *testing.T) {
 	assert.NotNil(t, cfg)
 
 	httpmock.Activate()
-	defer httpmock.DeactivateAndReset()
+	defer httpmock.DeactivateAndReset() //nolint: wsl_v5
 
 	httpmock.RegisterResponder("GET", "https://127.0.0.1:8006/api2/json/cluster/resources",
 		func(_ *http.Request) (*http.Response, error) {
@@ -174,7 +174,7 @@ func TestFindVMByNameExist(t *testing.T) {
 	assert.NotNil(t, cfg)
 
 	httpmock.Activate()
-	defer httpmock.DeactivateAndReset()
+	defer httpmock.DeactivateAndReset() //nolint: wsl_v5
 
 	httpmock.RegisterResponder("GET", "https://127.0.0.1:8006/api2/json/cluster/resources",
 		httpmock.NewJsonResponderOrPanic(200, map[string]interface{}{

@@ -495,7 +495,7 @@ func TestNewControllerService(t *testing.T) {
 //nolint:dupl
 func (ts *configuredTestSuite) TestCreateVolume() {
 	httpmock.Activate()
-	defer httpmock.DeactivateAndReset()
+	defer httpmock.DeactivateAndReset() //nolint: wsl_v5
 
 	volcap := &proto.VolumeCapability{
 		AccessMode: &proto.VolumeCapability_AccessMode{
@@ -843,7 +843,7 @@ func (ts *configuredTestSuite) TestCreateVolume() {
 //nolint:dupl
 func (ts *configuredTestSuite) TestDeleteVolume() {
 	httpmock.Activate()
-	defer httpmock.DeactivateAndReset()
+	defer httpmock.DeactivateAndReset() //nolint: wsl_v5
 
 	tests := []struct {
 		msg           string
@@ -936,7 +936,7 @@ func (ts *configuredTestSuite) TestControllerServiceControllerGetCapabilities() 
 //nolint:dupl
 func (ts *configuredTestSuite) TestControllerPublishVolumeError() {
 	httpmock.Activate()
-	defer httpmock.DeactivateAndReset()
+	defer httpmock.DeactivateAndReset() //nolint: wsl_v5
 
 	volCap := &proto.VolumeCapability{
 		AccessMode: &proto.VolumeCapability_AccessMode{
@@ -1071,7 +1071,7 @@ func (ts *configuredTestSuite) TestControllerPublishVolumeError() {
 //nolint:dupl
 func (ts *configuredTestSuite) TestControllerUnpublishVolumeError() {
 	httpmock.Activate()
-	defer httpmock.DeactivateAndReset()
+	defer httpmock.DeactivateAndReset() //nolint: wsl_v5
 
 	tests := []struct {
 		msg           string
@@ -1160,7 +1160,7 @@ func (ts *configuredTestSuite) TestListVolumes() {
 
 func (ts *configuredTestSuite) TestGetCapacity() {
 	httpmock.Activate()
-	defer httpmock.DeactivateAndReset()
+	defer httpmock.DeactivateAndReset() //nolint: wsl_v5
 
 	tests := []struct {
 		msg           string
@@ -1305,7 +1305,7 @@ func (ts *configuredTestSuite) TestListSnapshots() {
 
 func (ts *configuredTestSuite) TestControllerExpandVolumeError() {
 	httpmock.Activate()
-	defer httpmock.DeactivateAndReset()
+	defer httpmock.DeactivateAndReset() //nolint: wsl_v5
 
 	capRange := &proto.CapacityRange{
 		RequiredBytes: 100 * csi.GiB,
