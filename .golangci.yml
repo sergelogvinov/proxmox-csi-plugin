@@ -60,6 +60,7 @@ linters:
     - intrange
     - noinlineerr
     - noctx
+    - modernize
   settings:
     wsl_v5:
       allow-first-in-block: true

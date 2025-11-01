@@ -89,3 +89,10 @@ ln -s /bin/true ${DEST}/sbin/fsck.xfs
 copy_deps /bin/udevadm
 copy_deps /lib/udev/rules.d
 copy_deps /bin/findmnt
+
+# distroless/base-debian13 uses /bin as symlink to /usr/bin
+mkdir -p ${DEST}/usr/bin ${DEST}/usr/sbin ${DEST}/usr/lib
+rsync -av ${DEST}/bin/  ${DEST}/usr/bin/
+rsync -av ${DEST}/sbin/ ${DEST}/usr/sbin/
+rsync -av ${DEST}/lib/  ${DEST}/usr/lib/
+rm -rf ${DEST}/bin ${DEST}/sbin ${DEST}/lib
