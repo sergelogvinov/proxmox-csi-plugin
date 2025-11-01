@@ -34,7 +34,7 @@ All VMs in the cluster must have the `SCSI Controller` set to `VirtIO SCSI singl
 ## Prepare Kubernetes cluster
 
 Proxmox CSI Plugin relies on the well-known Kubernetes topology node labels to define the disk location.
-* `topology.kubernetes.io/region` - Proxmox cluster name
+* `topology.kubernetes.io/region` - Cluster name, the name must be the same as in cloud config region name
 * `topology.kubernetes.io/zone` - Proxmox node name
 
 

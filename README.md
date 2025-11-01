@@ -46,7 +46,7 @@ Arrows with dotted lines indicate the capability of attaching a Persistent Volum
   The PV will automatically be moved by the CSI Plugin.
 - Pods with Persistent Volume (PV) allocated on `local storage (like: lvm, lvm-thin, zfs, xfs, ext4)` **cannot** automatically migrate across zones (Proxmox nodes).
   You can manually move PVs across zones using [pvecsictl](docs/pvecsictl.md) tool.
-- Pods with Persistent Volume (PV) allocated on `shared disk (like: ceph, nfs)` **can** automatically migrate across regions (Proxmox cluster).
+- Pods with Persistent Volume (PV) allocated on `shared disk (like: ceph, nfs)` **can** automatically migrate across zones (inside one region).
 
 ## Installation
 
