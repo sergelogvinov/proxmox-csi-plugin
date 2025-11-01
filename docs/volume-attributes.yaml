@@ -1,18 +1,20 @@
-apiVersion: storage.k8s.io/v1beta1
+apiVersion: storage.k8s.io/v1
 kind: VolumeAttributesClass
 metadata:
   name: test
 driverName: csi.proxmox.sinextra.dev
 parameters:
+  backup: "true"
   diskIOPS: "400"
   diskMBps: "120"
 ---
-apiVersion: storage.k8s.io/v1beta1
+apiVersion: storage.k8s.io/v1
 kind: VolumeAttributesClass
 metadata:
   name: test-2
 driverName: csi.proxmox.sinextra.dev
 parameters:
+  backup: "false"
   diskIOPS: "500"
   diskMBps: "200"
 ---

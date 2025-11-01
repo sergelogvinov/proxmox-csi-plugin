@@ -89,7 +89,7 @@ volumeBindingMode: WaitForFirstConsumer|Immediate
 You can use `VolumeAttributesClass` to redefine the mutable parameters of the `StorageClass`.
 
 ```yaml
-apiVersion: storage.k8s.io/v1beta1
+apiVersion: storage.k8s.io/v1
 kind: VolumeAttributesClass
 metadata:
   name: proxmox-attributes

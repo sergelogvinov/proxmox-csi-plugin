@@ -82,7 +82,7 @@ func Test_ExtractAndDefaultParameters(t *testing.T) {
 				csi.StorageIDKey:       "local-lvm",
 				csi.StorageSSDKey:      "true",
 				csi.StorageDiskIOPSKey: "100",
-				"backup":               "true",
+				"backup":               "1",
 			},
 			storage: csi.StorageParameters{
 				Backup:    ptr.Ptr(true),
@@ -98,11 +98,12 @@ func Test_ExtractAndDefaultParameters(t *testing.T) {
 			msg: "replication disk",
 			params: map[string]string{
 				csi.StorageIDKey: "local-lvm",
+				"backup":         "true",
 				"replicate":      "true",
 				"replicateZones": "zone1,zone2",
 			},
 			storage: csi.StorageParameters{
-				Backup:         ptr.Ptr(false),
+				Backup:         ptr.Ptr(true),
 				IOThread:       true,
 				Replicate:      ptr.Ptr(true),
 				ReplicateZones: "zone1,zone2",
