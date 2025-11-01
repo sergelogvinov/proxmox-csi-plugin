@@ -68,7 +68,7 @@ type StorageParameters struct {
 	BlockSize *int `cfg:"blockSize"`
 	InodeSize *int `cfg:"inodeSize"`
 
-	Replicate         *bool  `json:"replicate,omitempty"      cfg:"replicate"`
+	Replicate         *bool  `json:"replicate,omitempty"   cfg:"replicate"`
 	ReplicateSchedule string `cfg:"replicateSchedule"`
 	ReplicateZones    string `cfg:"replicateZones"`
 }
@@ -121,7 +121,7 @@ func ExtractAndDefaultParameters(parameters map[string]string) (StorageParameter
 				case reflect.String:
 					f.Set(reflect.ValueOf(ptr.Ptr(v)))
 				case reflect.Bool:
-					f.Set(reflect.ValueOf(ptr.Ptr(v == "true")))
+					f.Set(reflect.ValueOf(ptr.Ptr(v == "true" || v == "1")))
 				case reflect.Int:
 					i, err := strconv.Atoi(v)
 					if err != nil {
@@ -135,7 +135,7 @@ func ExtractAndDefaultParameters(parameters map[string]string) (StorageParameter
 				case reflect.String:
 					f.Set(reflect.ValueOf(v))
 				case reflect.Bool:
-					f.Set(reflect.ValueOf(v == "true"))
+					f.Set(reflect.ValueOf(v == "true" || v == "1"))
 				case reflect.Int:
 					i, err := strconv.Atoi(v)
 					if err != nil {
@@ -209,7 +209,7 @@ func ExtractModifyVolumeParameters(parameters map[string]string) (ModifyVolumePa
 				case reflect.String:
 					f.Set(reflect.ValueOf(ptr.Ptr(v)))
 				case reflect.Bool:
-					f.Set(reflect.ValueOf(ptr.Ptr(v == "true")))
+					f.Set(reflect.ValueOf(ptr.Ptr(v == "true" || v == "1")))
 				case reflect.Int:
 					if i, err := strconv.Atoi(v); err == nil {
 						f.Set(reflect.ValueOf(ptr.Ptr(i)))
@@ -237,10 +237,8 @@ func (p StorageParameters) ToMap() map[string]string {
 	m := make(map[string]string)
 
 	val := reflect.ValueOf(p)
-	typ := reflect.TypeOf(p)
-
 	for i := 0; i < val.NumField(); i++ {
-		fieldName := typ.Field(i).Tag.Get("json")
+		fieldName := reflect.TypeOf(p).Field(i).Tag.Get("json")
 		if fieldName == "" {
 			continue
 		}
