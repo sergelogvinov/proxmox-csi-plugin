@@ -137,7 +137,7 @@ metadata:
 
 * `replicate` - set true if you want to replicate the disk to another zone
 * `replicateSchedule` - replication schedule [in systemd calendar format](https://pve.proxmox.com/pve-docs/pve-admin-guide.html#pvesr_schedule_time_format) (default: `*/15`)
-* `replicateZones` - zones where the disk will be replicated, separated by commas
+* `replicateZones` - zones where the disk will be replicated, separated by commas, support up to 2 zones
 
 ## AllowVolumeExpansion
 
@@ -159,7 +159,7 @@ It specifies how volumes should be bound to PVs (Persistent Volumes). There are 
 
 # Persistent Storage
 
-The Persistent storage supports lifecycle camabilities.
+The Persistent storage supports lifecycle management.
 You can prevent the disk from being deleted on the Proxmox side when the PersistentVolume is removed.
 
 ```yaml

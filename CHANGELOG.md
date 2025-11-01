@@ -5,6 +5,19 @@
 
 * enable support for capmox ([6145c7d](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/6145c7d91cfc47c131ac453e2a90a915e5694b2b))
 
+## [0.15.0](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.14.0...v0.15.0) (2025-11-01)
+
+
+### Features
+
+* support vm name with fqdn ([1cf812b](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/1cf812b09e659ee22c69d5946f79e86e5c90c314))
+* update distroless debian image ([f50da79](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/f50da79a6e96707cccc7c31e879f2fb644eec777))
+
+
+### Bug Fixes
+
+* backup volume attibute ([62aba00](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/62aba00732e8c91595d85b1c425ca51442af4715))
+
 ## [0.14.0](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.13.0...v0.14.0) (2025-10-05)
 
 
