@@ -510,6 +510,10 @@ func (ts *configuredTestSuite) TestCreateVolume() {
 	volParam := map[string]string{
 		"storage": "local-lvm",
 	}
+	volParamDefaults := map[string]string{
+		"backup":   "0",
+		"iothread": "1",
+	}
 	volsize := &proto.CapacityRange{
 		RequiredBytes: 1,
 		LimitBytes:    100 * 1024 * 1024 * 1024,
@@ -553,17 +557,7 @@ func (ts *configuredTestSuite) TestCreateVolume() {
 			expectedError: status.Error(codes.InvalidArgument, "VolumeCapabilities must be provided"),
 		},
 		{
-			msg: "VolumeParameters",
-			request: &proto.CreateVolumeRequest{
-				Name:                      "volume-id",
-				VolumeCapabilities:        []*proto.VolumeCapability{volcap},
-				CapacityRange:             volsize,
-				AccessibilityRequirements: topology,
-			},
-			expectedError: status.Error(codes.InvalidArgument, "Parameters must be provided"),
-		},
-		{
-			msg: "VolumeParametersStorege",
+			msg: "VolumeParametersStorage",
 			request: &proto.CreateVolumeRequest{
 				Name:                      "volume-id",
 				Parameters:                map[string]string{},
@@ -775,7 +769,7 @@ func (ts *configuredTestSuite) TestCreateVolume() {
 			expected: &proto.CreateVolumeResponse{
 				Volume: &proto.Volume{
 					VolumeId:      "cluster-1/pve-1/local-lvm/vm-9999-pvc-exist-same-size",
-					VolumeContext: volParam,
+					VolumeContext: volParamDefaults,
 					CapacityBytes: csi.MinChunkSizeBytes,
 					AccessibleTopology: []*proto.Topology{
 						{
@@ -809,7 +803,7 @@ func (ts *configuredTestSuite) TestCreateVolume() {
 			expected: &proto.CreateVolumeResponse{
 				Volume: &proto.Volume{
 					VolumeId:      "cluster-1/pve-1/local-lvm/vm-9999-pvc-123",
-					VolumeContext: volParam,
+					VolumeContext: volParamDefaults,
 					CapacityBytes: csi.MinChunkSizeBytes,
 					AccessibleTopology: []*proto.Topology{
 						{
@@ -825,8 +819,6 @@ func (ts *configuredTestSuite) TestCreateVolume() {
 	}
 
 	for _, testCase := range tests {
-		testCase := testCase
-
 		ts.Run(fmt.Sprint(testCase.msg), func() {
 			resp, err := ts.s.CreateVolume(context.Background(), testCase.request)
 			if testCase.expectedError == nil {
@@ -908,8 +900,6 @@ func (ts *configuredTestSuite) TestDeleteVolume() {
 	}
 
 	for _, testCase := range tests {
-		testCase := testCase
-
 		ts.Run(fmt.Sprint(testCase.msg), func() {
 			resp, err := ts.s.DeleteVolume(context.Background(), testCase.request)
 			if testCase.expectedError == nil {
@@ -1053,8 +1043,6 @@ func (ts *configuredTestSuite) TestControllerPublishVolumeError() {
 	}
 
 	for _, testCase := range tests {
-		testCase := testCase
-
 		ts.Run(fmt.Sprint(testCase.msg), func() {
 			resp, err := ts.s.ControllerPublishVolume(context.Background(), testCase.request)
 			if testCase.expectedError == nil {
@@ -1132,8 +1120,6 @@ func (ts *configuredTestSuite) TestControllerUnpublishVolumeError() {
 	}
 
 	for _, testCase := range tests {
-		testCase := testCase
-
 		ts.Run(fmt.Sprint(testCase.msg), func() {
 			_, err := ts.s.ControllerUnpublishVolume(context.Background(), testCase.request)
 			if testCase.expectedError == nil {
@@ -1270,8 +1256,6 @@ func (ts *configuredTestSuite) TestGetCapacity() {
 	}
 
 	for _, testCase := range tests {
-		testCase := testCase
-
 		ts.Run(fmt.Sprint(testCase.msg), func() {
 			resp, err := ts.s.GetCapacity(context.Background(), testCase.request)
 			if testCase.expectedError == nil {
@@ -1412,8 +1396,6 @@ func (ts *configuredTestSuite) TestControllerExpandVolumeError() {
 	}
 
 	for _, testCase := range tests {
-		testCase := testCase
-
 		ts.Run(fmt.Sprint(testCase.msg), func() {
 			resp, err := ts.s.ControllerExpandVolume(context.Background(), testCase.request)
 			if testCase.expectedError == nil {

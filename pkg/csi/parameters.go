@@ -51,7 +51,10 @@ const (
 // json tags are used to map the struct to the Proxmox API
 // cfg tags are used to map the struct to the Kubernetes API
 type StorageParameters struct {
-	AIO            string `json:"aio,omitempty"`
+	StorageID     string `cfg:"storage"`
+	StorageFormat string `cfg:"storageFormat"`
+
+	AIO            string `json:"aio,omitempty"            cfg:"aio"`
 	Backup         *bool  `json:"backup,omitempty"         cfg:"backup"`
 	Cache          string `json:"cache,omitempty"          cfg:"cache"`
 	Discard        string `json:"discard,omitempty"`
@@ -69,8 +72,8 @@ type StorageParameters struct {
 	InodeSize *int `cfg:"inodeSize"`
 
 	Replicate         *bool  `json:"replicate,omitempty"   cfg:"replicate"`
-	ReplicateSchedule string `cfg:"replicateSchedule"`
-	ReplicateZones    string `cfg:"replicateZones"`
+	ReplicateSchedule string `cfg:"replicateSchedule,omitempty"`
+	ReplicateZones    string `cfg:"replicateZones,omitempty"`
 }
 
 // ModifyVolumeParameters contains parameters to modify a volume
@@ -86,8 +89,8 @@ type ModifyVolumeParameters struct {
 	Iops      *int `cfg:"diskIOPS"`
 	SpeedMbps *int `cfg:"diskMBps"`
 
-	ReplicateSchedule string `cfg:"replicateSchedule"`
-	ReplicateZones    string `cfg:"replicateZones"`
+	ReplicateSchedule string `cfg:"replicateSchedule,omitempty"`
+	ReplicateZones    string `cfg:"replicateZones,omitempty"`
 }
 
 // ExtractAndDefaultParameters extracts storage parameters from a map and sets default values.
@@ -95,10 +98,6 @@ func ExtractAndDefaultParameters(parameters map[string]string) (StorageParameter
 	p := StorageParameters{
 		Backup:   ptr.Ptr(false),
 		IOThread: true,
-	}
-
-	if parameters[StorageIDKey] == "" {
-		return p, fmt.Errorf("parameter %s must be provided", StorageIDKey)
 	}
 
 	ps := reflect.ValueOf(&p).Elem()
@@ -122,7 +121,7 @@ func ExtractAndDefaultParameters(parameters map[string]string) (StorageParameter
 					f.Set(reflect.ValueOf(ptr.Ptr(v)))
 				case reflect.Bool:
 					f.Set(reflect.ValueOf(ptr.Ptr(v == "true" || v == "1")))
-				case reflect.Int:
+				case reflect.Int, reflect.Int32, reflect.Int64:
 					i, err := strconv.Atoi(v)
 					if err != nil {
 						return p, fmt.Errorf("parameters %s must be a number", fieldName)
@@ -136,7 +135,7 @@ func ExtractAndDefaultParameters(parameters map[string]string) (StorageParameter
 					f.Set(reflect.ValueOf(v))
 				case reflect.Bool:
 					f.Set(reflect.ValueOf(v == "true" || v == "1"))
-				case reflect.Int:
+				case reflect.Int, reflect.Int32, reflect.Int64:
 					i, err := strconv.Atoi(v)
 					if err != nil {
 						return p, fmt.Errorf("parameters %s must be a number", fieldName)
@@ -210,7 +209,7 @@ func ExtractModifyVolumeParameters(parameters map[string]string) (ModifyVolumePa
 					f.Set(reflect.ValueOf(ptr.Ptr(v)))
 				case reflect.Bool:
 					f.Set(reflect.ValueOf(ptr.Ptr(v == "true" || v == "1")))
-				case reflect.Int:
+				case reflect.Int, reflect.Int32, reflect.Int64:
 					if i, err := strconv.Atoi(v); err == nil {
 						f.Set(reflect.ValueOf(ptr.Ptr(i)))
 					}
@@ -259,8 +258,11 @@ func (p StorageParameters) ToMap() map[string]string {
 			if v != "" {
 				m[fieldName] = v
 			}
-		case int:
-			m[fieldName] = strconv.Itoa(v)
+		case int, int32, int64:
+			val := fmt.Sprintf("%d", v)
+			if val != "0" {
+				m[fieldName] = val
+			}
 		case bool:
 			if v {
 				m[fieldName] = "1"
@@ -306,8 +308,11 @@ func (p ModifyVolumeParameters) MergeMap(orig map[string]string) map[string]stri
 			if v != "" {
 				m[tag] = v
 			}
-		case int:
-			m[tag] = strconv.Itoa(v)
+		case int, int32, int64:
+			val := fmt.Sprintf("%d", v)
+			if val != "0" {
+				m[tag] = val
+			}
 		case bool:
 			if v {
 				m[tag] = "1"
@@ -352,8 +357,11 @@ func (p ModifyVolumeParameters) ToMap() map[string]string {
 			if v != "" {
 				m[tag] = v
 			}
-		case int:
-			m[tag] = strconv.Itoa(v)
+		case int, int32, int64:
+			val := fmt.Sprintf("%d", v)
+			if val != "0" {
+				m[tag] = val
+			}
 		case bool:
 			if v {
 				m[tag] = "1"

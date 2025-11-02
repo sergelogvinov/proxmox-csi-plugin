@@ -40,8 +40,9 @@ func Test_ExtractAndDefaultParameters(t *testing.T) {
 				csi.StorageIDKey: "local-lvm",
 			},
 			storage: csi.StorageParameters{
-				Backup:   ptr.Ptr(false),
-				IOThread: true,
+				StorageID: "local-lvm",
+				Backup:    ptr.Ptr(false),
+				IOThread:  true,
 			},
 		},
 		{
@@ -52,11 +53,12 @@ func Test_ExtractAndDefaultParameters(t *testing.T) {
 				csi.StorageCacheKey: "directsync",
 			},
 			storage: csi.StorageParameters{
-				Cache:    "directsync",
-				Backup:   ptr.Ptr(false),
-				IOThread: true,
-				SSD:      ptr.Ptr(true),
-				Discard:  "on",
+				StorageID: "local-lvm",
+				Cache:     "directsync",
+				Backup:    ptr.Ptr(false),
+				IOThread:  true,
+				SSD:       ptr.Ptr(true),
+				Discard:   "on",
 			},
 		},
 		{
@@ -67,6 +69,7 @@ func Test_ExtractAndDefaultParameters(t *testing.T) {
 				csi.StorageDiskIOPSKey: "100",
 			},
 			storage: csi.StorageParameters{
+				StorageID: "local-lvm",
 				Backup:    ptr.Ptr(false),
 				IOThread:  true,
 				SSD:       ptr.Ptr(true),
@@ -85,6 +88,7 @@ func Test_ExtractAndDefaultParameters(t *testing.T) {
 				"backup":               "1",
 			},
 			storage: csi.StorageParameters{
+				StorageID: "local-lvm",
 				Backup:    ptr.Ptr(true),
 				IOThread:  true,
 				SSD:       ptr.Ptr(true),
@@ -103,6 +107,7 @@ func Test_ExtractAndDefaultParameters(t *testing.T) {
 				"replicateZones": "zone1,zone2",
 			},
 			storage: csi.StorageParameters{
+				StorageID:      "local-lvm",
 				Backup:         ptr.Ptr(true),
 				IOThread:       true,
 				Replicate:      ptr.Ptr(true),
@@ -112,8 +117,6 @@ func Test_ExtractAndDefaultParameters(t *testing.T) {
 	}
 
 	for _, testCase := range tests {
-		testCase := testCase
-
 		t.Run(fmt.Sprint(testCase.msg), func(t *testing.T) {
 			t.Parallel()
 
@@ -134,8 +137,11 @@ func Test_ToMap(t *testing.T) {
 		params  map[string]string
 	}{
 		{
-			msg:     "Empty params",
-			storage: csi.StorageParameters{},
+			msg: "Empty params",
+			storage: csi.StorageParameters{
+				StorageID:     "local-lvm",
+				StorageFormat: "raw",
+			},
 			params: map[string]string{
 				"iothread": "0",
 			},
@@ -173,8 +179,6 @@ func Test_ToMap(t *testing.T) {
 	}
 
 	for _, testCase := range tests {
-		testCase := testCase
-
 		t.Run(fmt.Sprint(testCase.msg), func(t *testing.T) {
 			t.Parallel()
 
@@ -224,8 +228,6 @@ func Test_ExtractModifyVolumeParameters(t *testing.T) {
 	}
 
 	for _, testCase := range tests {
-		testCase := testCase
-
 		t.Run(fmt.Sprint(testCase.msg), func(t *testing.T) {
 			t.Parallel()
 
@@ -278,8 +280,6 @@ func Test_MergeMap(t *testing.T) {
 	}
 
 	for _, testCase := range tests {
-		testCase := testCase
-
 		t.Run(fmt.Sprint(testCase.msg), func(t *testing.T) {
 			t.Parallel()
 
