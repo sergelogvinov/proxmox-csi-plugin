@@ -23,7 +23,7 @@ const (
 	// DriverVersion is the version of the CSI driver
 	DriverVersion = "0.6.0"
 	// DriverSpecVersion CSI spec version
-	DriverSpecVersion = "1.11.0"
+	DriverSpecVersion = "1.12.0"
 
 	// DefaultMaxVolumesPerNode is the default maximum number of volumes that can be attached to a node
 	DefaultMaxVolumesPerNode = 24

@@ -117,14 +117,7 @@ func (d *ControllerService) CreateVolume(_ context.Context, request *csi.CreateV
 		return nil, status.Error(codes.InvalidArgument, "VolumeCapabilities must be provided")
 	}
 
-	params := request.GetParameters()
-	if params == nil {
-		return nil, status.Error(codes.InvalidArgument, "Parameters must be provided")
-	}
-
-	klog.V(5).InfoS("CreateVolume: parameters", "parameters", params)
-
-	paramsSC, err := ExtractAndDefaultParameters(params)
+	params, err := ExtractAndDefaultParameters(request.GetParameters())
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
@@ -134,7 +127,11 @@ func (d *ControllerService) CreateVolume(_ context.Context, request *csi.CreateV
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
-	klog.V(5).InfoS("CreateVolume: modify parameters", "parameters", paramsVAC)
+	klog.V(5).InfoS("CreateVolume: parameters", "parameters", params, "modifyParameters", paramsVAC)
+
+	if params.StorageID == "" {
+		return nil, status.Error(codes.InvalidArgument, "parameter storage must be provided")
+	}
 
 	volSizeBytes := DefaultVolumeSizeBytes
 	if request.GetCapacityRange() != nil {
@@ -159,16 +156,16 @@ func (d *ControllerService) CreateVolume(_ context.Context, request *csi.CreateV
 	}
 
 	if zone == "" {
-		if zone, err = getNodeWithStorage(cl, params[StorageIDKey]); err != nil {
-			klog.ErrorS(err, "CreateVolume: failed to get node with storage", "cluster", region, "storage", params[StorageIDKey])
+		if zone, err = getNodeWithStorage(cl, params.StorageID); err != nil {
+			klog.ErrorS(err, "CreateVolume: failed to get node with storage", "cluster", region, "storage", params.StorageID)
 
 			return nil, status.Errorf(codes.Internal, "cannot find best region and zone: %v", err)
 		}
 	}
 
-	storageConfig, err := cl.GetStorageConfig(params[StorageIDKey])
+	storageConfig, err := cl.GetStorageConfig(params.StorageID)
 	if err != nil {
-		klog.ErrorS(err, "CreateVolume: failed to get proxmox storage config", "cluster", region, "storageID", params[StorageIDKey])
+		klog.ErrorS(err, "CreateVolume: failed to get proxmox storage config", "cluster", region, "storage", params.StorageID)
 
 		return nil, status.Error(codes.Internal, err.Error())
 	}
@@ -204,7 +201,7 @@ func (d *ControllerService) CreateVolume(_ context.Context, request *csi.CreateV
 	vmr.SetNode(zone)
 	vmr.SetVmType("qemu")
 
-	if paramsSC.Replicate != nil && *paramsSC.Replicate {
+	if params.Replicate != nil && *params.Replicate {
 		if storageConfig["type"].(string) != "zfspool" { //nolint:errcheck
 			return nil, status.Error(codes.Internal, "error: storage type is not zfs in replication mode")
 		}
@@ -231,15 +228,15 @@ func (d *ControllerService) CreateVolume(_ context.Context, request *csi.CreateV
 		}
 	}
 
-	vol := volume.NewVolume(region, zone, params[StorageIDKey], fmt.Sprintf("vm-%d-%s", vmr.VmId(), pvc))
+	vol := volume.NewVolume(region, zone, params.StorageID, fmt.Sprintf("vm-%d-%s", vmr.VmId(), pvc))
 
 	if storageConfig["path"] != nil && storageConfig["path"].(string) != "" { //nolint:errcheck
 		format := "raw"
-		if params[StorageFormatKey] == "qcow2" {
-			format = params[StorageFormatKey]
+		if params.StorageFormat == "qcow2" {
+			format = params.StorageFormat
 		}
 
-		vol = volume.NewVolume(region, zone, params[StorageIDKey], fmt.Sprintf("%d/vm-%d-%s.%s", vmr.VmId(), vmr.VmId(), pvc, format))
+		vol = volume.NewVolume(region, zone, params.StorageID, fmt.Sprintf("%d/vm-%d-%s.%s", vmr.VmId(), vmr.VmId(), pvc, format))
 	}
 
 	// Check if volume already exists, and use it if it has the same size, otherwise create a new one
@@ -257,7 +254,9 @@ func (d *ControllerService) CreateVolume(_ context.Context, request *csi.CreateV
 		if mc.ObserveRequest(err) != nil {
 			return nil, status.Error(codes.Internal, err.Error())
 		}
-	} else if size != volSizeBytes {
+	}
+
+	if size != volSizeBytes {
 		klog.ErrorS(err, "CreateVolume: volume is already exists", "cluster", region, "volumeID", vol.VolumeID(), "size", size)
 
 		return nil, status.Error(codes.AlreadyExists, "volume already exists with same name and different capacity")
@@ -265,18 +264,18 @@ func (d *ControllerService) CreateVolume(_ context.Context, request *csi.CreateV
 
 	volumeID := vol.VolumeID()
 
-	if paramsSC.Replicate != nil && *paramsSC.Replicate {
-		_, err := attachVolume(cl, vmr, vol.Storage(), vol.Disk(), paramsSC.ToMap())
+	if params.Replicate != nil && *params.Replicate {
+		_, err := attachVolume(cl, vmr, vol.Storage(), vol.Disk(), params.ToMap())
 		if err != nil {
 			klog.ErrorS(err, "CreateVolume: failed to attach volume", "cluster", region, "volumeID", vol.VolumeID(), "vmID", vmr.VmId())
 
 			return nil, status.Error(codes.Internal, err.Error())
 		}
 
-		if paramsSC.ReplicateZones != "" {
+		if params.ReplicateZones != "" {
 			var replicaZone string
 
-			for _, z := range strings.Split(paramsSC.ReplicateZones, ",") {
+			for _, z := range strings.Split(params.ReplicateZones, ",") {
 				if z != zone {
 					replicaZone = z
 
@@ -285,7 +284,7 @@ func (d *ControllerService) CreateVolume(_ context.Context, request *csi.CreateV
 			}
 
 			if replicaZone != "" {
-				if err := proxmox.SetQemuVMReplication(cl, vmr, replicaZone, paramsSC.ReplicateSchedule); err != nil {
+				if err := proxmox.SetQemuVMReplication(cl, vmr, replicaZone, params.ReplicateSchedule); err != nil {
 					klog.ErrorS(err, "CreateVolume: failed to set replication", "cluster", region, "zone", replicaZone, "volumeID", vol.VolumeID(), "vmID", vmr.VmId())
 
 					return nil, status.Error(codes.Internal, err.Error())
@@ -318,7 +317,7 @@ func (d *ControllerService) CreateVolume(_ context.Context, request *csi.CreateV
 
 	volume := csi.Volume{
 		VolumeId:           volumeID,
-		VolumeContext:      paramsVAC.MergeMap(params),
+		VolumeContext:      paramsVAC.MergeMap(params.ToMap()),
 		ContentSource:      request.GetVolumeContentSource(),
 		CapacityBytes:      volSizeBytes,
 		AccessibleTopology: topology,
