@@ -276,7 +276,6 @@ func (d *ControllerService) CreateVolume(_ context.Context, request *csi.CreateV
 		vol = volume.NewVolume(region, zone, params.StorageID, fmt.Sprintf("%d/vm-%d-%s.%s", vmr.VmId(), vmr.VmId(), pvc, format))
 	}
 
-	// Check if volume already exists, and use it if it has the same size, otherwise create a new one
 	size, err := getVolumeSize(cl, vol)
 	if err != nil {
 		if err.Error() != ErrorNotFound {
@@ -304,6 +303,10 @@ func (d *ControllerService) CreateVolume(_ context.Context, request *csi.CreateV
 			}
 
 			klog.V(5).InfoS("CreateVolume: creating volume from snapshot", "volumeID", vol.VolumeID(), "snapshotID", srcVol.VolumeID())
+
+			if vol.Storage() != srcVol.Storage() {
+				return nil, status.Errorf(codes.InvalidArgument, "storage mismatch: requested storage %s does not match snapshot storage %s", vol.Storage(), srcVol.Storage())
+			}
 
 			err = proxmox.CopyQemuDisk(cl, srcVol, vol)
 			if mc.ObserveRequest(err) != nil {
@@ -337,9 +340,7 @@ func (d *ControllerService) CreateVolume(_ context.Context, request *csi.CreateV
 		}
 
 		if srcVol == nil {
-			klog.InfoS("CreateVolume: volume already exists with different capacity", "cluster", region, "volumeID", vol.VolumeID(), "size", size, "requestedSize", volSizeBytes)
-
-			return nil, status.Error(codes.AlreadyExists, "volume already exists with different capacity")
+			klog.InfoS("CreateVolume: volume has been created with different capacity", "cluster", region, "volumeID", vol.VolumeID(), "size", size, "requestedSize", volSizeBytes)
 		}
 	}
 
@@ -825,7 +826,7 @@ func (d *ControllerService) CreateSnapshot(_ context.Context, request *csi.Creat
 
 	params := request.GetParameters()
 	if params == nil {
-		return nil, status.Error(codes.InvalidArgument, "Parameters must be provided")
+		params = map[string]string{}
 	}
 
 	cl, err := d.Cluster.GetProxmoxCluster(vol.Cluster())

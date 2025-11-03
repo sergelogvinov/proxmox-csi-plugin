@@ -4,7 +4,7 @@
 # metadata:
 #   name: proxmox
 # parameters:
-#   zone: rnd-2
+#   # zone: rnd-2
 # driver: csi.proxmox.sinextra.dev
 # deletionPolicy: Delete
 ---

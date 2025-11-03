@@ -727,28 +727,6 @@ func (ts *configuredTestSuite) TestCreateVolume() {
 			expectedError: status.Error(codes.Internal, "proxmox cluster Region-1 not found"),
 		},
 		{
-			msg: "PVCAlreadyExist",
-			request: &proto.CreateVolumeRequest{
-				Name:               "pvc-exist",
-				Parameters:         volParam,
-				VolumeCapabilities: []*proto.VolumeCapability{volcap},
-				CapacityRange: &proto.CapacityRange{
-					RequiredBytes: 1 * csi.GiB,
-				},
-				AccessibilityRequirements: &proto.TopologyRequirement{
-					Preferred: []*proto.Topology{
-						{
-							Segments: map[string]string{
-								corev1.LabelTopologyRegion: "cluster-1",
-								corev1.LabelTopologyZone:   "pve-1",
-							},
-						},
-					},
-				},
-			},
-			expectedError: status.Error(codes.AlreadyExists, "volume already exists with different capacity"),
-		},
-		{
 			msg: "PVCAlreadyExistSameSize",
 			request: &proto.CreateVolumeRequest{
 				Name:               "pvc-exist-same-size",
