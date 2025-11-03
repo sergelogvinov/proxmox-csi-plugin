@@ -173,6 +173,23 @@ controller:
       requests:
         cpu: 10m
         memory: 16Mi
+  snapshotter:
+    enabled: false
+    # -- CSI Snapshotter.
+    # refs: https://github.com/kubernetes-csi/external-snapshotter
+    image:
+      repository: registry.k8s.io/sig-storage/csi-snapshotter
+      pullPolicy: IfNotPresent
+      tag: v8.3.0
+    # -- Snapshotter arguments.
+    # example: --feature-gates=CSIVolumeGroupSnapshot=true
+    args: []
+    # -- Snapshotter resource requests and limits.
+    # ref: https://kubernetes.io/docs/user-guide/compute-resources/
+    resources:
+      requests:
+        cpu: 10m
+        memory: 16Mi
 
 node:
   plugin:
