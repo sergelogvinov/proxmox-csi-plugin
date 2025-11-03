@@ -120,7 +120,7 @@ func ExtractAndDefaultParameters(parameters map[string]string) (StorageParameter
 				case reflect.String:
 					f.Set(reflect.ValueOf(ptr.Ptr(v)))
 				case reflect.Bool:
-					f.Set(reflect.ValueOf(ptr.Ptr(v == "true" || v == "1")))
+					f.Set(reflect.ValueOf(ptr.Ptr(v == "true" || v == "1"))) //nolint:goconst
 				case reflect.Int, reflect.Int32, reflect.Int64:
 					i, err := strconv.Atoi(v)
 					if err != nil {
@@ -134,7 +134,7 @@ func ExtractAndDefaultParameters(parameters map[string]string) (StorageParameter
 				case reflect.String:
 					f.Set(reflect.ValueOf(v))
 				case reflect.Bool:
-					f.Set(reflect.ValueOf(v == "true" || v == "1"))
+					f.Set(reflect.ValueOf(v == "true" || v == "1")) //nolint:goconst
 				case reflect.Int, reflect.Int32, reflect.Int64:
 					i, err := strconv.Atoi(v)
 					if err != nil {
@@ -208,7 +208,7 @@ func ExtractModifyVolumeParameters(parameters map[string]string) (ModifyVolumePa
 				case reflect.String:
 					f.Set(reflect.ValueOf(ptr.Ptr(v)))
 				case reflect.Bool:
-					f.Set(reflect.ValueOf(ptr.Ptr(v == "true" || v == "1")))
+					f.Set(reflect.ValueOf(ptr.Ptr(v == "true" || v == "1"))) //nolint:goconst
 				case reflect.Int, reflect.Int32, reflect.Int64:
 					if i, err := strconv.Atoi(v); err == nil {
 						f.Set(reflect.ValueOf(ptr.Ptr(i)))
