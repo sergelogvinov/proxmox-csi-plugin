@@ -184,6 +184,38 @@ func getStorageContent(cl *pxapi.Client, vol *volume.Volume) (*storageContent, e
 	return nil, nil
 }
 
+// nolint:unused
+func getVMBackupContent(cl *pxapi.Client, vmr *pxapi.VmRef, storage string) (map[string]string, error) {
+	content := make(map[string]string)
+
+	context, err := cl.GetStorageContent(vmr, storage)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get storage list: %v", err)
+	}
+
+	list, ok := context["data"].([]interface{})
+	if !ok {
+		return nil, fmt.Errorf("failed to cast images to map: %v", err)
+	}
+
+	for i := range list {
+		image, ok := list[i].(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("failed to cast image to map: %v", err)
+		}
+
+		if image["content"].(string) != "backup" { //nolint:errcheck
+			continue
+		}
+
+		if image["notes"].(string) != "" { //nolint:errcheck
+			content[image["notes"].(string)] = image["volid"].(string) //nolint:errcheck
+		}
+	}
+
+	return content, nil
+}
+
 func isPvcExists(cl *pxapi.Client, vol *volume.Volume) (bool, error) {
 	st, err := getStorageContent(cl, vol)
 	if err != nil {

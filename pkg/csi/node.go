@@ -100,6 +100,11 @@ func (n *NodeService) NodeStageVolume(_ context.Context, request *csi.NodeStageV
 		return nil, status.Error(codes.InvalidArgument, "StagingTargetPath must be provided")
 	}
 
+	publishContext := request.GetPublishContext()
+	if len(publishContext) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "PublishContext must be provided")
+	}
+
 	volumeCapability := request.GetVolumeCapability()
 	if volumeCapability == nil {
 		return nil, status.Error(codes.InvalidArgument, "VolumeCapability must be provided")
@@ -186,6 +191,15 @@ func (n *NodeService) NodeStageVolume(_ context.Context, request *csi.NodeStageV
 			klog.ErrorS(err, "NodeStageVolume: failed to mount device", "device", devicePath)
 
 			return nil, status.Error(codes.Internal, err.Error())
+		}
+	}
+
+	if required, ok := publishContext[resizeRequired]; ok && strings.EqualFold(required, "true") {
+		klog.V(4).Infof("NodeStageVolume: resizing volume %q created from a snapshot/volume", volumeID)
+
+		r := mountutil.NewResizeFs(n.Mount.Mounter().Exec)
+		if _, err := r.Resize(devicePath, stagingTarget); err != nil {
+			return nil, status.Errorf(codes.Internal, "Could not resize volume %q:  %v", volumeID, err)
 		}
 	}
 
