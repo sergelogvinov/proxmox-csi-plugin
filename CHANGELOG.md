@@ -5,6 +5,13 @@
 
 * enable support for capmox ([6145c7d](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/6145c7d91cfc47c131ac453e2a90a915e5694b2b))
 
+## [0.15.1](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.15.0...v0.15.1) (2025-11-03)
+
+
+### Bug Fixes
+
+* storageclass parameters ([82ac3ac](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/82ac3acbaa64a87b68530df2e1f0a7c7179776fb))
+
 ## [0.15.0](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.14.0...v0.15.0) (2025-11-01)
 
 
