@@ -138,6 +138,25 @@ spec:
             - name: socket-dir
               mountPath: /csi
           resources: {{- toYaml .Values.controller.resizer.resources | nindent 12 }}
+        {{- if .Values.controller.snapshotter.enabled }}
+        - name: csi-snapshotter
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.controller.snapshotter.image.repository }}:{{ .Values.controller.snapshotter.image.tag }}"
+          imagePullPolicy: {{ .Values.controller.snapshotter.image.pullPolicy }}
+          args:
+            - "-v={{ .Values.logVerbosityLevel }}"
+            - "--csi-address=unix:///csi/csi.sock"
+            - "--timeout={{ .Values.timeout }}"
+            - "--leader-election"
+            {{- range .Values.controller.snapshotter.args }}
+            - {{ . | quote }}
+            {{- end }}
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /csi
+          resources: {{- toYaml .Values.controller.snapshotter.resources | nindent 12 }}
+        {{- end }}
         - name: liveness-probe
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
