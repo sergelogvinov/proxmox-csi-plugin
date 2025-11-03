@@ -105,9 +105,9 @@ func (n *NodeService) NodeStageVolume(_ context.Context, request *csi.NodeStageV
 		return nil, status.Error(codes.InvalidArgument, "VolumeCapability must be provided")
 	}
 
-	volumeContext := request.GetVolumeContext()
-	if volumeContext == nil {
-		volumeContext = map[string]string{}
+	params, err := ExtractAndDefaultParameters(request.GetVolumeContext())
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
 	devicePath, err := getDevicePath(request.GetPublishContext())
@@ -136,11 +136,7 @@ func (n *NodeService) NodeStageVolume(_ context.Context, request *csi.NodeStageV
 	}
 
 	if notMnt {
-		var (
-			options       []string
-			formatOptions []string
-		)
-
+		options := []string{}
 		fsType := FSTypeExt4
 
 		if mnt := volumeCapability.GetMount(); mnt != nil {
@@ -148,32 +144,10 @@ func (n *NodeService) NodeStageVolume(_ context.Context, request *csi.NodeStageV
 				fsType = mnt.GetFsType()
 			}
 
-			if volumeContext["ssd"] == "true" { //nolint:goconst
-				options = append(options, "noatime")
-			}
-
-			mountFlags := mnt.GetMountFlags()
-			options = append(options, collectMountOptions(fsType, mountFlags)...)
+			options = collectMountOptions(params, fsType, mnt.GetMountFlags())
 		}
 
-		blockSize := volumeContext[StorageBlockSizeKey]
-		if blockSize != "" {
-			if fsType == FSTypeXfs {
-				blockSize = "size=" + blockSize
-			}
-
-			formatOptions = append(formatOptions, "-b", blockSize)
-		}
-
-		inodeSize := volumeContext[StorageInodeSizeKey]
-		if inodeSize != "" {
-			option := "-I"
-			if fsType == FSTypeXfs {
-				option, inodeSize = "-i", "size="+inodeSize
-			}
-
-			formatOptions = append(formatOptions, option, inodeSize)
-		}
+		formatOptions := collectFormatOptions(params, fsType)
 
 		passphraseKey, ok := request.GetSecrets()[EncryptionPassphraseKey]
 		if ok {
@@ -204,6 +178,8 @@ func (n *NodeService) NodeStageVolume(_ context.Context, request *csi.NodeStageV
 
 			devicePath = lukskDevicePath
 		}
+
+		klog.V(4).InfoS("NodeStageVolume: mount device with options", "device", devicePath, "fsType", fsType, "options", options, "formatOptions", formatOptions)
 
 		err = m.Mounter().FormatAndMountSensitiveWithFormatOptions(devicePath, stagingTarget, fsType, options, nil, formatOptions)
 		if err != nil {
@@ -410,7 +386,7 @@ func (n *NodeService) NodeUnpublishVolume(_ context.Context, request *csi.NodeUn
 
 // NodeGetVolumeStats get the volume stats
 func (n *NodeService) NodeGetVolumeStats(_ context.Context, request *csi.NodeGetVolumeStatsRequest) (*csi.NodeGetVolumeStatsResponse, error) {
-	klog.V(4).InfoS("NodeGetVolumeStats: called", "args", protosanitizer.StripSecrets(request))
+	klog.V(5).InfoS("NodeGetVolumeStats: called", "args", protosanitizer.StripSecrets(request))
 
 	volumePath := request.GetVolumePath()
 	if len(volumePath) == 0 {
@@ -599,9 +575,13 @@ func isValidVolumeCapabilities(volCaps []*csi.VolumeCapability) bool {
 	return foundAll
 }
 
-func collectMountOptions(fsType string, mntFlags []string) []string {
+func collectMountOptions(params StorageParameters, fsType string, mntFlags []string) []string {
 	options := []string{}
 	options = append(options, mntFlags...)
+
+	if params.SSD != nil && *params.SSD {
+		options = append(options, "noatime")
+	}
 
 	// By default, xfs does not allow mounting of two volumes with the same filesystem uuid.
 	// Force ignore this uuid to be able to mount volume + its clone / restored snapshot on the same node.
@@ -610,4 +590,30 @@ func collectMountOptions(fsType string, mntFlags []string) []string {
 	}
 
 	return options
+}
+
+func collectFormatOptions(params StorageParameters, fsType string) []string {
+	formatOptions := []string{}
+
+	if params.BlockSize != nil && *params.BlockSize > 0 {
+		blockSize := fmt.Sprintf("%d", *params.BlockSize)
+
+		if fsType == FSTypeXfs {
+			blockSize = fmt.Sprintf("size=%d", *params.BlockSize)
+		}
+
+		formatOptions = append(formatOptions, "-b", blockSize)
+	}
+
+	if params.InodeSize != nil && *params.InodeSize > 0 {
+		option, inodeSize := "-I", fmt.Sprintf("%d", *params.InodeSize)
+
+		if fsType == FSTypeXfs {
+			option, inodeSize = "-i", fmt.Sprintf("size=%d", *params.InodeSize)
+		}
+
+		formatOptions = append(formatOptions, option, inodeSize)
+	}
+
+	return formatOptions
 }

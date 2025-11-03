@@ -118,7 +118,9 @@ func TestNodeStageVolumeErrors(t *testing.T) {
 				VolumeId:          "pvc-1",
 				StagingTargetPath: "/staging",
 				VolumeCapability:  volcap,
-				PublishContext:    map[string]string{},
+				PublishContext: map[string]string{
+					"lun": "1",
+				},
 			},
 			expectedError: fmt.Errorf("DevicePath must be provided"),
 		},
