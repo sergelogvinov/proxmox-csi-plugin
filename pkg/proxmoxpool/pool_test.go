@@ -17,12 +17,9 @@ limitations under the License.
 package proxmoxpool_test
 
 import (
-	"fmt"
-	"net/http"
 	"os"
 	"testing"
 
-	"github.com/jarcoal/httpmock"
 	"github.com/stretchr/testify/assert"
 
 	pxpool "github.com/sergelogvinov/proxmox-csi-plugin/pkg/proxmoxpool"
@@ -67,13 +64,13 @@ func TestNewClient(t *testing.T) {
 	cfg := newClusterEnv()
 	assert.NotNil(t, cfg)
 
-	pClient, err := pxpool.NewProxmoxPool([]*pxpool.ProxmoxCluster{}, nil)
+	pxClient, err := pxpool.NewProxmoxPool([]*pxpool.ProxmoxCluster{})
 	assert.NotNil(t, err)
-	assert.Nil(t, pClient)
+	assert.Nil(t, pxClient)
 
-	pClient, err = pxpool.NewProxmoxPool(cfg, nil)
+	pxClient, err = pxpool.NewProxmoxPool(cfg)
 	assert.Nil(t, err)
-	assert.NotNil(t, pClient)
+	assert.NotNil(t, pxClient)
 }
 
 func TestNewClientWithCredentialsFromFile(t *testing.T) {
@@ -92,7 +89,7 @@ func TestNewClientWithCredentialsFromFile(t *testing.T) {
 
 	cfg := newClusterEnvWithFiles(tokenIDFile.Name(), tokenSecretFile.Name())
 
-	pxClient, err := pxpool.NewProxmoxPool(cfg, nil)
+	pxClient, err := pxpool.NewProxmoxPool(cfg)
 	assert.Nil(t, err)
 	assert.NotNil(t, pxClient)
 	assert.Equal(t, "user!token-id", cfg[0].TokenID)
@@ -103,166 +100,20 @@ func TestCheckClusters(t *testing.T) {
 	cfg := newClusterEnv()
 	assert.NotNil(t, cfg)
 
-	pClient, err := pxpool.NewProxmoxPool(cfg, nil)
+	pxClient, err := pxpool.NewProxmoxPool(cfg)
 	assert.Nil(t, err)
-	assert.NotNil(t, pClient)
+	assert.NotNil(t, pxClient)
 
-	pxapi, err := pClient.GetProxmoxCluster("test")
+	pxapi, err := pxClient.GetProxmoxCluster("test")
 	assert.NotNil(t, err)
 	assert.Nil(t, pxapi)
-	assert.Equal(t, "proxmox cluster test not found", err.Error())
+	assert.Equal(t, pxpool.ErrRegionNotFound, err)
 
-	pxapi, err = pClient.GetProxmoxCluster("cluster-1")
+	pxapi, err = pxClient.GetProxmoxCluster("cluster-1")
 	assert.Nil(t, err)
 	assert.NotNil(t, pxapi)
 
-	err = pClient.CheckClusters(t.Context())
+	err = pxClient.CheckClusters(t.Context())
 	assert.NotNil(t, err)
 	assert.Contains(t, err.Error(), "failed to initialized proxmox client in region")
-}
-
-func TestFindVMByNameNonExist(t *testing.T) {
-	cfg := newClusterEnv()
-	assert.NotNil(t, cfg)
-
-	httpmock.Activate()
-	defer httpmock.DeactivateAndReset() //nolint: wsl_v5
-
-	httpmock.RegisterResponder("GET", "https://127.0.0.1:8006/api2/json/cluster/resources",
-		func(_ *http.Request) (*http.Response, error) {
-			return httpmock.NewJsonResponse(200, map[string]interface{}{
-				"data": []interface{}{
-					map[string]interface{}{
-						"node": "node-1",
-						"type": "qemu",
-						"vmid": 100,
-						"name": "test1-vm",
-					},
-				},
-			})
-		},
-	)
-
-	httpmock.RegisterResponder("GET", "https://127.0.0.2:8006/api2/json/cluster/resources",
-		func(_ *http.Request) (*http.Response, error) {
-			return httpmock.NewJsonResponse(200, map[string]interface{}{
-				"data": []interface{}{
-					map[string]interface{}{
-						"node": "node-2",
-						"type": "qemu",
-						"vmid": 100,
-						"name": "test2-vm",
-					},
-				},
-			})
-		},
-	)
-
-	pClient, err := pxpool.NewProxmoxPool(cfg, &http.Client{})
-	assert.Nil(t, err)
-	assert.NotNil(t, pClient)
-
-	vmr, cluster, err := pClient.FindVMByName(t.Context(), "non-existing-vm")
-	assert.NotNil(t, err)
-	assert.Equal(t, "", cluster)
-	assert.Nil(t, vmr)
-	assert.Contains(t, err.Error(), "vm 'non-existing-vm' not found")
-}
-
-func TestFindVMByNameExist(t *testing.T) {
-	cfg := newClusterEnv()
-	assert.NotNil(t, cfg)
-
-	httpmock.Activate()
-	defer httpmock.DeactivateAndReset() //nolint: wsl_v5
-
-	httpmock.RegisterResponder("GET", "https://127.0.0.1:8006/api2/json/cluster/resources",
-		httpmock.NewJsonResponderOrPanic(200, map[string]interface{}{
-			"data": []interface{}{
-				map[string]interface{}{
-					"node": "node-1",
-					"type": "qemu",
-					"vmid": 100,
-					"name": "test1-vm",
-				},
-				map[string]interface{}{
-					"node": "node-1",
-					"type": "qemu",
-					"vmid": 101,
-					"name": "test3-vm.domain.local",
-				},
-			},
-		}),
-	)
-
-	httpmock.RegisterResponder("GET", "https://127.0.0.2:8006/api2/json/cluster/resources",
-		func(_ *http.Request) (*http.Response, error) {
-			return httpmock.NewJsonResponse(200, map[string]interface{}{
-				"data": []interface{}{
-					map[string]interface{}{
-						"node": "node-2",
-						"type": "qemu",
-						"vmid": 100,
-						"name": "test2-vm",
-					},
-				},
-			})
-		},
-	)
-
-	pClient, err := pxpool.NewProxmoxPool(cfg, &http.Client{})
-	assert.Nil(t, err)
-	assert.NotNil(t, pClient)
-
-	tests := []struct {
-		msg             string
-		vmName          string
-		expectedError   error
-		expectedVMID    int
-		expectedCluster string
-	}{
-		{
-			msg:           "vm not found",
-			vmName:        "non-existing-vm",
-			expectedError: fmt.Errorf("vm 'non-existing-vm' not found"),
-		},
-		{
-			msg:             "Test1-VM",
-			vmName:          "test1-vm",
-			expectedVMID:    100,
-			expectedCluster: "cluster-1",
-		},
-		{
-			msg:             "Test3-VM with FQDN node name",
-			vmName:          "test3-vm",
-			expectedVMID:    101,
-			expectedCluster: "cluster-1",
-		},
-		{
-			msg:             "Test2-VM",
-			vmName:          "test2-vm",
-			expectedVMID:    100,
-			expectedCluster: "cluster-2",
-		},
-	}
-
-	for _, testCase := range tests {
-		testCase := testCase
-
-		t.Run(fmt.Sprint(testCase.msg), func(t *testing.T) {
-			vmr, cluster, err := pClient.FindVMByName(t.Context(), testCase.vmName)
-
-			if testCase.expectedError == nil {
-				assert.Nil(t, err)
-				assert.NotNil(t, vmr)
-				assert.Equal(t, testCase.expectedVMID, vmr.VmId())
-				assert.Equal(t, testCase.expectedCluster, cluster)
-			} else {
-				assert.NotNil(t, err)
-				assert.Equal(t, "", cluster)
-				assert.Nil(t, vmr)
-				assert.Contains(t, err.Error(), "vm 'non-existing-vm' not found")
-			}
-		})
-	}
 }

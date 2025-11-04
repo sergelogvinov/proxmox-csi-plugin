@@ -1,0 +1,13 @@
+features:
+  provider: capmox
+clusters:
+  - url: https://127.0.0.1:8006/api2/json
+    insecure: false
+    token_id: "user!token-id"
+    token_secret: "secret"
+    region: cluster-1
+  - url: https://127.0.0.2:8006/api2/json
+    insecure: false
+    token_id: "user!token-id"
+    token_secret: "secret"
+    region: cluster-2

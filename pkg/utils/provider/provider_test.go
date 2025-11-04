@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"testing"
 
-	pxapi "github.com/Telmate/proxmox-api-go/proxmox"
 	"github.com/stretchr/testify/assert"
 
 	provider "github.com/sergelogvinov/proxmox-csi-plugin/pkg/utils/provider"
@@ -55,7 +54,7 @@ func TestGetProviderID(t *testing.T) {
 		t.Run(fmt.Sprint(testCase.msg), func(t *testing.T) {
 			t.Parallel()
 
-			providerID := provider.GetProviderID(testCase.region, pxapi.NewVmRef(testCase.vmID))
+			providerID := provider.GetProviderID(testCase.region, testCase.vmID)
 
 			assert.Equal(t, testCase.expectedProviderID, providerID)
 		})
@@ -178,14 +177,14 @@ func TestParseProviderID(t *testing.T) {
 		t.Run(fmt.Sprint(testCase.msg), func(t *testing.T) {
 			t.Parallel()
 
-			vmr, region, err := provider.ParseProviderID(testCase.providerID)
+			vmid, region, err := provider.ParseProviderID(testCase.providerID)
 
 			if testCase.expectedError != nil {
 				assert.NotNil(t, err)
 				assert.Equal(t, err.Error(), testCase.expectedError.Error())
 			} else {
-				assert.NotNil(t, vmr)
-				assert.Equal(t, testCase.expectedvmID, vmr.VmId())
+				assert.NotZero(t, vmid)
+				assert.Equal(t, testCase.expectedvmID, vmid)
 				assert.Equal(t, testCase.expectedRegion, region)
 			}
 		})

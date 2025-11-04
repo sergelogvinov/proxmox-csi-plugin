@@ -28,7 +28,7 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/csi"
-	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/tools"
+	tools "github.com/sergelogvinov/proxmox-csi-plugin/pkg/tools/kubernetes"
 
 	clientkubernetes "k8s.io/client-go/kubernetes"
 	"k8s.io/component-base/metrics/legacyregistry"

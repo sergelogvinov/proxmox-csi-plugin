@@ -21,8 +21,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-
-	pxapi "github.com/Telmate/proxmox-api-go/proxmox"
 )
 
 const (
@@ -33,8 +31,8 @@ const (
 var providerIDRegexp = regexp.MustCompile(`^` + ProviderName + `://([^/]*)/([^/]+)$`)
 
 // GetProviderID returns the magic providerID for kubernetes node.
-func GetProviderID(region string, vmr *pxapi.VmRef) string {
-	return fmt.Sprintf("%s://%s/%d", ProviderName, region, vmr.VmId())
+func GetProviderID(region string, vmid int) string {
+	return fmt.Sprintf("%s://%s/%d", ProviderName, region, vmid)
 }
 
 // GetProviderIDFromUUID returns the magic providerID for kubernetes node.
@@ -61,21 +59,21 @@ func GetVMID(providerID string) (int, error) {
 	return vmID, nil
 }
 
-// ParseProviderID returns the VmRef and region from the providerID.
-func ParseProviderID(providerID string) (*pxapi.VmRef, string, error) {
+// ParseProviderID returns the vmID and region from the providerID.
+func ParseProviderID(providerID string) (int, string, error) {
 	if !strings.HasPrefix(providerID, ProviderName) {
-		return nil, "", fmt.Errorf("foreign providerID or empty \"%s\"", providerID)
+		return 0, "", fmt.Errorf("foreign providerID or empty \"%s\"", providerID)
 	}
 
 	matches := providerIDRegexp.FindStringSubmatch(providerID)
 	if len(matches) != 3 {
-		return nil, "", fmt.Errorf("providerID \"%s\" didn't match expected format \"%s://region/InstanceID\"", providerID, ProviderName)
+		return 0, "", fmt.Errorf("providerID \"%s\" didn't match expected format \"%s://region/InstanceID\"", providerID, ProviderName)
 	}
 
 	vmID, err := strconv.Atoi(matches[2])
 	if err != nil {
-		return nil, "", fmt.Errorf("InstanceID have to be a number, but got \"%s\"", matches[2])
+		return 0, "", fmt.Errorf("InstanceID have to be a number, but got \"%s\"", matches[2])
 	}
 
-	return pxapi.NewVmRef(vmID), matches[1], nil
+	return vmID, matches[1], nil
 }

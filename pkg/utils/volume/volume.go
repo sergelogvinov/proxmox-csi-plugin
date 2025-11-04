@@ -26,15 +26,26 @@ import (
 type Volume struct {
 	region  string
 	zone    string
+	node    string
 	storage string
 	disk    string
 }
 
 // NewVolume creates a new volume ID.
-func NewVolume(region, zone, storage, disk string) *Volume {
+func NewVolume(region, zone, storage, disk string, format ...string) *Volume {
+	if len(format) > 0 && format[0] != "" {
+		parts := strings.SplitN(disk, "-", 3)
+		if len(parts) == 3 {
+			disk = fmt.Sprintf("%s/%s", parts[1], disk)
+		}
+
+		disk = fmt.Sprintf("%s.%s", disk, format[0])
+	}
+
 	return &Volume{
 		region:  region,
 		zone:    zone,
+		node:    zone,
 		storage: storage,
 		disk:    disk,
 	}
@@ -43,6 +54,22 @@ func NewVolume(region, zone, storage, disk string) *Volume {
 // NewVolumeFromVolumeID creates a new volume ID from a volume magic string.
 func NewVolumeFromVolumeID(volume string) (*Volume, error) {
 	return parseVolumeID(volume)
+}
+
+// CopyVolume creates a copy of the volume with a new disk name.
+func (v *Volume) CopyVolume(volume string) *Volume {
+	dotIndex := strings.LastIndex(v.disk, ".")
+	if dotIndex != -1 {
+		volume = fmt.Sprintf("%s/%s.%s", v.VMID(), volume, v.disk[dotIndex+1:])
+	}
+
+	return &Volume{
+		region:  v.region,
+		zone:    v.zone,
+		node:    v.node,
+		storage: v.storage,
+		disk:    volume,
+	}
 }
 
 func parseVolumeID(vol string) (*Volume, error) {
@@ -54,6 +81,7 @@ func parseVolumeID(vol string) (*Volume, error) {
 	return &Volume{
 		region:  parts[0],
 		zone:    parts[1],
+		node:    parts[1],
 		storage: parts[2],
 		disk:    parts[3],
 	}, nil
@@ -79,6 +107,11 @@ func (v *Volume) Zone() string {
 	return v.zone
 }
 
+// Node function returns the node name in which the volume was created.
+func (v *Volume) Node() string {
+	return v.node
+}
+
 // Storage function returns the Proxmox storage name.
 func (v *Volume) Storage() string {
 	return v.storage
@@ -94,9 +127,9 @@ func (v *Volume) Cluster() string {
 	return v.region
 }
 
-// Node function returns the node name in which the volume was created.
-func (v *Volume) Node() string {
-	return v.zone
+// VolID function returns the volume ID used in Proxmox.
+func (v *Volume) VolID() string {
+	return fmt.Sprintf("%s:%s", v.storage, v.disk)
 }
 
 // VMID function returns the vmID in which the volume was created.
@@ -117,4 +150,23 @@ func (v *Volume) PV() string {
 	}
 
 	return strings.SplitN(parts[2], ".", 2)[0]
+}
+
+// SetZone sets the zone name for the volume.
+func (v *Volume) SetZone(zone string) {
+	if v.node == v.zone || v.node == "" {
+		v.node = zone
+	}
+
+	v.zone = zone
+}
+
+// SetNode sets the node name for the volume.
+func (v *Volume) SetNode(node string) {
+	v.node = node
+}
+
+// SetStorage sets the storage name for the volume.
+func (v *Volume) SetStorage(storage string) {
+	v.storage = storage
 }

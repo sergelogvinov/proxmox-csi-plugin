@@ -110,7 +110,7 @@ func Test_ExtractAndDefaultParameters(t *testing.T) {
 				StorageID:      "local-lvm",
 				Backup:         ptr.Ptr(true),
 				IOThread:       true,
-				Replicate:      ptr.Ptr(true),
+				Replicate:      true,
 				ReplicateZones: "zone1,zone2",
 			},
 		},
@@ -143,7 +143,8 @@ func Test_ToMap(t *testing.T) {
 				StorageFormat: "raw",
 			},
 			params: map[string]string{
-				"iothread": "0",
+				"iothread":  "0",
+				"replicate": "0",
 			},
 		},
 		{
@@ -155,10 +156,11 @@ func Test_ToMap(t *testing.T) {
 				IopsWrite: ptr.Ptr(100),
 			},
 			params: map[string]string{
-				"cache":    "directsync",
-				"iothread": "1",
-				"iops_rd":  "100",
-				"iops_wr":  "100",
+				"cache":     "directsync",
+				"iothread":  "1",
+				"replicate": "0",
+				"iops_rd":   "100",
+				"iops_wr":   "100",
 			},
 		},
 		{
@@ -166,7 +168,7 @@ func Test_ToMap(t *testing.T) {
 			storage: csi.StorageParameters{
 				Cache:             "directsync",
 				IOThread:          true,
-				Replicate:         ptr.Ptr(true),
+				Replicate:         true,
 				ReplicateZones:    "zone1,zone2",
 				ReplicateSchedule: "*/30",
 			},
@@ -184,6 +186,7 @@ func Test_ToMap(t *testing.T) {
 			},
 			params: map[string]string{
 				"iothread":        "0",
+				"replicate":       "0",
 				"resizeRequired":  "1",
 				"resizeSizeBytes": "1073741824",
 			},

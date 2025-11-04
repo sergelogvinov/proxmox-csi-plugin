@@ -71,7 +71,7 @@ type StorageParameters struct {
 	BlockSize *int `cfg:"blockSize"`
 	InodeSize *int `cfg:"inodeSize"`
 
-	Replicate         *bool  `json:"replicate,omitempty"   cfg:"replicate"`
+	Replicate         bool   `json:"replicate,omitempty"   cfg:"replicate"`
 	ReplicateSchedule string `cfg:"replicateSchedule,omitempty"`
 	ReplicateZones    string `cfg:"replicateZones,omitempty"`
 
@@ -93,14 +93,14 @@ type ModifyVolumeParameters struct {
 	SpeedMbps *int `cfg:"diskMBps"`
 
 	ReplicateSchedule string `cfg:"replicateSchedule,omitempty"`
-	ReplicateZones    string `cfg:"replicateZones,omitempty"`
 }
 
 // ExtractAndDefaultParameters extracts storage parameters from a map and sets default values.
 func ExtractAndDefaultParameters(parameters map[string]string) (StorageParameters, error) {
 	p := StorageParameters{
-		Backup:   ptr.Ptr(false),
-		IOThread: true,
+		Backup:    ptr.Ptr(false),
+		Replicate: false,
+		IOThread:  true,
 	}
 
 	ps := reflect.ValueOf(&p).Elem()
@@ -176,12 +176,6 @@ func ExtractAndDefaultParameters(parameters map[string]string) (StorageParameter
 	if p.SpeedMbps != nil && *p.SpeedMbps > 0 {
 		p.ReadSpeedMbps = ptr.Ptr(*p.SpeedMbps)
 		p.WriteSpeedMbps = ptr.Ptr(*p.SpeedMbps)
-	}
-
-	if p.Replicate != nil && *p.Replicate {
-		if p.ReplicateZones == "" {
-			return p, fmt.Errorf("parameters %s must be provided", "replicateZones")
-		}
 	}
 
 	return p, nil

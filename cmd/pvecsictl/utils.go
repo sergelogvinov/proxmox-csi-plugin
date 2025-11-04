@@ -21,7 +21,7 @@ import (
 	"fmt"
 
 	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/csi"
-	tools "github.com/sergelogvinov/proxmox-csi-plugin/pkg/tools"
+	tools "github.com/sergelogvinov/proxmox-csi-plugin/pkg/tools/kubernetes"
 	volume "github.com/sergelogvinov/proxmox-csi-plugin/pkg/utils/volume"
 
 	rbacv1 "k8s.io/api/authorization/v1"
