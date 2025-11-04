@@ -184,15 +184,6 @@ func getStorageContent(cl *pxapi.Client, vol *volume.Volume) (*storageContent, e
 	return nil, nil
 }
 
-func isPvcExists(cl *pxapi.Client, vol *volume.Volume) (bool, error) {
-	st, err := getStorageContent(cl, vol)
-	if err != nil {
-		return false, err
-	}
-
-	return st != nil, nil
-}
-
 func getVolumeSize(cl *pxapi.Client, vol *volume.Volume) (int64, error) {
 	st, err := getStorageContent(cl, vol)
 	if err != nil {
