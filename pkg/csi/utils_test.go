@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"testing"
 
+	proxmox "github.com/luthermonson/go-proxmox"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -28,25 +29,24 @@ func TestIsVolumeAttached(t *testing.T) {
 
 	tests := []struct {
 		msg           string
-		vmConfig      map[string]interface{}
+		vmConfig      *proxmox.VirtualMachineConfig
 		pvc           string
 		expectedLun   int
 		expectedExist bool
 	}{
 		{
 			msg:           "Empty VM config",
-			vmConfig:      map[string]interface{}{},
+			vmConfig:      &proxmox.VirtualMachineConfig{},
 			pvc:           "",
 			expectedLun:   0,
 			expectedExist: false,
 		},
 		{
 			msg: "Empty PVC",
-			vmConfig: map[string]interface{}{
-				"ide2":   "local:iso/ubuntu-20.04.1-live-server-amd64.iso,media=cdrom",
-				"scsihw": "virtio-scsi-single",
-				"scsi0":  "local-lvm:vm-100-disk-0,size=8G",
-				"scsi5":  "local-lvm:vm-100-pvc-123,size=8G",
+			vmConfig: &proxmox.VirtualMachineConfig{
+				IDE2:  "local:iso/ubuntu-20.04.1-live-server-amd64.iso,media=cdrom",
+				SCSI0: "local-lvm:vm-100-disk-0,size=8G",
+				SCSI5: "local-lvm:vm-100-pvc-123,size=8G",
 			},
 			pvc:           "",
 			expectedLun:   0,
@@ -54,11 +54,10 @@ func TestIsVolumeAttached(t *testing.T) {
 		},
 		{
 			msg: "LUN 5",
-			vmConfig: map[string]interface{}{
-				"ide2":   "local:iso/ubuntu-20.04.1-live-server-amd64.iso,media=cdrom",
-				"scsihw": "virtio-scsi-single",
-				"scsi0":  "local-lvm:vm-100-disk-0,size=8G",
-				"scsi5":  "local-lvm:vm-100-pvc-123,size=8G",
+			vmConfig: &proxmox.VirtualMachineConfig{
+				IDE2:  "local:iso/ubuntu-20.04.1-live-server-amd64.iso,media=cdrom",
+				SCSI0: "local-lvm:vm-100-disk-0,size=8G",
+				SCSI5: "local-lvm:vm-100-pvc-123,size=8G",
 			},
 			pvc:           "pvc-123",
 			expectedLun:   5,
@@ -67,8 +66,6 @@ func TestIsVolumeAttached(t *testing.T) {
 	}
 
 	for _, testCase := range tests {
-		testCase := testCase
-
 		t.Run(fmt.Sprint(testCase.msg), func(t *testing.T) {
 			t.Parallel()
 
@@ -81,65 +78,6 @@ func TestIsVolumeAttached(t *testing.T) {
 				assert.False(t, exist)
 				assert.Equal(t, 0, lun)
 			}
-		})
-	}
-}
-
-func TestRoundUpSizeBytes(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		msg                 string
-		volumeSize          int64
-		allocationUnitBytes int64
-		expected            int64
-	}{
-		{
-			msg:                 "Zero size",
-			volumeSize:          0,
-			allocationUnitBytes: GiB,
-			expected:            1024 * 1024 * 1024,
-		},
-		{
-			msg:                 "KiB",
-			volumeSize:          123,
-			allocationUnitBytes: KiB,
-			expected:            1024,
-		},
-		{
-			msg:                 "MiB",
-			volumeSize:          123,
-			allocationUnitBytes: MiB,
-			expected:            1024 * 1024,
-		},
-		{
-			msg:                 "GiB",
-			volumeSize:          123,
-			allocationUnitBytes: GiB,
-			expected:            1024 * 1024 * 1024,
-		},
-		{
-			msg:                 "256MiB -> GiB",
-			volumeSize:          256 * 1024 * 1024,
-			allocationUnitBytes: GiB,
-			expected:            1024 * 1024 * 1024,
-		},
-		{
-			msg:                 "256MiB -> GiB/2",
-			volumeSize:          256 * 1024 * 1024,
-			allocationUnitBytes: 512 * MiB,
-			expected:            512 * 1024 * 1024,
-		},
-	}
-
-	for _, testCase := range tests {
-		testCase := testCase
-
-		t.Run(fmt.Sprint(testCase.msg), func(t *testing.T) {
-			t.Parallel()
-
-			expected := RoundUpSizeBytes(testCase.volumeSize, testCase.allocationUnitBytes)
-			assert.Equal(t, testCase.expected, expected)
 		})
 	}
 }

@@ -135,7 +135,7 @@ func (n *NodeService) NodeStageVolume(_ context.Context, request *csi.NodeStageV
 
 	m := n.Mount
 
-	requiredResize := strings.EqualFold(publishContext[resizeRequired], "true")
+	requiredResize, _ := strconv.ParseBool(publishContext[resizeRequired]) // nolint:errcheck
 
 	notMnt, err := m.IsLikelyNotMountPointAttach(stagingTarget)
 	if err != nil {
@@ -213,7 +213,7 @@ func (n *NodeService) NodeStageVolume(_ context.Context, request *csi.NodeStageV
 		}
 	}
 
-	klog.V(3).InfoS("NodeStageVolume: volume mounted", "device", devicePath)
+	klog.V(3).InfoS("NodeStageVolume: volume mounted", "device", devicePath, "resized", requiredResize)
 
 	return &csi.NodeStageVolumeResponse{}, nil
 }

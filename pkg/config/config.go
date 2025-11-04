@@ -18,6 +18,7 @@ limitations under the License.
 package config
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -38,13 +39,27 @@ const ProviderDefault Provider = "default"
 // ProviderCapmox is the Provider for capmox
 const ProviderCapmox Provider = "capmox"
 
+// ClustersFeatures specifies the features for the cloud provider.
+type ClustersFeatures struct {
+	// Provider specifies the provider to use. Can be 'default' or 'capmox'.
+	// Default is 'default'.
+	Provider Provider `yaml:"provider,omitempty"`
+}
+
 // ClustersConfig is proxmox multi-cluster cloud config.
 type ClustersConfig struct {
-	Features struct {
-		Provider Provider `yaml:"provider,omitempty"`
-	} `yaml:"features,omitempty"`
+	Features ClustersFeatures         `yaml:"features,omitempty"`
 	Clusters []*pxpool.ProxmoxCluster `yaml:"clusters,omitempty"`
 }
+
+// Errors for Reading Cloud Config
+var (
+	ErrMissingPVERegion       = errors.New("missing PVE region in cloud config")
+	ErrMissingPVEAPIURL       = errors.New("missing PVE API URL in cloud config")
+	ErrAuthCredentialsMissing = errors.New("user, token or file credentials are required")
+	ErrInvalidAuthCredentials = errors.New("must specify one of user, token or file credentials, not multiple")
+	ErrInvalidCloudConfig     = errors.New("invalid cloud config")
+)
 
 // ReadCloudConfig reads cloud config from a reader.
 func ReadCloudConfig(config io.Reader) (ClustersConfig, error) {
@@ -52,29 +67,29 @@ func ReadCloudConfig(config io.Reader) (ClustersConfig, error) {
 
 	if config != nil {
 		if err := yaml.NewDecoder(config).Decode(&cfg); err != nil {
-			return ClustersConfig{}, err
+			return ClustersConfig{}, errors.Join(ErrInvalidCloudConfig, err)
 		}
 	}
 
 	for idx, c := range cfg.Clusters {
-		hasUserAuth := c.Username != "" && c.Password != ""
 		hasTokenAuth := c.TokenID != "" || c.TokenSecret != ""
 		hasTokenFileAuth := c.TokenIDFile != "" || c.TokenSecretFile != ""
 
+		hasUserAuth := c.Username != "" && c.Password != ""
 		if (hasTokenAuth && hasUserAuth) || (hasTokenFileAuth && hasUserAuth) || (hasTokenAuth && hasTokenFileAuth) {
-			return ClustersConfig{}, fmt.Errorf("cluster #%d: must specify one of user, token or file credentials, not multiple", idx+1)
+			return ClustersConfig{}, fmt.Errorf("cluster #%d: %w", idx+1, ErrInvalidAuthCredentials)
 		}
 
 		if !hasTokenAuth && !hasTokenFileAuth && !hasUserAuth {
-			return ClustersConfig{}, fmt.Errorf("cluster #%d: user, token or file credentials are required", idx+1)
+			return ClustersConfig{}, fmt.Errorf("cluster #%d: %w", idx+1, ErrAuthCredentialsMissing)
 		}
 
 		if c.Region == "" {
-			return ClustersConfig{}, fmt.Errorf("cluster #%d: region is required", idx+1)
+			return ClustersConfig{}, fmt.Errorf("cluster #%d: %w", idx+1, ErrMissingPVERegion)
 		}
 
 		if c.URL == "" || !strings.HasPrefix(c.URL, "http") {
-			return ClustersConfig{}, fmt.Errorf("cluster #%d: url is required", idx+1)
+			return ClustersConfig{}, fmt.Errorf("cluster #%d: %w", idx+1, ErrMissingPVEAPIURL)
 		}
 	}
 

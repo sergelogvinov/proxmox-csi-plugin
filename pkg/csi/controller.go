@@ -25,24 +25,23 @@ import (
 	"strings"
 	"time"
 
-	pxapi "github.com/Telmate/proxmox-api-go/proxmox"
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/kubernetes-csi/csi-lib-utils/protosanitizer"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	goproxmox "github.com/sergelogvinov/go-proxmox"
 	csiconfig "github.com/sergelogvinov/proxmox-csi-plugin/pkg/config"
 	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/helpers/ptr"
 	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/metrics"
-	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/proxmox"
 	pxpool "github.com/sergelogvinov/proxmox-csi-plugin/pkg/proxmoxpool"
-	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/tools"
 	volume "github.com/sergelogvinov/proxmox-csi-plugin/pkg/utils/volume"
 
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	clientkubernetes "k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog/v2"
 )
 
@@ -73,28 +72,28 @@ var controllerCaps = []csi.ControllerServiceCapability_RPC_Type{
 type ControllerService struct {
 	csi.UnimplementedControllerServer
 
-	Cluster  *pxpool.ProxmoxPool
-	Kclient  clientkubernetes.Interface
+	pxpool   *pxpool.ProxmoxPool
+	kclient  kubernetes.Interface
 	Provider csiconfig.Provider
 
-	vmLocks *proxmox.VMLocks
+	vmLocks *VMLocks
 }
 
 // NewControllerService returns a new controller service
-func NewControllerService(kclient *clientkubernetes.Clientset, cloudConfig string) (*ControllerService, error) {
+func NewControllerService(kclient kubernetes.Interface, cloudConfig string) (*ControllerService, error) {
 	cfg, err := csiconfig.ReadCloudConfigFromFile(cloudConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read config: %v", err)
 	}
 
-	cluster, err := pxpool.NewProxmoxPool(cfg.Clusters, nil)
+	px, err := pxpool.NewProxmoxPool(cfg.Clusters)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create proxmox cluster client: %v", err)
 	}
 
 	d := &ControllerService{
-		Cluster:  cluster,
-		Kclient:  kclient,
+		pxpool:   px,
+		kclient:  kclient,
 		Provider: cfg.Features.Provider,
 	}
 
@@ -106,14 +105,14 @@ func NewControllerService(kclient *clientkubernetes.Clientset, cloudConfig strin
 // Init initializes the controller service
 func (d *ControllerService) Init() {
 	if d.vmLocks == nil {
-		d.vmLocks = proxmox.NewVMLocks()
+		d.vmLocks = NewVMLocks()
 	}
 }
 
 // CreateVolume creates a volume
 //
 //nolint:gocyclo,cyclop
-func (d *ControllerService) CreateVolume(_ context.Context, request *csi.CreateVolumeRequest) (*csi.CreateVolumeResponse, error) {
+func (d *ControllerService) CreateVolume(ctx context.Context, request *csi.CreateVolumeRequest) (*csi.CreateVolumeResponse, error) {
 	klog.V(4).InfoS("CreateVolume: called", "args", protosanitizer.StripSecrets(request))
 
 	pvc := request.GetName()
@@ -183,9 +182,21 @@ func (d *ControllerService) CreateVolume(_ context.Context, request *csi.CreateV
 
 			return nil, err
 		}
+
+		if _, err = d.checkVolume(ctx, srcVol); err != nil {
+			if status.Code(err) == codes.NotFound {
+				klog.ErrorS(err, "CreateVolume: zone or volume not found", "contentSourceID", srcVol.VolumeID())
+
+				return nil, err
+			}
+
+			klog.ErrorS(err, "CreateVolume: failed to check volume", "cluster", srcVol.Cluster(), "contentSourceID", srcVol.VolumeID())
+
+			return nil, err
+		}
 	}
 
-	cl, err := d.Cluster.GetProxmoxCluster(region)
+	cl, err := d.pxpool.GetProxmoxCluster(region)
 	if err != nil {
 		klog.ErrorS(err, "CreateVolume: failed to get proxmox cluster", "cluster", region)
 
@@ -193,21 +204,19 @@ func (d *ControllerService) CreateVolume(_ context.Context, request *csi.CreateV
 	}
 
 	if zone == "" {
-		if zone, err = getNodeWithStorage(cl, params.StorageID); err != nil {
+		if zone, err = cl.GetNodeForStorage(ctx, params.StorageID); err != nil {
 			klog.ErrorS(err, "CreateVolume: failed to get node with storage", "cluster", region, "storage", params.StorageID)
 
-			return nil, status.Errorf(codes.Internal, "cannot find best region and zone: %v", err)
+			return nil, status.Errorf(codes.Internal, "cannot find best region and zone: storage %s %v", params.StorageID, err)
 		}
 	}
 
-	storageConfig, err := cl.GetStorageConfig(params.StorageID)
+	storageConfig, err := cl.GetClusterStorage(ctx, params.StorageID)
 	if err != nil {
 		klog.ErrorS(err, "CreateVolume: failed to get proxmox storage config", "cluster", region, "storage", params.StorageID)
 
-		return nil, status.Error(codes.Internal, err.Error())
+		return nil, status.Errorf(codes.Internal, "failed to get proxmox storage config: %v", err)
 	}
-
-	klog.V(5).InfoS("CreateVolume", "storageConfig", storageConfig)
 
 	topology := []*csi.Topology{
 		{
@@ -218,9 +227,9 @@ func (d *ControllerService) CreateVolume(_ context.Context, request *csi.CreateV
 		},
 	}
 
-	if storageConfig["shared"] != nil && int(storageConfig["shared"].(float64)) == 1 { //nolint:errcheck
+	if storageConfig.Shared == 1 {
 		// https://pve.proxmox.com/wiki/Storage only block/local storage are supported
-		switch storageConfig["type"].(string) { //nolint:errcheck
+		switch storageConfig.PluginType {
 		case "cifs", "pbs":
 			return nil, status.Error(codes.Internal, "error: shared storage type cifs, pbs are not supported")
 		}
@@ -234,60 +243,56 @@ func (d *ControllerService) CreateVolume(_ context.Context, request *csi.CreateV
 		}
 	}
 
-	vmr := pxapi.NewVmRef(vmID)
-	vmr.SetNode(zone)
-	vmr.SetVmType("qemu")
+	id := vmID
 
-	if params.Replicate != nil && *params.Replicate {
-		if storageConfig["type"].(string) != "zfspool" { //nolint:errcheck
+	if params.Replicate {
+		if storageConfig.PluginType != "zfspool" {
 			return nil, status.Error(codes.Internal, "error: storage type is not zfs in replication mode")
 		}
 
-		vmr, err = cl.GetVmRefByName(pvc)
+		id, err = prepareReplication(ctx, cl, zone, pvc)
 		if err != nil {
-			id, err := cl.GetNextID(vmID + 1)
-			if err != nil {
-				klog.ErrorS(err, "CreateVolume: failed to get next id", "cluster", region)
+			klog.ErrorS(err, "CreateVolume: failed to prepare replication", "cluster", region, "zone", zone)
 
-				return nil, status.Error(codes.Internal, err.Error())
-			}
+			return nil, status.Error(codes.Internal, err.Error())
+		}
 
-			vmr = pxapi.NewVmRef(id)
-			vmr.SetNode(zone)
-			vmr.SetVmType("qemu")
+		topology = []*csi.Topology{}
 
-			mc := metrics.NewMetricContext("CreateVm")
-			if err := proxmox.CreateQemuVM(cl, vmr, pvc); mc.ObserveRequest(err) != nil {
-				klog.ErrorS(err, "CreateVolume: failed to create vm", "cluster", region)
-
-				return nil, status.Error(codes.Internal, err.Error())
-			}
+		for _, z := range strings.Split(params.ReplicateZones, ",") {
+			topology = append(topology, &csi.Topology{
+				Segments: map[string]string{
+					corev1.LabelTopologyRegion: region,
+					corev1.LabelTopologyZone:   z,
+				},
+			})
 		}
 	}
 
-	vol := volume.NewVolume(region, zone, params.StorageID, fmt.Sprintf("vm-%d-%s", vmr.VmId(), pvc))
-
-	if storageConfig["path"] != nil && storageConfig["path"].(string) != "" { //nolint:errcheck
-		format := "raw"
+	format := ""
+	if storageConfig.PluginType == "dir" {
+		format = "raw"
 		if params.StorageFormat == "qcow2" {
 			format = params.StorageFormat
 		}
-
-		vol = volume.NewVolume(region, zone, params.StorageID, fmt.Sprintf("%d/vm-%d-%s.%s", vmr.VmId(), vmr.VmId(), pvc, format))
 	}
 
-	size, err := getVolumeSize(cl, vol)
+	vol := volume.NewVolume(region, zone, params.StorageID, fmt.Sprintf("vm-%d-%s", id, pvc), format)
+
+	klog.V(5).InfoS("CreateVolume: creating volume", "cluster", region, "zone", zone, "volumeID", vol.VolumeID(), "size", volSizeBytes)
+
+	size, err := getVolumeSize(ctx, cl, vol)
 	if err != nil {
 		if err.Error() != ErrorNotFound {
 			klog.ErrorS(err, "CreateVolume: failed to check volume", "cluster", region, "volumeID", vol.VolumeID())
 
-			return nil, status.Error(codes.Internal, err.Error())
+			return nil, status.Errorf(codes.Internal, "failed to check volume: %v", err)
 		}
 
 		mc := metrics.NewMetricContext("createVolume")
 
 		if srcVol != nil {
-			size, err := getVolumeSize(cl, srcVol)
+			size, err := getVolumeSize(ctx, cl, srcVol)
 			if err != nil {
 				if err.Error() != ErrorNotFound {
 					klog.ErrorS(err, "CreateVolume: failed to check volume", "cluster", region, "volumeID", srcVol.VolumeID())
@@ -308,35 +313,31 @@ func (d *ControllerService) CreateVolume(_ context.Context, request *csi.CreateV
 				return nil, status.Errorf(codes.InvalidArgument, "storage mismatch: requested storage %s does not match snapshot storage %s", vol.Storage(), srcVol.Storage())
 			}
 
-			err = proxmox.CopyQemuDisk(cl, srcVol, vol)
-			if mc.ObserveRequest(err) != nil {
+			if err = copyVolume(ctx, cl, srcVol, vol); mc.ObserveRequest(err) != nil {
 				return nil, status.Error(codes.Internal, err.Error())
 			}
 		} else {
-			err = createVolume(cl, vol, volSizeBytes)
-			if mc.ObserveRequest(err) != nil {
+			if err = createVolume(ctx, cl, vol, volSizeBytes); mc.ObserveRequest(err) != nil {
 				return nil, status.Error(codes.Internal, err.Error())
 			}
 		}
 
-		size, err = getVolumeSize(cl, vol)
+		size, err = getVolumeSize(ctx, cl, vol)
 		if err != nil {
 			klog.ErrorS(err, "CreateVolume: failed to get volume size after creation", "cluster", region, "volumeID", vol.VolumeID())
 
-			return nil, status.Error(codes.Internal, err.Error())
+			return nil, status.Errorf(codes.Internal, "failed to get volume size after creation: %s %s %v", vol.VolumeID(), vol.VolID(), err)
 		}
 	}
 
-	if size != volSizeBytes {
+	if size < volSizeBytes {
 		if srcVol != nil {
 			if size == 0 {
 				return nil, status.Errorf(codes.Unavailable, "volume %s is not yet available", srcVol.VolumeID())
 			}
 
-			if size < volSizeBytes {
-				params.ResizeRequired = ptr.Ptr(true)
-				params.ResizeSizeBytes = volSizeBytes
-			}
+			params.ResizeRequired = ptr.Ptr(true)
+			params.ResizeSizeBytes = volSizeBytes
 		}
 
 		if srcVol == nil {
@@ -346,52 +347,16 @@ func (d *ControllerService) CreateVolume(_ context.Context, request *csi.CreateV
 
 	volumeID := vol.VolumeID()
 
-	if params.Replicate != nil && *params.Replicate {
-		_, err := attachVolume(cl, vmr, vol.Storage(), vol.Disk(), params.ToMap())
+	if params.Replicate {
+		err = createReplication(ctx, cl, id, vol, params)
 		if err != nil {
-			klog.ErrorS(err, "CreateVolume: failed to attach volume", "cluster", region, "volumeID", vol.VolumeID(), "vmID", vmr.VmId())
+			klog.ErrorS(err, "CreateVolume: failed to create replication", "cluster", region, "volumeID", vol.VolumeID(), "vmID", id)
 
 			return nil, status.Error(codes.Internal, err.Error())
 		}
-
-		if params.ReplicateZones != "" {
-			var replicaZone string
-
-			for _, z := range strings.Split(params.ReplicateZones, ",") {
-				if z != zone {
-					replicaZone = z
-
-					break
-				}
-			}
-
-			if replicaZone != "" {
-				if err := proxmox.SetQemuVMReplication(cl, vmr, replicaZone, params.ReplicateSchedule); err != nil {
-					klog.ErrorS(err, "CreateVolume: failed to set replication", "cluster", region, "zone", replicaZone, "volumeID", vol.VolumeID(), "vmID", vmr.VmId())
-
-					return nil, status.Error(codes.Internal, err.Error())
-				}
-
-				volumeID = vol.VolumeSharedID()
-				topology = []*csi.Topology{
-					{
-						Segments: map[string]string{
-							corev1.LabelTopologyRegion: region,
-							corev1.LabelTopologyZone:   zone,
-						},
-					},
-					{
-						Segments: map[string]string{
-							corev1.LabelTopologyRegion: region,
-							corev1.LabelTopologyZone:   replicaZone,
-						},
-					},
-				}
-			}
-		}
 	}
 
-	if storageConfig["shared"] != nil && int(storageConfig["shared"].(float64)) == 1 { //nolint:errcheck
+	if storageConfig.Shared == 1 || params.Replicate {
 		volumeID = vol.VolumeSharedID()
 	}
 
@@ -412,96 +377,58 @@ func (d *ControllerService) CreateVolume(_ context.Context, request *csi.CreateV
 func (d *ControllerService) DeleteVolume(ctx context.Context, request *csi.DeleteVolumeRequest) (*csi.DeleteVolumeResponse, error) {
 	klog.V(4).InfoS("DeleteVolume: called", "args", protosanitizer.StripSecrets(request))
 
-	volumeID := request.GetVolumeId()
-	if len(volumeID) == 0 {
-		return nil, status.Error(codes.InvalidArgument, "VolumeID must be provided")
-	}
-
-	vol, err := volume.NewVolumeFromVolumeID(volumeID)
+	vol, err := volume.NewVolumeFromVolumeID(request.GetVolumeId())
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
-	cl, err := d.Cluster.GetProxmoxCluster(vol.Cluster())
+	cl, err := d.pxpool.GetProxmoxCluster(vol.Cluster())
 	if err != nil {
 		klog.ErrorS(err, "DeleteVolume: failed to get proxmox cluster", "cluster", vol.Cluster())
 
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
-	pv, err := d.Kclient.CoreV1().PersistentVolumes().Get(ctx, vol.PV(), metav1.GetOptions{})
+	pv, err := d.kclient.CoreV1().PersistentVolumes().Get(ctx, vol.PV(), metav1.GetOptions{})
 	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return &csi.DeleteVolumeResponse{}, nil
+		}
+
 		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to get PersistentVolumes: %v", err))
 	}
 
 	if pv.Annotations[PVAnnotationLifecycle] == "keep" {
-		klog.V(2).InfoS("DeleteVolume: volume lifecycle is keep, skipping deletion", "volumeID", vol.VolumeID())
+		klog.V(3).InfoS("DeleteVolume: volume lifecycle is keep, skipping deletion", "volumeID", vol.VolumeID())
 
 		return &csi.DeleteVolumeResponse{}, nil
 	}
 
-	if vol.Zone() != "" {
-		nodes, err := proxmox.GetNodeList(cl)
-		if err != nil {
-			klog.ErrorS(err, "DeleteVolume: failed to get node list in cluster", "cluster", vol.Cluster())
+	err = deleteReplication(ctx, cl, vol)
+	if err != nil {
+		klog.ErrorS(err, "DeleteVolume: failed to delete replication", "cluster", vol.Cluster(), "volumeID", vol.VolumeID())
 
-			return nil, status.Error(codes.Internal, err.Error())
-		}
+		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to delete replication: %s, %v", vol.VolumeID(), err))
+	}
 
-		if !slices.Contains(nodes, vol.Zone()) {
-			klog.V(3).InfoS("DeleteVolume: zone does not exist", "volumeID", vol.VolumeID(), "zone", vol.Zone())
+	_, err = d.checkVolume(ctx, vol)
+	if err != nil {
+		if status.Code(err) == codes.NotFound {
+			klog.ErrorS(err, "DeleteVolume: zone or volume not found", "volumeID", vol.VolumeID())
 
 			return &csi.DeleteVolumeResponse{}, nil
 		}
-	}
 
-	_, err = getVolumeSize(cl, vol)
-	if err != nil {
-		if err.Error() != ErrorNotFound {
-			klog.ErrorS(err, "DeleteVolume: failed to check volume", "cluster", vol.Cluster(), "volumeID", vol.VolumeID())
+		klog.ErrorS(err, "DeleteVolume: failed to check volume", "cluster", vol.Cluster(), "volumeID", vol.VolumeID())
 
-			return nil, status.Error(codes.Internal, err.Error())
-		}
-
-		return &csi.DeleteVolumeResponse{}, nil
-	}
-
-	vmr, err := getVMRefByVolume(cl, vol)
-	if err != nil {
-		klog.ErrorS(err, "DeleteVolume: failed to get vm ref by volume", "cluster", vol.Cluster(), "volumeName", vol.Disk())
-
-		return nil, status.Error(codes.Internal, err.Error())
-	}
-
-	if vmr.VmId() != vmID {
-		config, err := cl.GetVmConfig(vmr)
-		if err != nil {
-			klog.ErrorS(err, "DeleteVolume: failed to get vm config", "cluster", vol.Cluster(), "volumeName", vol.Disk())
-		}
-
-		if config != nil {
-			vmName := config["name"].(string) //nolint:errcheck
-			if vmName != "" && strings.HasSuffix(vol.Disk(), vmName) {
-				mc := metrics.NewMetricContext("deleteVm")
-				if err := proxmox.DeleteQemuVM(cl, vmr); mc.ObserveRequest(err) != nil {
-					klog.ErrorS(err, "DeleteVolume: failed to delete vm", "cluster", vol.Cluster(), "volumeName", vol.Disk())
-
-					return nil, status.Error(codes.Internal, fmt.Sprintf("failed to delete volume: %s", vol.Disk()))
-				}
-			}
-
-			mc := metrics.NewMetricContext("deleteDisk")
-			if err = proxmox.DeleteDisk(cl, vol); mc.ObserveRequest(err) != nil {
-				klog.ErrorS(err, "DeleteVolume: failed to delete disk", "cluster", vol.Cluster(), "volumeName", vol.Disk())
-			}
-		}
+		return nil, err
 	}
 
 	mc := metrics.NewMetricContext("deleteVolume")
-	if _, err := cl.DeleteVolume(vmr, vol.Storage(), vol.Disk()); mc.ObserveRequest(err) != nil {
-		klog.ErrorS(err, "DeleteVolume: failed to delete volume", "cluster", vol.Cluster(), "volumeName", vol.Disk())
+	if err := cl.DeleteVMDisk(ctx, vmID, vol.Node(), vol.Storage(), vol.Disk()); mc.ObserveRequest(err) != nil {
+		klog.ErrorS(err, "DeleteVolume: failed to delete volume", "cluster", vol.Cluster(), "volumeID", vol.VolumeID())
 
-		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to delete volume: %s", vol.Disk()))
+		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to delete volume: %s, %v", vol.VolumeID(), err))
 	}
 
 	klog.V(3).InfoS("DeleteVolume: volume deleted", "cluster", vol.Cluster(), "volumeID", vol.VolumeID())
@@ -533,11 +460,6 @@ func (d *ControllerService) ControllerGetCapabilities(_ context.Context, _ *csi.
 func (d *ControllerService) ControllerPublishVolume(ctx context.Context, request *csi.ControllerPublishVolumeRequest) (*csi.ControllerPublishVolumeResponse, error) {
 	klog.V(4).InfoS("ControllerPublishVolume: called", "args", protosanitizer.StripSecrets(request))
 
-	volumeID := request.GetVolumeId()
-	if volumeID == "" {
-		return nil, status.Error(codes.InvalidArgument, "VolumeID must be provided")
-	}
-
 	nodeID := request.GetNodeId()
 	if nodeID == "" {
 		return nil, status.Error(codes.InvalidArgument, "NodeID must be provided")
@@ -557,12 +479,12 @@ func (d *ControllerService) ControllerPublishVolume(ctx context.Context, request
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
-	vol, err := volume.NewVolumeFromVolumeID(volumeID)
+	vol, err := volume.NewVolumeFromVolumeID(request.GetVolumeId())
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
-	cl, err := d.Cluster.GetProxmoxCluster(vol.Cluster())
+	cl, err := d.pxpool.GetProxmoxCluster(vol.Cluster())
 	if err != nil {
 		klog.ErrorS(err, "ControllerPublishVolume: failed to get proxmox cluster", "cluster", vol.Cluster())
 
@@ -580,50 +502,35 @@ func (d *ControllerService) ControllerPublishVolume(ctx context.Context, request
 		params.ReadOnly = ptr.Ptr(true)
 	}
 
-	vmr, err := d.getVMRefbyNodeID(ctx, cl, nodeID)
+	id, _, err := d.getVMIDbyNode(ctx, nodeID)
 	if err != nil {
 		return nil, err
 	}
 
-	size, err := getVolumeSize(cl, vol)
+	size, err := d.checkVolume(ctx, vol)
 	if err != nil {
-		if err.Error() != ErrorNotFound {
-			klog.ErrorS(err, "ControllerPublishVolume: failed to check volume", "cluster", vol.Cluster(), "volumeID", vol.VolumeID())
+		klog.ErrorS(err, "ControllerPublishVolume: failed to check volume", "cluster", vol.Cluster(), "volumeID", vol.VolumeID())
 
-			return nil, status.Error(codes.Internal, err.Error())
-		}
-
-		return nil, status.Error(codes.NotFound, "volume not found")
+		return nil, err
 	}
 
 	d.vmLocks.Lock(nodeID)
 	defer d.vmLocks.Unlock(nodeID)
 
-	if params.Replicate != nil && *params.Replicate {
-		vmrVol, err := getVMRefByVolume(cl, vol)
+	if params.Replicate {
+		err = migrateReplication(ctx, cl, id, vol)
 		if err != nil {
-			klog.ErrorS(err, "ControllerPublishVolume: failed to get vm ref by volume", "cluster", vol.Cluster(), "volumeName", vol.Disk())
+			klog.ErrorS(err, "ControllerPublishVolume: failed to migrate/sync replication", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "vmID", id)
 
 			return nil, status.Error(codes.Internal, err.Error())
-		}
-
-		if vmr.Node() != vmrVol.Node() {
-			klog.V(4).InfoS("ControllerPublishVolume: replicate volume", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "src", vmrVol.Node(), "dst", vmr.Node())
-
-			_, err := cl.MigrateNode(vmrVol, vmr.Node(), false)
-			if err != nil {
-				klog.ErrorS(err, "ControllerPublishVolume: failed to migrate vm", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "vmID", vmr.VmId())
-
-				return nil, status.Error(codes.Internal, err.Error())
-			}
 		}
 	}
 
 	mc := metrics.NewMetricContext("attachVolume")
 
-	pvInfo, err := attachVolume(cl, vmr, vol.Storage(), vol.Disk(), params.ToMap())
+	pvInfo, err := attachVolume(ctx, cl, id, vol, params.ToMap())
 	if mc.ObserveRequest(err) != nil {
-		klog.ErrorS(err, "ControllerPublishVolume: failed to attach volume", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "vmID", vmr.VmId())
+		klog.ErrorS(err, "ControllerPublishVolume: failed to attach volume", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "vmID", id)
 
 		return nil, status.Error(codes.Internal, err.Error())
 	}
@@ -631,25 +538,26 @@ func (d *ControllerService) ControllerPublishVolume(ctx context.Context, request
 	if resizeSizeBytesRaw := volCtx[resizeSizeBytes]; resizeSizeBytesRaw != "" {
 		resizeSizeBytes, err := strconv.ParseInt(resizeSizeBytesRaw, 10, 64)
 		if err != nil {
-			klog.ErrorS(err, "ControllerPublishVolume: invalid resize size", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "vmID", vmr.VmId())
+			klog.ErrorS(err, "ControllerPublishVolume: invalid resize size", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "vmID", id)
 		}
 
 		if size < resizeSizeBytes {
-			device := deviceNamePrefix + pvInfo["lun"]
-
-			klog.V(3).InfoS("ControllerPublishVolume: expandVolume", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "vmID", vmr.VmId())
+			klog.V(5).InfoS("ControllerPublishVolume: expandVolume", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "vmID", id)
 
 			mc := metrics.NewMetricContext("expandVolume")
 
-			if _, err := cl.ResizeQemuDiskRaw(vmr, device, fmt.Sprintf("%dM", resizeSizeBytes/MiB)); mc.ObserveRequest(err) != nil {
-				klog.ErrorS(err, "ControllerExpandVolume: failed to resize vm disk", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "vmID", vmr.VmId())
+			device := deviceNamePrefix + pvInfo["lun"]
+			if err = cl.ResizeVMDisk(ctx, id, vol.Node(), device, fmt.Sprintf("%dM", resizeSizeBytes/MiB)); mc.ObserveRequest(err) != nil {
+				klog.ErrorS(err, "ControllerPublishVolume: failed to resize vm disk", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "vmID", id)
 
 				return nil, status.Error(codes.Internal, err.Error())
 			}
+
+			pvInfo[resizeRequired] = "true" // nolint: goconst
 		}
 	}
 
-	klog.V(3).InfoS("ControllerPublishVolume: volume published", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "vmID", vmr.VmId())
+	klog.V(3).InfoS("ControllerPublishVolume: volume published", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "nodeID", nodeID)
 
 	return &csi.ControllerPublishVolumeResponse{PublishContext: pvInfo}, nil
 }
@@ -658,51 +566,38 @@ func (d *ControllerService) ControllerPublishVolume(ctx context.Context, request
 func (d *ControllerService) ControllerUnpublishVolume(ctx context.Context, request *csi.ControllerUnpublishVolumeRequest) (*csi.ControllerUnpublishVolumeResponse, error) {
 	klog.V(4).InfoS("ControllerUnpublishVolume: called", "args", protosanitizer.StripSecrets(request))
 
-	volumeID := request.GetVolumeId()
-	if volumeID == "" {
-		return nil, status.Error(codes.InvalidArgument, "VolumeID must be provided")
-	}
-
 	nodeID := request.GetNodeId()
 	if nodeID == "" {
 		return nil, status.Error(codes.InvalidArgument, "NodeID must be provided")
 	}
 
-	vol, err := volume.NewVolumeFromVolumeID(volumeID)
+	vol, err := volume.NewVolumeFromVolumeID(request.GetVolumeId())
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
-	cl, err := d.Cluster.GetProxmoxCluster(vol.Cluster())
+	cl, err := d.pxpool.GetProxmoxCluster(vol.Cluster())
 	if err != nil {
 		klog.ErrorS(err, "ControllerUnpublishVolume: failed to get proxmox cluster", "cluster", vol.Cluster())
 
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
-	if vol.Zone() != "" {
-		nodes, err := proxmox.GetNodeList(cl)
-		if err != nil {
-			klog.ErrorS(err, "ControllerUnpublishVolume: failed to get node list in cluster", "cluster", vol.Cluster())
-
-			return nil, status.Error(codes.Internal, err.Error())
-		}
-
-		if !slices.Contains(nodes, vol.Zone()) {
-			klog.V(3).InfoS("ControllerUnpublishVolume: zone does not exist", "volumeID", vol.VolumeID(), "zone", vol.Zone())
+	_, err = d.checkVolume(ctx, vol)
+	if err != nil {
+		if status.Code(err) == codes.NotFound {
+			klog.ErrorS(err, "ControllerUnpublishVolume: zone or volume not found", "cluster", vol.Cluster(), "volumeID", vol.VolumeID())
 
 			return &csi.ControllerUnpublishVolumeResponse{}, nil
 		}
+
+		klog.ErrorS(err, "ControllerUnpublishVolume: failed to check volume", "cluster", vol.Cluster(), "volumeID", vol.VolumeID())
+
+		return nil, err
 	}
 
-	vmr, err := d.getVMRefbyNodeID(ctx, cl, nodeID)
+	id, _, err := d.getVMIDbyNode(ctx, nodeID)
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
-			klog.V(3).InfoS("ControllerUnpublishVolume: node does not exist", "volumeID", vol.VolumeID(), "nodeID", nodeID)
-
-			return &csi.ControllerUnpublishVolumeResponse{}, nil
-		}
-
 		return nil, err
 	}
 
@@ -710,13 +605,13 @@ func (d *ControllerService) ControllerUnpublishVolume(ctx context.Context, reque
 	defer d.vmLocks.Unlock(nodeID)
 
 	mc := metrics.NewMetricContext("detachVolume")
-	if err := detachVolume(cl, vmr, vol.Disk()); mc.ObserveRequest(err) != nil {
-		klog.ErrorS(err, "ControllerUnpublishVolume: failed to detach volume", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "vmID", vmr.VmId())
+	if err := detachVolume(ctx, cl, id, vol); mc.ObserveRequest(err) != nil {
+		klog.ErrorS(err, "ControllerUnpublishVolume: failed to detach volume", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "vmID", id)
 
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
-	klog.V(3).InfoS("ControllerUnpublishVolume: volume unpublished", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "vmID", vmr.VmId())
+	klog.V(3).InfoS("ControllerUnpublishVolume: volume unpublished", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "nodeID", nodeID)
 
 	return &csi.ControllerUnpublishVolumeResponse{}, nil
 }
@@ -736,7 +631,7 @@ func (d *ControllerService) ListVolumes(_ context.Context, request *csi.ListVolu
 }
 
 // GetCapacity get capacity
-func (d *ControllerService) GetCapacity(_ context.Context, request *csi.GetCapacityRequest) (*csi.GetCapacityResponse, error) {
+func (d *ControllerService) GetCapacity(ctx context.Context, request *csi.GetCapacityRequest) (*csi.GetCapacityResponse, error) {
 	klog.V(6).InfoS("GetCapacity: called", "args", protosanitizer.StripSecrets(request))
 
 	topology := request.GetAccessibleTopology()
@@ -748,59 +643,49 @@ func (d *ControllerService) GetCapacity(_ context.Context, request *csi.GetCapac
 			return nil, status.Error(codes.InvalidArgument, "region and storage must be provided")
 		}
 
-		cl, err := d.Cluster.GetProxmoxCluster(region)
+		cl, err := d.pxpool.GetProxmoxCluster(region)
 		if err != nil {
 			klog.ErrorS(err, "GetCapacity: failed to get proxmox cluster", "cluster", region)
 
 			return nil, status.Error(codes.Internal, err.Error())
 		}
 
-		storageConfig, err := cl.GetStorageConfig(storageID)
+		storageConfig, err := cl.GetClusterStorage(ctx, storageID)
 		if err != nil {
 			klog.ErrorS(err, "GetCapacity: failed to get proxmox storage config", "cluster", region, "storageID", storageID)
 
 			return nil, status.Error(codes.Internal, err.Error())
 		}
 
-		shared := 0
-		if storageConfig["shared"] != nil && int(storageConfig["shared"].(float64)) == 1 { //nolint:errcheck
-			shared = 1
-		}
-
 		if zone == "" {
-			if shared == 0 {
+			if storageConfig.Shared == 0 {
 				return nil, status.Error(codes.InvalidArgument, "zone must be provided")
 			}
 
-			zone, err = getNodeWithStorage(cl, storageID)
+			zone, err = cl.GetNodeForStorage(ctx, storageID)
 			if err != nil {
 				return nil, status.Error(codes.Internal, err.Error())
 			}
 		}
 
-		vmr := pxapi.NewVmRef(vmID)
-		vmr.SetNode(zone)
-		vmr.SetVmType("qemu")
-
 		availableCapacity := int64(0)
 
 		mc := metrics.NewMetricContext("storageStatus")
 
-		storage, err := cl.GetStorageStatus(vmr, storageID)
+		storage, err := cl.GetStorageStatus(ctx, zone, storageID)
 		if mc.ObserveRequest(err) != nil {
-			klog.ErrorS(err, "GetCapacity: failed to get storage status", "cluster", region, "storageID", storageID)
+			klog.ErrorS(err, "GetCapacity: failed to get storage status", "cluster", region, "storageID", storageID, "storageConfig", storageConfig)
 
 			if !strings.Contains(err.Error(), "Parameter verification failed") {
 				return nil, status.Error(codes.Internal, err.Error())
 			}
 		} else {
-			availableCapacity = int64(storage["avail"].(float64)) //nolint:errcheck
+			availableCapacity = int64(storage.Avail)
 		}
 
-		klog.V(6).InfoS("GetCapacity: collected", "region", region, "zone", zone, "storageID", storageID, "shared", shared, "size", availableCapacity)
+		klog.V(6).InfoS("GetCapacity: collected", "region", region, "zone", zone, "storageID", storageID, "storageConfig", storageConfig, "size", availableCapacity)
 
 		return &csi.GetCapacityResponse{
-			// MinimumVolumeSize: MinVolumeSize * 1024 * 1024 * 1024,
 			AvailableCapacity: availableCapacity,
 		}, nil
 	}
@@ -809,7 +694,7 @@ func (d *ControllerService) GetCapacity(_ context.Context, request *csi.GetCapac
 }
 
 // CreateSnapshot create a snapshot
-func (d *ControllerService) CreateSnapshot(_ context.Context, request *csi.CreateSnapshotRequest) (*csi.CreateSnapshotResponse, error) {
+func (d *ControllerService) CreateSnapshot(ctx context.Context, request *csi.CreateSnapshotRequest) (*csi.CreateSnapshotResponse, error) {
 	klog.V(4).InfoS("CreateSnapshot: called", "args", protosanitizer.StripSecrets(request))
 
 	vol, err := volume.NewVolumeFromVolumeID(request.GetSourceVolumeId())
@@ -827,25 +712,40 @@ func (d *ControllerService) CreateSnapshot(_ context.Context, request *csi.Creat
 		params = map[string]string{}
 	}
 
-	cl, err := d.Cluster.GetProxmoxCluster(vol.Cluster())
+	cl, err := d.pxpool.GetProxmoxCluster(vol.Cluster())
 	if err != nil {
 		klog.ErrorS(err, "CreateSnapshot: failed to get proxmox cluster", "cluster", vol.Cluster())
 
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
-	storageConfig, err := cl.GetStorageConfig(vol.Storage())
+	storageConfig, err := cl.Client.ClusterStorage(ctx, vol.Storage())
 	if err != nil {
 		klog.ErrorS(err, "CreateSnapshot: failed to get proxmox storage config", "cluster", vol.Cluster(), "storageID", vol.Storage())
 
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
-	snapshotID := volume.NewVolume(vol.Region(), vol.Zone(), vol.Storage(), fmt.Sprintf("vm-%s-%s", vol.VMID(), name))
+	switch storageConfig.Type {
+	case "cifs", "pbs":
+		err = status.Error(codes.Internal, "storage type cifs, pbs do not support snapshot")
+		klog.ErrorS(err, "CreateSnapshot: unsupported storage type for snapshot", "cluster", vol.Cluster(), "storageID", vol.Storage(), "storageType", storageConfig.Type)
+
+		return nil, err
+	}
+
+	_, err = d.checkVolume(ctx, vol)
+	if err != nil {
+		klog.ErrorS(err, "CreateSnapshot: failed to check volume", "cluster", vol.Cluster(), "volumeID", vol.VolumeID())
+
+		return nil, err
+	}
+
+	snapshotID := vol.CopyVolume(fmt.Sprintf("vm-%d-%s", vmID, name))
 
 	if params["zone"] != "" {
-		if nodesRaw, ok := storageConfig["nodes"].(string); ok && nodesRaw != "" {
-			nodes := strings.Split(nodesRaw, ",")
+		if storageConfig.Nodes != "" {
+			nodes := strings.Split(storageConfig.Nodes, ",")
 			if !slices.Contains(nodes, params["zone"]) {
 				err = status.Error(codes.InvalidArgument, "zone specified in parameters is not valid for the storage")
 				klog.ErrorS(err, "CreateSnapshot: invalid zone in parameters", "cluster", vol.Cluster(), "storageID", vol.Storage(), "zone", params["zone"])
@@ -854,12 +754,12 @@ func (d *ControllerService) CreateSnapshot(_ context.Context, request *csi.Creat
 			}
 		}
 
-		snapshotID = volume.NewVolume(vol.Region(), params["zone"], vol.Storage(), fmt.Sprintf("vm-%s-%s", vol.VMID(), name))
+		snapshotID.SetZone(params["zone"])
 	}
 
 	klog.V(5).InfoS("CreateSnapshot", "storageConfig", storageConfig, "snapshotID", snapshotID.VolumeID(), "params", params)
 
-	size, err := getVolumeSize(cl, snapshotID)
+	size, err := getVolumeSize(ctx, cl, snapshotID)
 	if err != nil {
 		if err.Error() != ErrorNotFound {
 			klog.ErrorS(err, "CreateSnapshot: failed to check volume", "cluster", vol.Cluster(), "snapshotID", snapshotID.VolumeID())
@@ -867,20 +767,22 @@ func (d *ControllerService) CreateSnapshot(_ context.Context, request *csi.Creat
 			return nil, status.Error(codes.Internal, err.Error())
 		}
 
-		err = proxmox.CopyQemuDisk(cl, vol, snapshotID)
+		err = copyVolume(ctx, cl, vol, snapshotID)
 		if err != nil {
 			klog.ErrorS(err, "CreateSnapshot: failed to create snapshot", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "snapshotID", snapshotID.VolumeID())
 
 			return nil, status.Error(codes.Internal, err.Error())
 		}
 
-		size, err = getVolumeSize(cl, snapshotID)
+		size, err = getVolumeSize(ctx, cl, snapshotID)
 		if err != nil {
 			klog.ErrorS(err, "CreateSnapshot: failed to get snapshots after creation", "cluster", vol.Cluster(), "snapshotID", snapshotID.VolumeID())
 
 			return nil, status.Error(codes.Internal, err.Error())
 		}
 	}
+
+	klog.V(3).InfoS("CreateSnapshot: snapshot created", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "snapshotID", snapshotID.VolumeID())
 
 	return &csi.CreateSnapshotResponse{
 		Snapshot: &csi.Snapshot{
@@ -894,7 +796,7 @@ func (d *ControllerService) CreateSnapshot(_ context.Context, request *csi.Creat
 }
 
 // DeleteSnapshot delete a snapshot
-func (d *ControllerService) DeleteSnapshot(_ context.Context, request *csi.DeleteSnapshotRequest) (*csi.DeleteSnapshotResponse, error) {
+func (d *ControllerService) DeleteSnapshot(ctx context.Context, request *csi.DeleteSnapshotRequest) (*csi.DeleteSnapshotResponse, error) {
 	klog.V(4).InfoS("DeleteSnapshot: called", "args", protosanitizer.StripSecrets(request))
 
 	vol, err := volume.NewVolumeFromVolumeID(request.GetSnapshotId())
@@ -902,33 +804,28 @@ func (d *ControllerService) DeleteSnapshot(_ context.Context, request *csi.Delet
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
-	cl, err := d.Cluster.GetProxmoxCluster(vol.Cluster())
+	cl, err := d.pxpool.GetProxmoxCluster(vol.Cluster())
 	if err != nil {
 		klog.ErrorS(err, "DeleteSnapshot: failed to get proxmox cluster", "cluster", vol.Cluster())
 
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
-	_, err = getVolumeSize(cl, vol)
+	_, err = d.checkVolume(ctx, vol)
 	if err != nil {
-		if err.Error() != ErrorNotFound {
-			klog.ErrorS(err, "DeleteSnapshot: failed to get snapshots", "cluster", vol.Cluster(), "snapshotID", vol.VolumeID())
+		if status.Code(err) == codes.NotFound {
+			klog.ErrorS(err, "DeleteSnapshot: zone or volume not found", "cluster", vol.Cluster(), "volumeID", vol.VolumeID())
 
-			return nil, status.Error(codes.Internal, err.Error())
+			return &csi.DeleteSnapshotResponse{}, nil
 		}
 
-		return &csi.DeleteSnapshotResponse{}, nil
-	}
+		klog.ErrorS(err, "DeleteSnapshot: failed to check volume", "cluster", vol.Cluster(), "volumeID", vol.VolumeID())
 
-	vmr, err := getVMRefByVolume(cl, vol)
-	if err != nil {
-		klog.ErrorS(err, "DeleteSnapshot: failed to get vm ref by volume", "cluster", vol.Cluster(), "volumeName", vol.Disk())
-
-		return nil, status.Error(codes.Internal, err.Error())
+		return nil, err
 	}
 
 	mc := metrics.NewMetricContext("deleteVolume")
-	if _, err := cl.DeleteVolume(vmr, vol.Storage(), vol.Disk()); mc.ObserveRequest(err) != nil {
+	if err := cl.DeleteVMDisk(ctx, vmID, vol.Node(), vol.Storage(), vol.Disk()); mc.ObserveRequest(err) != nil {
 		klog.ErrorS(err, "DeleteSnapshot: failed to delete volume", "cluster", vol.Cluster(), "volumeName", vol.Disk())
 
 		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to delete volume: %s", vol.Disk()))
@@ -947,18 +844,8 @@ func (d *ControllerService) ListSnapshots(_ context.Context, request *csi.ListSn
 }
 
 // ControllerExpandVolume expand a volume
-func (d *ControllerService) ControllerExpandVolume(_ context.Context, request *csi.ControllerExpandVolumeRequest) (*csi.ControllerExpandVolumeResponse, error) {
+func (d *ControllerService) ControllerExpandVolume(ctx context.Context, request *csi.ControllerExpandVolumeRequest) (*csi.ControllerExpandVolumeResponse, error) {
 	klog.V(4).InfoS("ControllerExpandVolume: called", "args", protosanitizer.StripSecrets(request))
-
-	volumeID := request.GetVolumeId()
-	if volumeID == "" {
-		return nil, status.Error(codes.InvalidArgument, "VolumeID must be provided")
-	}
-
-	volCapability := request.GetVolumeCapability()
-	if volCapability == nil {
-		return nil, status.Error(codes.InvalidArgument, "VolumeCapability must be provided")
-	}
 
 	capacityRange := request.GetCapacityRange()
 	if capacityRange == nil {
@@ -972,113 +859,55 @@ func (d *ControllerService) ControllerExpandVolume(_ context.Context, request *c
 		return nil, status.Error(codes.OutOfRange, "after round-up, volume size exceeds the limit specified")
 	}
 
-	vol, err := volume.NewVolumeFromVolumeID(volumeID)
+	vol, err := volume.NewVolumeFromVolumeID(request.GetVolumeId())
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
-	cl, err := d.Cluster.GetProxmoxCluster(vol.Cluster())
+	cl, err := d.pxpool.GetProxmoxCluster(vol.Cluster())
 	if err != nil {
 		klog.ErrorS(err, "ControllerExpandVolume: failed to get proxmox cluster", "cluster", vol.Cluster())
 
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
-	if vol.Zone() != "" {
-		nodes, err := proxmox.GetNodeList(cl)
-		if err != nil {
-			klog.ErrorS(err, "ControllerExpandVolume: failed to get node list in cluster", "cluster", vol.Cluster())
-
-			return nil, status.Error(codes.Internal, err.Error())
-		}
-
-		if !slices.Contains(nodes, vol.Zone()) {
-			klog.V(3).InfoS("ControllerExpandVolume: zone does not exist", "volumeID", vol.VolumeID(), "zone", vol.Zone())
-
-			return &csi.ControllerExpandVolumeResponse{}, nil
-		}
-	}
-
-	_, err = getVolumeSize(cl, vol)
+	_, err = d.checkVolume(ctx, vol)
 	if err != nil {
-		if err.Error() != ErrorNotFound {
-			klog.ErrorS(err, "ControllerExpandVolume: failed to check volume", "cluster", vol.Cluster(), "volumeID", vol.VolumeID())
-
-			return nil, status.Error(codes.Internal, err.Error())
-		}
-
-		return &csi.ControllerExpandVolumeResponse{}, nil
-	}
-
-	vmlist, err := cl.GetVmList()
-	if err != nil {
-		klog.ErrorS(err, "ControllerExpandVolume: failed to get vm list", "cluster", vol.Cluster())
-
-		return nil, status.Error(codes.Internal, err.Error())
-	}
-
-	vms, ok := vmlist["data"].([]interface{})
-	if !ok {
-		err = status.Error(codes.Internal, fmt.Sprintf("failed to cast response to list, vmlist: %v", vmlist))
+		klog.ErrorS(err, "ControllerExpandVolume: failed to check volume", "cluster", vol.Cluster(), "volumeID", vol.VolumeID())
 
 		return nil, err
 	}
 
-	for vmii := range vms {
-		vm, ok := vms[vmii].(map[string]interface{})
-		if !ok {
-			return nil, status.Errorf(codes.Internal, "failed to cast response to map, vm: %v", vm)
+	// FIXME: check current size and skip resize if not needed
+
+	id, lun, err := getVMByAttachedVolume(ctx, cl, vol)
+	if err != nil || id == 0 {
+		if err == goproxmox.ErrNotFound {
+			klog.V(3).InfoS("ControllerExpandVolume: volume is not published, cannot resize unpublished volumeID", "cluster", vol.Cluster(), "volumeID", vol.VolumeID())
+
+			return nil, status.Error(codes.Internal, "cannot resize unpublished")
 		}
 
-		if vmType, ok := vm["type"].(string); ok && vmType != "qemu" {
-			klog.V(5).InfoS("ControllerExpandVolume: skipping non-qemu VM", "VM", vm["name"]) //nolint:errcheck
+		klog.ErrorS(err, "ControllerExpandVolume: failed to get vm by attached volume", "cluster", vol.Cluster(), "volumeID", vol.VolumeID())
 
-			continue
-		}
-
-		if node, ok := vm["node"].(string); ok && node == vol.Node() || vol.Node() == "" {
-			vmID := int(vm["vmid"].(float64)) //nolint:errcheck
-
-			vmr := pxapi.NewVmRef(vmID)
-			vmr.SetNode(vol.Node())
-			vmr.SetVmType("qemu")
-
-			if vmr.Node() == "" {
-				vmr.SetNode(node)
-			}
-
-			config, err := cl.GetVmConfig(vmr)
-			if err != nil {
-				klog.ErrorS(err, "ControllerExpandVolume: failed to get vm config", "cluster", vol.Cluster(), "vmID", vmr.VmId())
-
-				return nil, status.Error(codes.Internal, err.Error())
-			}
-
-			lun, exist := isVolumeAttached(config, vol.Disk())
-			if !exist {
-				continue
-			}
-
-			device := deviceNamePrefix + strconv.Itoa(lun)
-
-			mc := metrics.NewMetricContext("expandVolume")
-
-			if _, err := cl.ResizeQemuDiskRaw(vmr, device, fmt.Sprintf("%dM", volSizeBytes/MiB)); mc.ObserveRequest(err) != nil {
-				klog.ErrorS(err, "ControllerExpandVolume: failed to resize vm disk", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "vmID", vmr.VmId())
-
-				return nil, status.Error(codes.Internal, err.Error())
-			}
-
-			klog.V(3).InfoS("ControllerExpandVolume: volume expanded", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "vmID", vmr.VmId(), "size", volSizeBytes)
-
-			return &csi.ControllerExpandVolumeResponse{
-				CapacityBytes:         volSizeBytes,
-				NodeExpansionRequired: true,
-			}, nil
-		}
+		return nil, status.Error(codes.Internal, err.Error())
 	}
 
-	return nil, status.Error(codes.Internal, "cannot resize unpublished volumeID")
+	mc := metrics.NewMetricContext("expandVolume")
+
+	device := deviceNamePrefix + strconv.Itoa(lun)
+	if err = cl.ResizeVMDisk(ctx, id, vol.Node(), device, fmt.Sprintf("%dM", volSizeBytes/MiB)); mc.ObserveRequest(err) != nil {
+		klog.ErrorS(err, "ControllerExpandVolume: failed to resize vm disk", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "vmID", id)
+
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	klog.V(3).InfoS("ControllerExpandVolume: volume expanded", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "vmID", id, "size", volSizeBytes)
+
+	return &csi.ControllerExpandVolumeResponse{
+		CapacityBytes:         volSizeBytes,
+		NodeExpansionRequired: true,
+	}, nil
 }
 
 // ControllerGetVolume get a volume
@@ -1089,7 +918,7 @@ func (d *ControllerService) ControllerGetVolume(_ context.Context, request *csi.
 }
 
 // ControllerModifyVolume modify a volume
-func (d *ControllerService) ControllerModifyVolume(_ context.Context, request *csi.ControllerModifyVolumeRequest) (*csi.ControllerModifyVolumeResponse, error) {
+func (d *ControllerService) ControllerModifyVolume(ctx context.Context, request *csi.ControllerModifyVolumeRequest) (*csi.ControllerModifyVolumeResponse, error) {
 	klog.V(4).InfoS("ControllerModifyVolume: called", "args", protosanitizer.StripSecrets(request))
 
 	volumeID := request.GetVolumeId()
@@ -1109,79 +938,136 @@ func (d *ControllerService) ControllerModifyVolume(_ context.Context, request *c
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
-	cl, err := d.Cluster.GetProxmoxCluster(vol.Cluster())
+	cl, err := d.pxpool.GetProxmoxCluster(vol.Cluster())
 	if err != nil {
 		klog.ErrorS(err, "ControllerModifyVolume: failed to get proxmox cluster", "cluster", vol.Cluster())
 
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
-	_, err = getVolumeSize(cl, vol)
+	_, err = d.checkVolume(ctx, vol)
 	if err != nil {
-		if err.Error() != ErrorNotFound {
-			klog.ErrorS(err, "ControllerModifyVolume: failed to check volume", "cluster", vol.Cluster(), "volumeID", vol.VolumeID())
+		klog.ErrorS(err, "ControllerModifyVolume: failed to check volume", "cluster", vol.Cluster(), "volumeID", vol.VolumeID())
 
-			return nil, status.Error(codes.Internal, err.Error())
+		return nil, err
+	}
+
+	id, _, err := getVMByAttachedVolume(ctx, cl, vol)
+	if err != nil || id == 0 {
+		if err == goproxmox.ErrNotFound {
+			klog.V(3).InfoS("ControllerModifyVolume: volume is not published, cannot modify unpublished volumeID", "cluster", vol.Cluster(), "volumeID", vol.VolumeID())
+
+			return nil, status.Error(codes.NotFound, "volume is not published")
 		}
 
-		return &csi.ControllerModifyVolumeResponse{}, nil
-	}
-
-	vmr, err := getVMRefByAttachedVolume(cl, vol)
-	if err != nil {
-		klog.ErrorS(err, "ControllerModifyVolume: failed to get vm ref by volume", "cluster", vol.Cluster(), "volumeName", vol.Disk())
-
-		return nil, status.Error(codes.NotFound, err.Error())
-	}
-
-	klog.V(5).InfoS("ControllerModifyVolume: update volume", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "vmID", vmr.VmId(), "parameters", paramsVAC.ToMap())
-
-	mc := metrics.NewMetricContext("updateVolume")
-	if err = updateVolume(cl, vmr, vol.Storage(), vol.Disk(), paramsVAC.ToMap()); mc.ObserveRequest(err) != nil {
-		klog.ErrorS(err, "ControllerModifyVolume: failed to update volume", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "vmID", vmr.VmId())
+		klog.ErrorS(err, "ControllerModifyVolume: failed to get vm by attached volume", "cluster", vol.Cluster(), "volumeID", vol.VolumeID())
 
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
+	klog.V(5).InfoS("ControllerModifyVolume: update volume", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "vmID", id, "parameters", paramsVAC.ToMap())
+
+	mc := metrics.NewMetricContext("updateVolume")
+	if err = updateVolume(ctx, cl, id, vol, paramsVAC.ToMap()); mc.ObserveRequest(err) != nil {
+		klog.ErrorS(err, "ControllerModifyVolume: failed to update volume", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "vmID", id)
+
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	klog.V(3).InfoS("ControllerModifyVolume: volume modified", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "vmID", id)
+
 	return &csi.ControllerModifyVolumeResponse{}, nil
 }
 
-func (d *ControllerService) getVMRefbyNodeID(ctx context.Context, cl *pxapi.Client, nodeID string) (*pxapi.VmRef, error) {
-	var vmr *pxapi.VmRef
-
-	node, err := d.Kclient.CoreV1().Nodes().Get(ctx, nodeID, metav1.GetOptions{})
+func (d *ControllerService) getVMIDbyNode(ctx context.Context, nodeID string) (int, string, error) { // nolint:unparam
+	node, err := d.kclient.CoreV1().Nodes().Get(ctx, nodeID, metav1.GetOptions{})
 	if err != nil {
-		return nil, status.Error(codes.InvalidArgument, err.Error())
+		return 0, "", status.Error(codes.InvalidArgument, err.Error())
 	}
 
-	if d.Provider == csiconfig.ProviderCapmox {
-		vmr, _, err = d.Cluster.FindVMByUUID(ctx, node.Status.NodeInfo.SystemUUID)
-		if err != nil {
-			return nil, status.Error(codes.Internal, err.Error())
+	id, err := ProxmoxVMIDbyNode(node)
+	if err != nil {
+		if d.Provider == csiconfig.ProviderCapmox {
+			id, region, err := d.pxpool.FindVMByUUID(ctx, node.Status.NodeInfo.SystemUUID)
+			if err != nil {
+				return 0, "", status.Error(codes.Internal, err.Error())
+			}
+
+			return id, region, nil
 		}
 
-		return vmr, nil
+		klog.InfoS("failed to get proxmox VMID from ProviderID", "nodeID", nodeID)
+
+		id, region, err := d.pxpool.FindVMByNode(ctx, node)
+		if err != nil {
+			klog.ErrorS(err, "failed to get vm ref by nodeID", "nodeID", nodeID)
+
+			return 0, "", status.Error(codes.Internal, err.Error())
+		}
+
+		return id, region, nil
 	}
 
-	vmrid, err := tools.ProxmoxVMIDbyNode(ctx, node)
+	return id, "", nil
+}
+
+func (d *ControllerService) checkVolume(ctx context.Context, vol *volume.Volume) (int64, error) {
+	cl, err := d.pxpool.GetProxmoxCluster(vol.Cluster())
 	if err != nil {
-		klog.InfoS("ControllerPublishVolume: failed to get proxmox vmrID from ProviderID", "nodeID", nodeID)
+		return 0, status.Error(codes.Internal, err.Error())
+	}
 
-		vmr, err = cl.GetVmRefByName(nodeID)
+	if vol.Zone() != "" {
+		nodes, err := cl.GetNodeList(ctx)
 		if err != nil {
-			klog.ErrorS(err, "ControllerPublishVolume: failed to get vm ref by nodeID", "nodeID", nodeID)
+			return 0, status.Error(codes.Internal, err.Error())
+		}
 
-			return nil, status.Error(codes.Internal, err.Error())
+		if !slices.Contains(nodes, vol.Zone()) {
+			return 0, status.Errorf(codes.NotFound, "zone %s not found in cluster %s", vol.Zone(), vol.Cluster())
 		}
 	}
 
-	if vmr == nil {
-		_, zone := getNodeTopology(node.Labels)
+	if vol.Node() == "" {
+		nodes, err := getNodesForStorage(ctx, cl, vol.Storage())
+		if err != nil {
+			return 0, status.Error(codes.Internal, err.Error())
+		}
 
-		vmr = pxapi.NewVmRef(vmrid)
-		vmr.SetNode(zone)
-		vmr.SetVmType("qemu")
+		for _, n := range nodes {
+			vol.SetNode(n)
+
+			size, err := getVolumeSize(ctx, cl, vol)
+			if err != nil {
+				if err.Error() == ErrorNotFound {
+					continue
+				}
+
+				return 0, status.Error(codes.Internal, err.Error())
+			}
+
+			klog.V(5).InfoS("checkVolume: determined node for volume", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "node", n)
+
+			return size, nil
+		}
+
+		return 0, status.Errorf(codes.NotFound, "volume %s not found in any node for storage %s", vol.VolumeID(), vol.Storage())
+
+		// node, err := getNodeForVolume(ctx, cl, vol)
+		// if err != nil {
+		// 	return 0, status.Error(codes.Internal, err.Error())
+		// }
+		// vol.SetNode(node)
 	}
 
-	return vmr, nil
+	size, err := getVolumeSize(ctx, cl, vol)
+	if err != nil {
+		if err.Error() == ErrorNotFound {
+			return 0, status.Errorf(codes.NotFound, "volume %s not found", vol.VolumeID())
+		}
+
+		return 0, status.Error(codes.Internal, err.Error())
+	}
+
+	return size, nil
 }

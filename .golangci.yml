@@ -86,7 +86,7 @@ linters:
       min-complexity: 30
     gomoddirectives:
       replace-local: true
-      replace-allow-list: []
+      replace-allow-list: [github.com/luthermonson/go-proxmox]
       retract-allow-no-explanation: false
       exclude-forbidden: true
     lll:
@@ -121,6 +121,8 @@ linters:
   exclusions:
     paths:
       - pkg/helpers/ptr/ptr.go
+      - pkg/tools
+      - pkg/csi/utils.go
 issues:
   max-issues-per-linter: 0
   max-same-issues: 0

@@ -25,6 +25,9 @@ services:
       - type: bind
         source: ./
         target: /src
+      - type: bind
+        source: ../proxmox
+        target: /proxmox
   csi-attacher:
     image: registry.k8s.io/sig-storage/csi-attacher:v4.10.0
     restart: always
@@ -85,6 +88,7 @@ services:
       - "--v=5"
       - "--csi-address=unix:///csi/csi.sock"
       - "--leader-election=false"
+      - "--timeout=1m"
       - "--default-fstype=ext4"
       # - "--feature-gates=VolumeAttributesClass=true"
       - "--enable-capacity"

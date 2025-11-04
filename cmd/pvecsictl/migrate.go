@@ -26,9 +26,9 @@ import (
 
 	csiconfig "github.com/sergelogvinov/proxmox-csi-plugin/pkg/config"
 	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/csi"
-	vm "github.com/sergelogvinov/proxmox-csi-plugin/pkg/proxmox"
 	pxpool "github.com/sergelogvinov/proxmox-csi-plugin/pkg/proxmoxpool"
-	tools "github.com/sergelogvinov/proxmox-csi-plugin/pkg/tools"
+	tools "github.com/sergelogvinov/proxmox-csi-plugin/pkg/tools/kubernetes"
+	toolsproxmox "github.com/sergelogvinov/proxmox-csi-plugin/pkg/tools/proxmox"
 	volume "github.com/sergelogvinov/proxmox-csi-plugin/pkg/utils/volume"
 
 	rbacv1 "k8s.io/api/authorization/v1"
@@ -155,14 +155,14 @@ func (c *migrateCmd) runMigration(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	if err = vm.WaitForVolumeDetach(cluster, vmName, vol.Disk()); err != nil {
+	if err = toolsproxmox.WaitForVolumeDetach(ctx, cluster, vmName, vol.Disk()); err != nil {
 		return fmt.Errorf("failed to wait for volume detach: %v", err)
 	}
 
 	logger.Infof("moving disk %s to proxmox node %s", vol.Disk(), node)
 
 	taskTimeout, _ := flags.GetInt("timeout") //nolint: errcheck
-	if err = vm.MoveQemuDisk(cluster, vol, node, taskTimeout); err != nil {
+	if err = toolsproxmox.MoveQemuDisk(ctx, cluster, vol, node, taskTimeout); err != nil {
 		return fmt.Errorf("failed to move disk: %v", err)
 	}
 
@@ -200,7 +200,7 @@ func (c *migrateCmd) migrationValidate(cmd *cobra.Command, _ []string) error {
 		}
 	}
 
-	c.pclient, err = pxpool.NewProxmoxPool(cfg.Clusters, nil)
+	c.pclient, err = pxpool.NewProxmoxPool(cfg.Clusters)
 	if err != nil {
 		return fmt.Errorf("failed to create Proxmox cluster client: %v", err)
 	}

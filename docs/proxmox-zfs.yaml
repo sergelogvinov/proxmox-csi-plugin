@@ -11,9 +11,9 @@ parameters:
   aio: native
   cache: directsync
   #
-  # replicate: "true"
-  # replicateSchedule: "*/15"
-  # replicateZones: "pve-1,pve-2"
+  replicate: "true"
+  replicateSchedule: "*/15"
+  replicateZones: "rnd-1,rnd-2"
 provisioner: csi.proxmox.sinextra.dev
 reclaimPolicy: Delete
 volumeBindingMode: WaitForFirstConsumer
