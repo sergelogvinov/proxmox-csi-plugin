@@ -29,7 +29,7 @@ import (
 	vm "github.com/sergelogvinov/proxmox-csi-plugin/pkg/proxmox"
 	pxpool "github.com/sergelogvinov/proxmox-csi-plugin/pkg/proxmoxpool"
 	tools "github.com/sergelogvinov/proxmox-csi-plugin/pkg/tools"
-	volume "github.com/sergelogvinov/proxmox-csi-plugin/pkg/volume"
+	volume "github.com/sergelogvinov/proxmox-csi-plugin/pkg/utils/volume"
 
 	rbacv1 "k8s.io/api/authorization/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

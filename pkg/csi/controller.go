@@ -38,7 +38,7 @@ import (
 	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/proxmox"
 	pxpool "github.com/sergelogvinov/proxmox-csi-plugin/pkg/proxmoxpool"
 	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/tools"
-	volume "github.com/sergelogvinov/proxmox-csi-plugin/pkg/volume"
+	volume "github.com/sergelogvinov/proxmox-csi-plugin/pkg/utils/volume"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
