@@ -21,7 +21,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/volume"
+	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/utils/volume"
 )
 
 func TestNewVolume(t *testing.T) {

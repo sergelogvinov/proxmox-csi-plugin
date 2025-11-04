@@ -25,7 +25,7 @@ import (
 
 	pxapi "github.com/Telmate/proxmox-api-go/proxmox"
 
-	volume "github.com/sergelogvinov/proxmox-csi-plugin/pkg/volume"
+	volume "github.com/sergelogvinov/proxmox-csi-plugin/pkg/utils/volume"
 )
 
 // GetNodeList retrieves the list of nodes in the Proxmox cluster.
