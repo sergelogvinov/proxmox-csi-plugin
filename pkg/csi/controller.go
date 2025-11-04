@@ -455,15 +455,13 @@ func (d *ControllerService) DeleteVolume(ctx context.Context, request *csi.Delet
 		}
 	}
 
-	exist, err := isPvcExists(cl, vol)
+	_, err = getVolumeSize(cl, vol)
 	if err != nil {
-		klog.ErrorS(err, "DeleteVolume: failed to verify the existence of the PVC", "cluster", vol.Cluster(), "volumeID", vol.VolumeID())
+		if err.Error() != ErrorNotFound {
+			klog.ErrorS(err, "DeleteVolume: failed to check volume", "cluster", vol.Cluster(), "volumeID", vol.VolumeID())
 
-		return nil, status.Error(codes.Internal, err.Error())
-	}
-
-	if !exist {
-		klog.V(3).InfoS("DeleteVolume: is already deleted", "volumeID", vol.VolumeID())
+			return nil, status.Error(codes.Internal, err.Error())
+		}
 
 		return &csi.DeleteVolumeResponse{}, nil
 	}
@@ -1001,15 +999,13 @@ func (d *ControllerService) ControllerExpandVolume(_ context.Context, request *c
 		}
 	}
 
-	exist, err := isPvcExists(cl, vol)
+	_, err = getVolumeSize(cl, vol)
 	if err != nil {
-		klog.ErrorS(err, "ControllerExpandVolume: failed to verify the existence of the PVC", "cluster", vol.Cluster(), "volumeID", vol.VolumeID())
+		if err.Error() != ErrorNotFound {
+			klog.ErrorS(err, "ControllerExpandVolume: failed to check volume", "cluster", vol.Cluster(), "volumeID", vol.VolumeID())
 
-		return nil, status.Error(codes.NotFound, err.Error())
-	}
-
-	if !exist {
-		klog.V(3).InfoS("ControllerExpandVolume: volume not found", "cluster", vol.Cluster(), "volumeID", vol.VolumeID())
+			return nil, status.Error(codes.Internal, err.Error())
+		}
 
 		return &csi.ControllerExpandVolumeResponse{}, nil
 	}
@@ -1120,15 +1116,13 @@ func (d *ControllerService) ControllerModifyVolume(_ context.Context, request *c
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
-	exist, err := isPvcExists(cl, vol)
+	_, err = getVolumeSize(cl, vol)
 	if err != nil {
-		klog.ErrorS(err, "ControllerModifyVolume: failed to verify the existence of the PVC", "cluster", vol.Cluster(), "volumeID", vol.VolumeID())
+		if err.Error() != ErrorNotFound {
+			klog.ErrorS(err, "ControllerModifyVolume: failed to check volume", "cluster", vol.Cluster(), "volumeID", vol.VolumeID())
 
-		return nil, status.Error(codes.NotFound, err.Error())
-	}
-
-	if !exist {
-		klog.V(3).InfoS("ControllerModifyVolume: volume not found", "cluster", vol.Cluster(), "volumeID", vol.VolumeID())
+			return nil, status.Error(codes.Internal, err.Error())
+		}
 
 		return &csi.ControllerModifyVolumeResponse{}, nil
 	}
