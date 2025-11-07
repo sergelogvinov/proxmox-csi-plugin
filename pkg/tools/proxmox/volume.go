@@ -18,90 +18,81 @@ package proxmox
 
 import (
 	"context"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/luthermonson/go-proxmox"
 
 	goproxmox "github.com/sergelogvinov/go-proxmox"
 	volume "github.com/sergelogvinov/proxmox-csi-plugin/pkg/utils/volume"
 )
 
 // WaitForVolumeDetach waits for the volume to be detached from the VM.
-func WaitForVolumeDetach(ctx context.Context, client *goproxmox.APIClient, vmName string, disk string) error {
+func WaitForVolumeDetach(ctx context.Context, client *goproxmox.APIClient, vmName string, pvc string) error {
 	if vmName == "" {
 		return nil
 	}
 
-	// vmr, err := client.GetVmRefsByName(vmName)
-	// if err != nil || len(vmr) == 0 {
-	// 	return fmt.Errorf("failed to get vmID")
-	// }
+	vmID, err := client.FindVMByName(ctx, vmName)
+	if err != nil {
+		return fmt.Errorf("failed to find vm by name %s: %v", vmName, err)
+	}
 
-	// for {
-	// 	time.Sleep(5 * time.Second)
+	for {
+		time.Sleep(5 * time.Second)
 
-	// 	vmConfig, err := client.GetVmConfig(vmr[0])
-	// 	if err != nil {
-	// 		return fmt.Errorf("failed to get vm config: %v", err)
-	// 	}
+		vmConfig, err := client.GetVMConfig(ctx, vmID)
+		if err != nil {
+			return fmt.Errorf("failed to get vm config: %v", err)
+		}
 
-	// 	found := false
+		found := false
 
-	// 	for lun := 1; lun < 30; lun++ {
-	// 		device := fmt.Sprintf("scsi%d", lun)
+		disks := vmConfig.VirtualMachineConfig.MergeSCSIs()
+		for _, disk := range disks {
+			if strings.Contains(disk, pvc) {
+				found = true
 
-	// 		if vmConfig[device] != nil && strings.Contains(vmConfig[device].(string), disk) { //nolint:errcheck
-	// 			found = true
+				break
+			}
+		}
 
-	// 			break
-	// 		}
-	// 	}
-
-	// 	if !found {
-	// 		return nil
-	// 	}
-	// }
-
-	return nil
+		if !found {
+			return nil
+		}
+	}
 }
 
 // MoveQemuDisk moves the volume from one node to another.
 func MoveQemuDisk(ctx context.Context, cluster *goproxmox.APIClient, vol *volume.Volume, node string, taskTimeout int) error {
-	// vmParams := map[string]interface{}{
-	// 	"node":        vol.Node(),
-	// 	"target":      vol.Disk(),
-	// 	"target_node": node,
-	// 	"volume":      vol.Disk(),
-	// }
+	params := map[string]interface{}{
+		"node":        vol.Node(),
+		"target":      vol.Disk(),
+		"target_node": node,
+		"volume":      vol.Disk(),
+	}
 
-	// oldTimeout := cluster.TaskTimeout
-	// cluster.TaskTimeout = taskTimeout
+	// POST https://pve.proxmox.com/pve-docs/api-viewer/index.html#/nodes/{node}/storage/{storage}/content/{volume}
+	// Copy a volume. This is experimental code - do not use.
+	var upid proxmox.UPID
+	if err := cluster.Client.Post(ctx, fmt.Sprintf("/nodes/%s/storage/%s/content/%s", vol.Node(), vol.Storage(), vol.Disk()), params, &upid); err != nil {
+		return fmt.Errorf("failed to copy pvc: %v, params=%+v", err, params)
+	}
 
-	// // POST https://pve.proxmox.com/pve-docs/api-viewer/index.html#/nodes/{node}/storage/{storage}/content/{volume}
-	// // Copy a volume. This is experimental code - do not use.
-	// resp, err := cluster.CreateItemReturnStatus(vmParams, "/nodes/"+vol.Node()+"/storage/"+vol.Storage()+"/content/"+vol.Disk())
-	// if err != nil {
-	// 	return fmt.Errorf("failed to move pvc: %v, vmParams=%+v", err, vmParams)
-	// }
+	task := proxmox.NewTask(upid, cluster.Client)
+	if task != nil {
+		_, completed, err := task.WaitForCompleteStatus(ctx, taskTimeout/60, 60)
+		if err != nil {
+			return fmt.Errorf("unable to delete virtual machine disk: %w", err)
+		}
 
-	// var taskResponse map[string]interface{}
+		if completed {
+			return nil
+		}
 
-	// if err = json.Unmarshal([]byte(resp), &taskResponse); err != nil {
-	// 	return fmt.Errorf("failed to parse response: %v", err)
-	// }
-
-	// for range 3 {
-	// 	if _, err = cluster.WaitForCompletion(taskResponse); err != nil {
-	// 		time.Sleep(2 * time.Second)
-
-	// 		continue
-	// 	}
-
-	// 	break
-	// }
-
-	// if err != nil {
-	// 	return fmt.Errorf("failed to wait for task completion: %v", err)
-	// }
-
-	// cluster.TaskTimeout = oldTimeout
+		return fmt.Errorf("failed to copy disk, exit status: %s", task.ExitStatus)
+	}
 
 	return nil
 }
