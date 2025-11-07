@@ -110,7 +110,7 @@ func (n *NodeService) NodeStageVolume(_ context.Context, request *csi.NodeStageV
 		return nil, status.Error(codes.InvalidArgument, "VolumeCapability must be provided")
 	}
 
-	params, err := ExtractAndDefaultParameters(request.GetVolumeContext())
+	params, err := ExtractParameters(request.GetVolumeContext())
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}

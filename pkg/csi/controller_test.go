@@ -19,6 +19,7 @@ package csi_test
 import (
 	"context"
 	"fmt"
+	"maps"
 	"testing"
 
 	proto "github.com/container-storage-interface/spec/lib/go/csi"
@@ -224,6 +225,7 @@ func (ts *configuredTestSuite) TestCreateVolume() {
 	volParamDefaults := map[string]string{
 		"backup":    "0",
 		"iothread":  "1",
+		"storage":   "local-lvm",
 		"replicate": "0",
 	}
 	volsize := &proto.CapacityRange{
@@ -419,8 +421,13 @@ func (ts *configuredTestSuite) TestCreateVolume() {
 			},
 			expected: &proto.CreateVolumeResponse{
 				Volume: &proto.Volume{
-					VolumeId:      "cluster-1//rbd/9999/vm-9999-volume-rbd.raw",
-					VolumeContext: volParamDefaults,
+					VolumeId: "cluster-1//rbd/9999/vm-9999-volume-rbd.raw",
+					VolumeContext: func() map[string]string {
+						vc := maps.Clone(volParamDefaults)
+						vc["storage"] = "rbd"
+
+						return vc
+					}(),
 					CapacityBytes: csi.MinChunkSizeBytes,
 					AccessibleTopology: []*proto.Topology{
 						{
@@ -644,15 +651,6 @@ func (ts *configuredTestSuite) TestControllerPublishVolumeError() {
 				VolumeContext: volCtx,
 			},
 			expectedError: status.Error(codes.InvalidArgument, "VolumeCapability must be provided"),
-		},
-		{
-			msg: "VolumeContext",
-			request: &proto.ControllerPublishVolumeRequest{
-				NodeId:           "node-id",
-				VolumeId:         "volume-id",
-				VolumeCapability: volCap,
-			},
-			expectedError: status.Error(codes.InvalidArgument, "VolumeContext must be provided"),
 		},
 		{
 			msg: "WrongVolumeID",
