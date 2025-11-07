@@ -83,6 +83,10 @@ func getVMByAttachedVolume(ctx context.Context, cl *goproxmox.APIClient, vol *vo
 		}
 
 		for _, v := range vms {
+			if vol.VMID() == fmt.Sprintf("%d", v.VMID) {
+				continue
+			}
+
 			config, err := node.VirtualMachine(ctx, int(v.VMID))
 			if err != nil {
 				return 0, 0, fmt.Errorf("failed to get vm config: %v", err)
@@ -161,48 +165,6 @@ func isVolumeAttached(vm *proxmox.VirtualMachineConfig, pvc string) (int, bool) 
 	}
 
 	return 0, false
-}
-
-func waitForVolumeAttach(cl *goproxmox.APIClient, vmid int, lun int, pvc string) error {
-	// waited := 0
-	// for waited < TaskTimeout {
-	// 	config, err := cl.GetVmConfig(vmr)
-	// 	if err != nil {
-	// 		return fmt.Errorf("failed to get vm config: %v", err)
-	// 	}
-
-	// 	device := fmt.Sprintf("%s%d", deviceNamePrefix, lun)
-	// 	if config[device] != nil && strings.Contains(config[device].(string), pvc) { //nolint:errcheck
-	// 		return nil
-	// 	}
-
-	// 	time.Sleep(TaskStatusCheckInterval * time.Second)
-	// 	waited += TaskStatusCheckInterval
-	// }
-
-	return fmt.Errorf("timeout waiting for disk to attach")
-}
-
-func waitForVolumeDetach(cl *goproxmox.APIClient, vmid int, lun int, pvc string) error {
-	// waited := 0
-	// for waited < TaskTimeout {
-	// 	config, err := cl.GetVmConfig(vmr)
-	// 	if err != nil {
-	// 		return fmt.Errorf("failed to get vm config: %v", err)
-	// 	}
-
-	// 	device := fmt.Sprintf("%s%d", deviceNamePrefix, lun)
-	// 	if config[device] == nil {
-	// 		return nil
-	// 	} else if !strings.Contains(config[device].(string), pvc) { //nolint:errcheck
-	// 		return nil
-	// 	}
-
-	// 	time.Sleep(TaskStatusCheckInterval * time.Second)
-	// 	waited += TaskStatusCheckInterval
-	// }
-
-	return fmt.Errorf("timeout waiting for disk to detach")
 }
 
 func prepareReplication(ctx context.Context, cl *goproxmox.APIClient, node string, name string) (int, error) {
@@ -449,12 +411,6 @@ func detachVolume(ctx context.Context, cl *goproxmox.APIClient, id int, vol *vol
 		}
 	}
 
-	// Need to wait for detach to complete before deleting the volume
-
-	// if err := waitForVolumeDetach(cl, vmr, lun, pvc); err != nil {
-	// 	return fmt.Errorf("failed to wait for disk detach: %v", err)
-	// }
-
 	return nil
 }
 
@@ -467,6 +423,7 @@ func updateVolume(ctx context.Context, cl *goproxmox.APIClient, id int, vol *vol
 	if lun, ok := isVolumeAttached(vm.VirtualMachineConfig, vol.Disk()); ok {
 		options["wwn"] = "0x" + hex.EncodeToString([]byte(fmt.Sprintf("PVC-ID%02d", lun)))
 
+		// FIXME: keep old options too
 		opt := make([]string, 0, len(options))
 		for k := range options {
 			opt = append(opt, fmt.Sprintf("%s=%s", k, options[k]))
