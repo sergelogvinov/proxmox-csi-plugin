@@ -125,7 +125,7 @@ func (d *ControllerService) CreateVolume(ctx context.Context, request *csi.Creat
 		return nil, status.Error(codes.InvalidArgument, "VolumeCapabilities must be provided")
 	}
 
-	params, err := ExtractAndDefaultParameters(request.GetParameters())
+	params, err := ExtractParameters(request.GetParameters())
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
@@ -469,12 +469,7 @@ func (d *ControllerService) ControllerPublishVolume(ctx context.Context, request
 		return nil, status.Error(codes.InvalidArgument, "VolumeCapability must be provided")
 	}
 
-	volCtx := request.GetVolumeContext()
-	if volCtx == nil {
-		return nil, status.Error(codes.InvalidArgument, "VolumeContext must be provided")
-	}
-
-	params, err := ExtractAndDefaultParameters(volCtx)
+	params, err := ExtractParameters(request.GetVolumeContext())
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
@@ -528,33 +523,26 @@ func (d *ControllerService) ControllerPublishVolume(ctx context.Context, request
 
 	mc := metrics.NewMetricContext("attachVolume")
 
-	pvInfo, err := attachVolume(ctx, cl, id, vol, params.ToMap())
+	pvInfo, err := attachVolume(ctx, cl, id, vol, params.ToCFG())
 	if mc.ObserveRequest(err) != nil {
 		klog.ErrorS(err, "ControllerPublishVolume: failed to attach volume", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "vmID", id)
 
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
-	if resizeSizeBytesRaw := volCtx[resizeSizeBytes]; resizeSizeBytesRaw != "" {
-		resizeSizeBytes, err := strconv.ParseInt(resizeSizeBytesRaw, 10, 64)
-		if err != nil {
-			klog.ErrorS(err, "ControllerPublishVolume: invalid resize size", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "vmID", id)
+	if size < params.ResizeSizeBytes {
+		klog.V(5).InfoS("ControllerPublishVolume: expandVolume", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "vmID", id)
+
+		mc := metrics.NewMetricContext("expandVolume")
+
+		device := deviceNamePrefix + pvInfo["lun"]
+		if err = cl.ResizeVMDisk(ctx, id, vol.Node(), device, fmt.Sprintf("%dM", params.ResizeSizeBytes/MiB)); mc.ObserveRequest(err) != nil {
+			klog.ErrorS(err, "ControllerPublishVolume: failed to resize vm disk", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "vmID", id)
+
+			return nil, status.Error(codes.Internal, err.Error())
 		}
 
-		if size < resizeSizeBytes {
-			klog.V(5).InfoS("ControllerPublishVolume: expandVolume", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "vmID", id)
-
-			mc := metrics.NewMetricContext("expandVolume")
-
-			device := deviceNamePrefix + pvInfo["lun"]
-			if err = cl.ResizeVMDisk(ctx, id, vol.Node(), device, fmt.Sprintf("%dM", resizeSizeBytes/MiB)); mc.ObserveRequest(err) != nil {
-				klog.ErrorS(err, "ControllerPublishVolume: failed to resize vm disk", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "vmID", id)
-
-				return nil, status.Error(codes.Internal, err.Error())
-			}
-
-			pvInfo[resizeRequired] = "true" // nolint: goconst
-		}
+		pvInfo[resizeRequired] = "true" // nolint: goconst
 	}
 
 	klog.V(3).InfoS("ControllerPublishVolume: volume published", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "nodeID", nodeID)
@@ -926,12 +914,10 @@ func (d *ControllerService) ControllerModifyVolume(ctx context.Context, request 
 		return nil, status.Error(codes.InvalidArgument, "VolumeID must be provided")
 	}
 
-	paramsVAC, err := ExtractModifyVolumeParameters(request.GetMutableParameters())
+	params, err := ExtractModifyVolumeParameters(request.GetMutableParameters())
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
-
-	klog.V(5).InfoS("ControllerModifyVolume: modify parameters", "parameters", paramsVAC)
 
 	vol, err := volume.NewVolumeFromVolumeID(volumeID)
 	if err != nil {
@@ -965,10 +951,10 @@ func (d *ControllerService) ControllerModifyVolume(ctx context.Context, request 
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
-	klog.V(5).InfoS("ControllerModifyVolume: update volume", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "vmID", id, "parameters", paramsVAC.ToMap())
+	klog.V(5).InfoS("ControllerModifyVolume: update volume", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "vmID", id, "parameters", params.ToCFG())
 
 	mc := metrics.NewMetricContext("updateVolume")
-	if err = updateVolume(ctx, cl, id, vol, paramsVAC.ToMap()); mc.ObserveRequest(err) != nil {
+	if err = updateVolume(ctx, cl, id, vol, params.ToCFG()); mc.ObserveRequest(err) != nil {
 		klog.ErrorS(err, "ControllerModifyVolume: failed to update volume", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "vmID", id)
 
 		return nil, status.Error(codes.Internal, err.Error())
