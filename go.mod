@@ -4,7 +4,7 @@ go 1.25.3
 
 // replace github.com/sergelogvinov/go-proxmox => ../proxmox/go-proxmox
 
-replace github.com/luthermonson/go-proxmox => github.com/sergelogvinov/go-proxmox-luthermonson v0.0.0-20251105132622-dd5e9fc8e851
+replace github.com/luthermonson/go-proxmox => github.com/sergelogvinov/go-proxmox-luthermonson v0.0.0-20251108105505-bebdd99daf36
 
 require (
 	github.com/container-storage-interface/spec v1.12.0

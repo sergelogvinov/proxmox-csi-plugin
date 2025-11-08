@@ -28,6 +28,12 @@ import (
 
 // SetupMockResponders sets up the HTTP mock responders for Proxmox API calls.
 func SetupMockResponders() {
+	httpmock.RegisterResponder(http.MethodGet, `=~/version$`,
+		func(_ *http.Request) (*http.Response, error) {
+			return httpmock.NewJsonResponse(200, map[string]any{
+				"data": proxmox.Version{Version: "8.4"},
+			})
+		})
 	httpmock.RegisterResponder(http.MethodGet, `=~/cluster/status`,
 		func(_ *http.Request) (*http.Response, error) {
 			return httpmock.NewJsonResponse(200, map[string]any{
