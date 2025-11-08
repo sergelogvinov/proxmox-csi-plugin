@@ -131,7 +131,8 @@ func (c *ProxmoxPool) GetRegions() []string {
 // CheckClusters checks if the Proxmox connection is working.
 func (c *ProxmoxPool) CheckClusters(ctx context.Context) error {
 	for region, pxClient := range c.clients {
-		if _, err := pxClient.Version(ctx); err != nil {
+		info, err := pxClient.Version(ctx)
+		if err != nil {
 			return fmt.Errorf("failed to initialized proxmox client in region %s, error: %v", region, err)
 		}
 
@@ -147,7 +148,7 @@ func (c *ProxmoxPool) CheckClusters(ctx context.Context) error {
 		}
 
 		if len(vms) > 0 {
-			klog.V(4).InfoS("Proxmox cluster has VMs", "region", region, "count", len(vms))
+			klog.V(4).InfoS("Proxmox cluster information", "region", region, "version", info.Version, "vms", len(vms))
 		} else {
 			klog.InfoS("Proxmox cluster has no VMs, or check the account permission", "region", region)
 		}

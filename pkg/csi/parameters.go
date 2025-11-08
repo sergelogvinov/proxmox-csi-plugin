@@ -89,8 +89,8 @@ type ModifyVolumeParameters struct {
 	IopsWrite      *int  `json:"-"                        cfg:"iops_wr,omitempty"`
 	ReadSpeedMbps  *int  `json:"-"                        cfg:"mbps_rd,omitempty"`
 	WriteSpeedMbps *int  `json:"-"                        cfg:"mbps_wr,omitempty"`
-	Iops           *int  `json:"diskIOPS"`
-	SpeedMbps      *int  `json:"diskMBps"`
+	Iops           *int  `json:"diskIOPS,omitempty"`
+	SpeedMbps      *int  `json:"diskMBps,omitempty"`
 
 	ReplicateSchedule string `json:"replicateSchedule,omitempty"`
 }

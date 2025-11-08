@@ -421,9 +421,17 @@ func updateVolume(ctx context.Context, cl *goproxmox.APIClient, id int, vol *vol
 	}
 
 	if lun, ok := isVolumeAttached(vm.VirtualMachineConfig, vol.Disk()); ok {
-		options["wwn"] = "0x" + hex.EncodeToString([]byte(fmt.Sprintf("PVC-ID%02d", lun)))
+		disks := vm.VirtualMachineConfig.MergeSCSIs()
+		if disk := disks[deviceNamePrefix+strconv.Itoa(lun)]; disk != "" {
+			params := strings.Split(disk, ",")
+			for _, param := range params {
+				kv := strings.Split(param, "=")
+				if len(kv) == 2 && options[kv[0]] == "" {
+					options[kv[0]] = kv[1]
+				}
+			}
+		}
 
-		// FIXME: keep old options too
 		opt := make([]string, 0, len(options))
 		for k := range options {
 			opt = append(opt, fmt.Sprintf("%s=%s", k, options[k]))
