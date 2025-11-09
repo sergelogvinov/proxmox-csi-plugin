@@ -982,7 +982,7 @@ func (d *ControllerService) getVMIDbyNode(ctx context.Context, nodeID string) (i
 			return id, region, nil
 		}
 
-		klog.InfoS("failed to get proxmox VMID from ProviderID", "nodeID", nodeID)
+		klog.InfoS("failed to get proxmox VMID from ProviderID", "nodeID", nodeID, "providerID", node.Spec.ProviderID)
 
 		id, region, err := d.pxpool.FindVMByNode(ctx, node)
 		if err != nil {
