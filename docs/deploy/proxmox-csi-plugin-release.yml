@@ -16,7 +16,7 @@ metadata:
   name: proxmox-csi-plugin-controller
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.3.18
+    helm.sh/chart: proxmox-csi-plugin-0.4.1
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
     app.kubernetes.io/version: "v0.15.1"
@@ -29,7 +29,7 @@ metadata:
   name: proxmox-csi-plugin-node
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.3.18
+    helm.sh/chart: proxmox-csi-plugin-0.4.1
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
     app.kubernetes.io/version: "v0.15.1"
@@ -42,7 +42,7 @@ metadata:
   name: proxmox-csi-plugin-controller
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.3.18
+    helm.sh/chart: proxmox-csi-plugin-0.4.1
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
     app.kubernetes.io/version: "v0.15.1"
@@ -80,6 +80,10 @@ rules:
   - apiGroups: ["storage.k8s.io"]
     resources: ["volumeattachments/status"]
     verbs: ["patch"]
+
+  - apiGroups: ["snapshot.storage.k8s.io"]
+    resources: ["volumesnapshots"]
+    verbs: ["get", "list"]
 ---
 # Source: proxmox-csi-plugin/templates/node-clusterrole.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -88,7 +92,7 @@ metadata:
   name: proxmox-csi-plugin-node
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.3.18
+    helm.sh/chart: proxmox-csi-plugin-0.4.1
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
     app.kubernetes.io/version: "v0.15.1"
@@ -106,6 +110,12 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
   name: proxmox-csi-plugin-controller
+  labels:
+    helm.sh/chart: proxmox-csi-plugin-0.4.1
+    app.kubernetes.io/name: proxmox-csi-plugin
+    app.kubernetes.io/instance: proxmox-csi-plugin
+    app.kubernetes.io/version: "v0.15.1"
+    app.kubernetes.io/managed-by: Helm
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
@@ -136,7 +146,7 @@ metadata:
   name: proxmox-csi-plugin-controller
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.3.18
+    helm.sh/chart: proxmox-csi-plugin-0.4.1
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
     app.kubernetes.io/version: "v0.15.1"
@@ -162,6 +172,12 @@ kind: RoleBinding
 metadata:
   name: proxmox-csi-plugin-controller
   namespace: csi-proxmox
+  labels:
+    helm.sh/chart: proxmox-csi-plugin-0.4.1
+    app.kubernetes.io/name: proxmox-csi-plugin
+    app.kubernetes.io/instance: proxmox-csi-plugin
+    app.kubernetes.io/version: "v0.15.1"
+    app.kubernetes.io/managed-by: Helm
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
@@ -178,7 +194,7 @@ metadata:
   name: proxmox-csi-plugin-node
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.3.18
+    helm.sh/chart: proxmox-csi-plugin-0.4.1
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
     app.kubernetes.io/version: "v0.15.1"
@@ -321,7 +337,7 @@ metadata:
   name: proxmox-csi-plugin-controller
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.3.18
+    helm.sh/chart: proxmox-csi-plugin-0.4.1
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
     app.kubernetes.io/version: "v0.15.1"
