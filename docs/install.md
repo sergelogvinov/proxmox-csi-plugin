@@ -18,7 +18,7 @@ Create `CSI` role in Proxmox:
 ```shell
 pveum role add CSI -privs "VM.Audit VM.Config.Disk Datastore.Allocate Datastore.AllocateSpace Datastore.Audit"
 # Or if you need to use Replication feature (zfs replication)
-pveum role add CSI -privs "VM.Audit VM.Allocate VM.Clone VM.Config.CPU VM.Config.Disk VM.Config.HWType VM.Config.Memory VM.Config.Options VM.Migrate VM.Monitor VM.PowerMgmt Datastore.Allocate Datastore.AllocateSpace Datastore.Audit"
+pveum role add CSI -privs "VM.Audit VM.Allocate VM.Clone VM.Config.CPU VM.Config.Disk VM.Config.HWType VM.Config.Memory VM.Config.Options VM.Migrate VM.PowerMgmt Datastore.Allocate Datastore.AllocateSpace Datastore.Audit"
 ```
 
 Next create a user `kubernetes-csi@pve` for the CSI plugin and grant it the above role
@@ -198,7 +198,7 @@ cluster:
             clusters:
               - url: https://cluster-api-1.exmple.com:8006/api2/json
                 insecure: false
-                token_id: "kubernetes-csi@pve!ccm"
+                token_id: "kubernetes@pve!ccm"
                 token_secret: "secret"
                 region: Region-1
     - name: proxmox-csi-plugin
