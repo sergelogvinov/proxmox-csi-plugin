@@ -128,7 +128,7 @@ func (n *NodeService) NodeStageVolume(_ context.Context, request *csi.NodeStageV
 		return &csi.NodeStageVolumeResponse{}, nil
 	}
 
-	klog.V(3).InfoS("NodeStageVolume: mount device", "device", devicePath, "path", stagingTarget)
+	klog.V(5).InfoS("NodeStageVolume: mount device", "device", devicePath, "path", stagingTarget)
 
 	n.volumeLocks.Lock()
 	defer n.volumeLocks.Unlock()
@@ -158,7 +158,7 @@ func (n *NodeService) NodeStageVolume(_ context.Context, request *csi.NodeStageV
 
 		passphraseKey, ok := request.GetSecrets()[EncryptionPassphraseKey]
 		if ok {
-			klog.V(4).InfoS("NodeStageVolume: volume is encrypted", "device", devicePath)
+			klog.V(5).InfoS("NodeStageVolume: volume is encrypted", "device", devicePath)
 
 			sb, err := filesystem.Probe(devicePath) //nolint:govet
 			if err != nil {
@@ -194,7 +194,7 @@ func (n *NodeService) NodeStageVolume(_ context.Context, request *csi.NodeStageV
 			devicePath = lukskDevicePath
 		}
 
-		klog.V(4).InfoS("NodeStageVolume: mount device with options", "device", devicePath, "fsType", fsType, "options", options, "formatOptions", formatOptions)
+		klog.V(5).InfoS("NodeStageVolume: mount device with options", "device", devicePath, "fsType", fsType, "options", options, "formatOptions", formatOptions)
 
 		err = m.Mounter().FormatAndMountSensitiveWithFormatOptions(devicePath, stagingTarget, fsType, options, nil, formatOptions)
 		if err != nil {
@@ -205,7 +205,7 @@ func (n *NodeService) NodeStageVolume(_ context.Context, request *csi.NodeStageV
 	}
 
 	if requiredResize {
-		klog.V(4).Infof("NodeStageVolume: resizing volume %q created from a snapshot/volume", volumeID)
+		klog.V(5).InfoS("NodeStageVolume: resizing volume created from a snapshot/volume", "volumeID", volumeID)
 
 		r := mountutil.NewResizeFs(n.Mount.Mounter().Exec)
 		if _, err := r.Resize(devicePath, stagingTarget); err != nil {
@@ -242,7 +242,7 @@ func (n *NodeService) NodeUnstageVolume(_ context.Context, request *csi.NodeUnst
 	if out, err := cmd.CombinedOutput(); err != nil {
 		klog.ErrorS(err, "NodeUnstageVolume: failed to trim filesystem", "path", stagingTargetPath)
 	} else {
-		klog.V(4).InfoS("NodeUnstageVolume: fstrim", "output", string(out))
+		klog.V(5).InfoS("NodeUnstageVolume: fstrim", "output", string(out))
 	}
 
 	sourcePath, err := n.Mount.GetMountFs(stagingTargetPath)
@@ -512,6 +512,8 @@ func (n *NodeService) NodeExpandVolume(_ context.Context, request *csi.NodeExpan
 		return nil, status.Errorf(codes.Internal, "Could not resize volume %q:  %v", volumeID, err)
 	}
 
+	klog.V(3).InfoS("NodeExpandVolume: resized volume", "device", devicePath, "path", volumePath)
+
 	return &csi.NodeExpandVolumeResponse{}, nil
 }
 
@@ -544,22 +546,6 @@ func (n *NodeService) NodeGetInfo(ctx context.Context, _ *csi.NodeGetInfoRequest
 		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to get node %s: %v", n.nodeID, err))
 	}
 
-	nodeMaxVolumeAttachments, err := strconv.ParseInt(node.Labels[NodeLabelMaxVolumeAttachments], 10, 64)
-	if err != nil {
-		nodeMaxVolumeAttachments = DefaultMaxVolumesPerNode
-	}
-
-	if nodeMaxVolumeAttachments < 0 || nodeMaxVolumeAttachments > VolumesPerNodeHardLimit {
-		klog.Warningf("Node %s has out of range value for %s: %d, must be between 0 and %d, using default value %d",
-			n.nodeID,
-			NodeLabelMaxVolumeAttachments,
-			nodeMaxVolumeAttachments,
-			VolumesPerNodeHardLimit,
-			DefaultMaxVolumesPerNode)
-
-		nodeMaxVolumeAttachments = DefaultMaxVolumesPerNode
-	}
-
 	region, zone := getNodeTopology(node.Labels)
 	if region == "" || zone == "" {
 		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to get region or zone for node %s", n.nodeID))
@@ -567,7 +553,7 @@ func (n *NodeService) NodeGetInfo(ctx context.Context, _ *csi.NodeGetInfoRequest
 
 	return &csi.NodeGetInfoResponse{
 		NodeId:            n.nodeID,
-		MaxVolumesPerNode: nodeMaxVolumeAttachments,
+		MaxVolumesPerNode: maxVolumes(node),
 		AccessibleTopology: &csi.Topology{
 			Segments: map[string]string{
 				corev1.LabelTopologyRegion: region,
@@ -640,4 +626,24 @@ func collectFormatOptions(params StorageParameters, fsType string) []string {
 	}
 
 	return formatOptions
+}
+
+func maxVolumes(node *corev1.Node) int64 {
+	volumes, err := strconv.ParseInt(node.Labels[NodeLabelMaxVolumeAttachments], 10, 64)
+	if err != nil {
+		volumes = DefaultMaxVolumesPerNode
+	}
+
+	if volumes < 0 || volumes > VolumesPerNodeHardLimit {
+		klog.V(3).InfoS("Node has out of range value for max volume attachments, using default",
+			"node", node.Name,
+			"label", NodeLabelMaxVolumeAttachments,
+			"value", volumes,
+			"hardLimit", VolumesPerNodeHardLimit,
+			"default", DefaultMaxVolumesPerNode)
+
+		return DefaultMaxVolumesPerNode
+	}
+
+	return volumes
 }
