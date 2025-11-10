@@ -122,6 +122,21 @@ func ProxmoxVMIDbyNode(node *corev1.Node) (int, error) {
 	return vmID, err
 }
 
+// GetNodeTopology extracts region and zone from the provided labels map.
+func GetNodeTopology(labels map[string]string) (region, zone string) {
+	region = labels[ProxmoxRegion]
+	if region == "" {
+		region = labels[corev1.LabelTopologyRegion]
+	}
+
+	zone = labels[ProxmoxNode]
+	if zone == "" {
+		zone = labels[corev1.LabelTopologyZone]
+	}
+
+	return region, zone
+}
+
 func locationFromTopologyRequirement(tr *proto.TopologyRequirement) (region, zone string) {
 	if tr == nil {
 		return "", ""
@@ -130,7 +145,7 @@ func locationFromTopologyRequirement(tr *proto.TopologyRequirement) (region, zon
 	for _, top := range tr.GetPreferred() {
 		segment := top.GetSegments()
 
-		tsr, tsz := getNodeTopology(segment)
+		tsr, tsz := GetNodeTopology(segment)
 		if tsr != "" && tsz != "" {
 			return tsr, tsz
 		}
@@ -143,7 +158,7 @@ func locationFromTopologyRequirement(tr *proto.TopologyRequirement) (region, zon
 	for _, top := range tr.GetRequisite() {
 		segment := top.GetSegments()
 
-		tsr, tsz := getNodeTopology(segment)
+		tsr, tsz := GetNodeTopology(segment)
 		if tsr != "" && tsz != "" {
 			return tsr, tsz
 		}
@@ -154,20 +169,6 @@ func locationFromTopologyRequirement(tr *proto.TopologyRequirement) (region, zon
 	}
 
 	return region, ""
-}
-
-func getNodeTopology(labels map[string]string) (region, zone string) {
-	region = labels[ProxmoxRegion]
-	if region == "" {
-		region = labels[corev1.LabelTopologyRegion]
-	}
-
-	zone = labels[ProxmoxNode]
-	if zone == "" {
-		zone = labels[corev1.LabelTopologyZone]
-	}
-
-	return region, zone
 }
 
 func getDevicePath(deviceContext map[string]string) (string, error) {

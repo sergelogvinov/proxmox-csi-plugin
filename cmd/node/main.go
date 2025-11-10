@@ -22,12 +22,14 @@ import (
 	"flag"
 	"net"
 	"os"
+	"time"
 
 	proto "github.com/container-storage-interface/spec/lib/go/csi"
 	"google.golang.org/grpc"
 
 	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/csi"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clientkubernetes "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -105,6 +107,21 @@ func main() {
 			klog.Fatalln("node-id or NODE_NAME environment must be provided")
 		}
 	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	node, err := clientset.CoreV1().Nodes().Get(ctx, nodeName, metav1.GetOptions{})
+	if err != nil {
+		klog.Fatalf("Failed to get node %s: %v", nodeName, err)
+	}
+
+	region, zone := csi.GetNodeTopology(node.Labels)
+	if region == "" || zone == "" {
+		klog.Fatalf("Failed to get region or zone for node: %s, region: %s, zone: %s, see documentation about topology labels", nodeName, region, zone)
+	}
+
+	klog.Infof("Node topology: node=%s, region=%s, zone=%s", nodeName, region, zone)
 
 	scheme, addr, err := csi.ParseEndpoint(*csiEndpoint)
 	if err != nil {

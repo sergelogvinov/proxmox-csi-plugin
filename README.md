@@ -78,14 +78,18 @@ It is very important to use disk controller `VirtIO SCSI single` with `iothread`
 
 ### Kubernetes Topology Labels
 
-Proxmox CSI Plugin uses the well-known node labels/spec to define the disk location
+Proxmox CSI Plugin uses the well-known node labels to define the disk location:
+
 * `topology.kubernetes.io/region` - the name must be the same as in cloud config region name
 * `topology.kubernetes.io/zone` - proxmox node name
+* `topology.proxmox.sinextra.dev/region` - alternative region label (optional)
+* `topology.proxmox.sinextra.dev/node` - alternative zone label (optional)
+
+Node spec:
 * `Spec.ProviderID` - providerID magic string `proxmox://$REGION/$VMID` to help define the virtual machine ID, it cannot be changed after the first update. If it not exists, the plugin will find the VM by the name or UUID.
 
-**Important**: The `topology.kubernetes.io/region` and `topology.kubernetes.io/zone` labels __must__ be set.
-Region is the Proxmox cluster name, and zone is the Proxmox node name.
-Cluster name can be human-readable and should be the same as in Cloud config.
+**Important**: The `topology.kubernetes.io/region` and `topology.kubernetes.io/zone` topology labels **must** be set.
+Region is the Proxmox cluster name in cloud config, and zone is the Proxmox node name.
 
 The labels can be set manually using `kubectl`,
 or automatically through a tool like [Proxmox CCM](https://github.com/sergelogvinov/proxmox-cloud-controller-manager).
