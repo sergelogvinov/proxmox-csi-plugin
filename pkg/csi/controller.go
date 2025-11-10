@@ -630,7 +630,7 @@ func (d *ControllerService) GetCapacity(ctx context.Context, request *csi.GetCap
 
 	topology := request.GetAccessibleTopology()
 	if topology != nil {
-		region, zone := getNodeTopology(topology.GetSegments())
+		region, zone := GetNodeTopology(topology.GetSegments())
 		storageID := request.GetParameters()[StorageIDKey]
 
 		if region == "" || storageID == "" {

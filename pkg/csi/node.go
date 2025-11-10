@@ -546,7 +546,7 @@ func (n *NodeService) NodeGetInfo(ctx context.Context, _ *csi.NodeGetInfoRequest
 		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to get node %s: %v", n.nodeID, err))
 	}
 
-	region, zone := getNodeTopology(node.Labels)
+	region, zone := GetNodeTopology(node.Labels)
 	if region == "" || zone == "" {
 		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to get region or zone for node %s", n.nodeID))
 	}
