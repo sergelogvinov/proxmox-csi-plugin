@@ -12,8 +12,9 @@ require (
 	github.com/jarcoal/httpmock v1.4.1
 	github.com/kubernetes-csi/csi-lib-utils v0.23.0
 	github.com/luthermonson/go-proxmox v0.2.4-0.20250923162601-ef332f9e265b
+	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pkg/errors v0.9.1
-	github.com/sergelogvinov/go-proxmox v0.0.0-20251106051435-dc287d182403
+	github.com/sergelogvinov/go-proxmox v0.0.0-20251110010552-654365b267da
 	github.com/siderolabs/go-blockdevice v0.4.8
 	github.com/siderolabs/go-retry v0.3.3
 	github.com/sirupsen/logrus v1.9.4-0.20230606125235-dd1b4c2e81af
@@ -70,7 +71,6 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
-	github.com/patrickmn/go-cache v2.1.0+incompatible // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/prometheus/client_golang v1.23.2 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
