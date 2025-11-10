@@ -27,6 +27,7 @@ import (
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/kubernetes-csi/csi-lib-utils/protosanitizer"
+	"github.com/patrickmn/go-cache"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -76,7 +77,8 @@ type ControllerService struct {
 	kclient  kubernetes.Interface
 	Provider csiconfig.Provider
 
-	vmLocks *VMLocks
+	storageCapacity *cache.Cache
+	vmLocks         *VMLocks
 }
 
 // NewControllerService returns a new controller service
@@ -106,6 +108,10 @@ func NewControllerService(kclient kubernetes.Interface, cloudConfig string) (*Co
 func (d *ControllerService) Init() {
 	if d.vmLocks == nil {
 		d.vmLocks = NewVMLocks()
+	}
+
+	if d.storageCapacity == nil {
+		d.storageCapacity = cache.New(time.Minute, 5*time.Minute)
 	}
 }
 
@@ -657,21 +663,31 @@ func (d *ControllerService) GetCapacity(ctx context.Context, request *csi.GetCap
 		}
 
 		availableCapacity := int64(0)
+		key := strings.Join([]string{region, zone, storageID}, "/")
 
-		mc := metrics.NewMetricContext("storageStatus")
-
-		storage, err := cl.GetStorageStatus(ctx, zone, storageID)
-		if mc.ObserveRequest(err) != nil {
-			klog.ErrorS(err, "GetCapacity: failed to get storage status", "cluster", region, "storageID", storageID, "storageConfig", storageConfig)
-
-			if !strings.Contains(err.Error(), "Parameter verification failed") {
-				return nil, status.Error(codes.Internal, err.Error())
+		if v, ok := d.storageCapacity.Get(key); ok {
+			if capacity, ok := v.(int64); ok {
+				availableCapacity = capacity
 			}
-		} else {
-			availableCapacity = int64(storage.Avail)
 		}
 
-		klog.V(6).InfoS("GetCapacity: collected", "region", region, "zone", zone, "storageID", storageID, "storageConfig", storageConfig, "size", availableCapacity)
+		if availableCapacity == 0 {
+			mc := metrics.NewMetricContext("storageStatus")
+
+			storage, err := cl.GetStorageStatus(ctx, zone, storageID)
+			if mc.ObserveRequest(err) != nil {
+				klog.ErrorS(err, "GetCapacity: failed to get storage status", "cluster", region, "storageID", storageID, "storageConfig", storageConfig)
+
+				if !strings.Contains(err.Error(), "Parameter verification failed") {
+					return nil, status.Error(codes.Internal, err.Error())
+				}
+			} else {
+				availableCapacity = int64(storage.Avail)
+				d.storageCapacity.SetDefault(key, availableCapacity)
+			}
+		}
+
+		klog.V(6).InfoS("GetCapacity: collected", "region", region, "zone", zone, "storageID", storageID, "size", availableCapacity)
 
 		return &csi.GetCapacityResponse{
 			AvailableCapacity: availableCapacity,
