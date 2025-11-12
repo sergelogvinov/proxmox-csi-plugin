@@ -20,6 +20,8 @@ import (
 	"context"
 	"fmt"
 
+	utilsnode "github.com/sergelogvinov/proxmox-csi-plugin/pkg/utils/node"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	clientkubernetes "k8s.io/client-go/kubernetes"
@@ -37,7 +39,12 @@ func CSINodes(ctx context.Context, kclient *clientkubernetes.Clientset, csiDrive
 	for _, csinode := range csinodes.Items {
 		for _, driver := range csinode.Spec.Drivers {
 			if driver.Name == csiDriverName {
-				nodes = append(nodes, driver.NodeID)
+				n, err := utilsnode.ParseNodeID(driver.NodeID)
+				if err != nil {
+					continue
+				}
+
+				nodes = append(nodes, n.GetNodeName())
 
 				break
 			}

@@ -8,6 +8,7 @@ replace github.com/luthermonson/go-proxmox => github.com/sergelogvinov/go-proxmo
 
 require (
 	github.com/container-storage-interface/spec v1.12.0
+	github.com/digitalocean/go-smbios v0.0.0-20180907143718-390a4f403a8e
 	github.com/golang/protobuf v1.5.4
 	github.com/jarcoal/httpmock v1.4.1
 	github.com/kubernetes-csi/csi-lib-utils v0.23.0

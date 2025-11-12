@@ -34,6 +34,8 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	utilsnode "github.com/sergelogvinov/proxmox-csi-plugin/pkg/utils/node"
+
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -242,7 +244,7 @@ func (n *NodeService) NodeUnstageVolume(_ context.Context, request *csi.NodeUnst
 	if out, err := cmd.CombinedOutput(); err != nil {
 		klog.ErrorS(err, "NodeUnstageVolume: failed to trim filesystem", "path", stagingTargetPath)
 	} else {
-		klog.V(5).InfoS("NodeUnstageVolume: fstrim", "output", string(out))
+		klog.V(5).InfoS("NodeUnstageVolume: fstrim", "output", strings.TrimSpace(string(out)))
 	}
 
 	sourcePath, err := n.Mount.GetMountFs(stagingTargetPath)
@@ -541,7 +543,21 @@ func (n *NodeService) NodeGetCapabilities(_ context.Context, _ *csi.NodeGetCapab
 func (n *NodeService) NodeGetInfo(ctx context.Context, _ *csi.NodeGetInfoRequest) (*csi.NodeGetInfoResponse, error) {
 	klog.V(4).InfoS("NodeGetInfo: called")
 
-	node, err := n.kclient.CoreV1().Nodes().Get(ctx, n.nodeID, metav1.GetOptions{})
+	nodeID, err := utilsnode.ParseNodeID(n.nodeID)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, fmt.Sprintf("failed to parse nodeID %s: %v", n.nodeID, err))
+	}
+
+	if _, err = nodeID.GetVMID(); err != nil {
+		nodeIDSMBIOS, err := utilsnode.GetNodeID(nodeID.GetNodeName())
+		if err != nil {
+			klog.ErrorS(err, "NodeGetInfo: failed to get nodeID from SMBIOS, continuing with original nodeID", "nodeName", nodeID.GetNodeName())
+		}
+
+		nodeID = nodeIDSMBIOS
+	}
+
+	node, err := n.kclient.CoreV1().Nodes().Get(ctx, nodeID.GetNodeName(), metav1.GetOptions{})
 	if err != nil {
 		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to get node %s: %v", n.nodeID, err))
 	}
@@ -552,7 +568,7 @@ func (n *NodeService) NodeGetInfo(ctx context.Context, _ *csi.NodeGetInfoRequest
 	}
 
 	return &csi.NodeGetInfoResponse{
-		NodeId:            n.nodeID,
+		NodeId:            nodeID.String(),
 		MaxVolumesPerNode: maxVolumes(node),
 		AccessibleTopology: &csi.Topology{
 			Segments: map[string]string{

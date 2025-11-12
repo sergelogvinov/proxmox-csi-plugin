@@ -641,7 +641,7 @@ func (ts *configuredTestSuite) TestControllerPublishVolumeError() {
 				VolumeCapability: volCap,
 				VolumeContext:    volCtx,
 			},
-			expectedError: status.Error(codes.InvalidArgument, "NodeID must be provided"),
+			expectedError: status.Error(codes.InvalidArgument, "NodeID must be in format <nodeName>/<vmID> or <nodeName>"),
 		},
 		{
 			msg: "VolumeCapability",
@@ -739,7 +739,7 @@ func (ts *configuredTestSuite) TestControllerUnpublishVolumeError() {
 			request: &proto.ControllerUnpublishVolumeRequest{
 				VolumeId: "volume-id",
 			},
-			expectedError: status.Error(codes.InvalidArgument, "NodeID must be provided"),
+			expectedError: status.Error(codes.InvalidArgument, "NodeID must be in format <nodeName>/<vmID> or <nodeName>"),
 		},
 		{
 			msg: "WrongVolumeID",

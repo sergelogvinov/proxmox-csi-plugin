@@ -19,6 +19,8 @@ github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSs
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc h1:U9qPSI2PIWSS1VwoXQT9A3Wy9MM3WgvqSxFWenqJduM=
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
+github.com/digitalocean/go-smbios v0.0.0-20180907143718-390a4f403a8e h1:vUmf0yezR0y7jJ5pceLHthLaYf4bA5T14B6q39S4q2Q=
+github.com/digitalocean/go-smbios v0.0.0-20180907143718-390a4f403a8e/go.mod h1:YTIHhz/QFSYnu/EhlF2SpU2Uk+32abacUYA5ZPljz1A=
 github.com/diskfs/go-diskfs v1.7.0 h1:vonWmt5CMowXwUc79jWyGrf2DIMeoOjkLlMnQYGVOs8=
 github.com/diskfs/go-diskfs v1.7.0/go.mod h1:LhQyXqOugWFRahYUSw47NyZJPezFzB9UELwhpszLP/k=
 github.com/djherbis/times v1.6.0 h1:w2ctJ92J8fBvWPxugmXIv7Nz7Q3iDMKNx9v5ocVH20c=
@@ -146,8 +148,6 @@ github.com/prometheus/procfs v0.19.2/go.mod h1:M0aotyiemPhBCM0z5w87kL22CxfcH05Zp
 github.com/rogpeppe/go-internal v1.13.1 h1:KvO1DLK/DRN07sQ1LQKScxyZJuNnedQ5/wKSR38lUII=
 github.com/rogpeppe/go-internal v1.13.1/go.mod h1:uMEvuHeurkdAXX61udpOXGD/AzZDWNMNyH2VO9fmH0o=
 github.com/russross/blackfriday/v2 v2.1.0/go.mod h1:+Rmxgy9KzJVeS9/2gXHxylqXiyQDYRxCVz55jmeOWTM=
-github.com/sergelogvinov/go-proxmox v0.0.0-20251106051435-dc287d182403 h1:CoK3RHVjqDhk74sfLtdHePYyjCnBBsinHnvGGqVacR4=
-github.com/sergelogvinov/go-proxmox v0.0.0-20251106051435-dc287d182403/go.mod h1:vSTg/WC771SByc5087tu7uyGaXUv6fS8q3ak2X+xwqk=
 github.com/sergelogvinov/go-proxmox v0.0.0-20251110010552-654365b267da h1:uK/GNZyaU+b1o4Ax8TJ/c99dNtT1S5pM2nj91mj1S6Q=
 github.com/sergelogvinov/go-proxmox v0.0.0-20251110010552-654365b267da/go.mod h1:vSTg/WC771SByc5087tu7uyGaXUv6fS8q3ak2X+xwqk=
 github.com/sergelogvinov/go-proxmox-luthermonson v0.0.0-20251108105505-bebdd99daf36 h1:lZWsJ35SUWSFJqsM4XzbiHQVAOZjS2uSrxfr/p2tY0o=
