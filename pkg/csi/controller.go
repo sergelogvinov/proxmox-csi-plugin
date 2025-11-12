@@ -37,6 +37,7 @@ import (
 	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/helpers/ptr"
 	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/metrics"
 	pxpool "github.com/sergelogvinov/proxmox-csi-plugin/pkg/proxmoxpool"
+	utilsnode "github.com/sergelogvinov/proxmox-csi-plugin/pkg/utils/node"
 	volume "github.com/sergelogvinov/proxmox-csi-plugin/pkg/utils/volume"
 
 	corev1 "k8s.io/api/core/v1"
@@ -466,9 +467,9 @@ func (d *ControllerService) ControllerGetCapabilities(_ context.Context, _ *csi.
 func (d *ControllerService) ControllerPublishVolume(ctx context.Context, request *csi.ControllerPublishVolumeRequest) (*csi.ControllerPublishVolumeResponse, error) {
 	klog.V(4).InfoS("ControllerPublishVolume: called", "args", protosanitizer.StripSecrets(request))
 
-	nodeID := request.GetNodeId()
-	if nodeID == "" {
-		return nil, status.Error(codes.InvalidArgument, "NodeID must be provided")
+	n, err := utilsnode.ParseNodeID(request.GetNodeId())
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
 	if request.GetVolumeCapability() == nil {
@@ -503,9 +504,14 @@ func (d *ControllerService) ControllerPublishVolume(ctx context.Context, request
 		params.ReadOnly = ptr.Ptr(true)
 	}
 
-	id, _, err := d.getVMIDbyNode(ctx, nodeID)
-	if err != nil {
-		return nil, err
+	id, err := n.GetVMID()
+	if err != nil || id == 0 {
+		klog.V(5).InfoS("ControllerPublishVolume: VM ID not found in NodeID, will lookup by node name", "nodeID", n.String())
+
+		id, _, err = d.getVMIDbyNode(ctx, n.GetNodeName())
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	size, err := d.checkVolume(ctx, vol)
@@ -515,8 +521,8 @@ func (d *ControllerService) ControllerPublishVolume(ctx context.Context, request
 		return nil, err
 	}
 
-	d.vmLocks.Lock(nodeID)
-	defer d.vmLocks.Unlock(nodeID)
+	d.vmLocks.Lock(n.GetNodeName())
+	defer d.vmLocks.Unlock(n.GetNodeName())
 
 	if params.Replicate {
 		err = migrateReplication(ctx, cl, id, vol)
@@ -551,7 +557,7 @@ func (d *ControllerService) ControllerPublishVolume(ctx context.Context, request
 		pvInfo[resizeRequired] = "true" // nolint: goconst
 	}
 
-	klog.V(3).InfoS("ControllerPublishVolume: volume published", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "nodeID", nodeID)
+	klog.V(3).InfoS("ControllerPublishVolume: volume published", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "nodeID", n.String())
 
 	return &csi.ControllerPublishVolumeResponse{PublishContext: pvInfo}, nil
 }
@@ -560,9 +566,9 @@ func (d *ControllerService) ControllerPublishVolume(ctx context.Context, request
 func (d *ControllerService) ControllerUnpublishVolume(ctx context.Context, request *csi.ControllerUnpublishVolumeRequest) (*csi.ControllerUnpublishVolumeResponse, error) {
 	klog.V(4).InfoS("ControllerUnpublishVolume: called", "args", protosanitizer.StripSecrets(request))
 
-	nodeID := request.GetNodeId()
-	if nodeID == "" {
-		return nil, status.Error(codes.InvalidArgument, "NodeID must be provided")
+	n, err := utilsnode.ParseNodeID(request.GetNodeId())
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
 	vol, err := volume.NewVolumeFromVolumeID(request.GetVolumeId())
@@ -590,13 +596,18 @@ func (d *ControllerService) ControllerUnpublishVolume(ctx context.Context, reque
 		return nil, err
 	}
 
-	id, _, err := d.getVMIDbyNode(ctx, nodeID)
-	if err != nil {
-		return nil, err
+	id, err := n.GetVMID()
+	if err != nil || id == 0 {
+		klog.V(5).InfoS("ControllerUnpublishVolume: VM ID not found in NodeID, will lookup by node name", "nodeID", n.String())
+
+		id, _, err = d.getVMIDbyNode(ctx, n.GetNodeName())
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	d.vmLocks.Lock(nodeID)
-	defer d.vmLocks.Unlock(nodeID)
+	d.vmLocks.Lock(n.GetNodeName())
+	defer d.vmLocks.Unlock(n.GetNodeName())
 
 	mc := metrics.NewMetricContext("detachVolume")
 	if err := detachVolume(ctx, cl, id, vol); mc.ObserveRequest(err) != nil {
@@ -605,7 +616,7 @@ func (d *ControllerService) ControllerUnpublishVolume(ctx context.Context, reque
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
-	klog.V(3).InfoS("ControllerUnpublishVolume: volume unpublished", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "nodeID", nodeID)
+	klog.V(3).InfoS("ControllerUnpublishVolume: volume unpublished", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "nodeID", n.String())
 
 	return &csi.ControllerUnpublishVolumeResponse{}, nil
 }
@@ -981,8 +992,8 @@ func (d *ControllerService) ControllerModifyVolume(ctx context.Context, request 
 	return &csi.ControllerModifyVolumeResponse{}, nil
 }
 
-func (d *ControllerService) getVMIDbyNode(ctx context.Context, nodeID string) (int, string, error) { // nolint:unparam
-	node, err := d.kclient.CoreV1().Nodes().Get(ctx, nodeID, metav1.GetOptions{})
+func (d *ControllerService) getVMIDbyNode(ctx context.Context, nodeName string) (int, string, error) { // nolint:unparam
+	node, err := d.kclient.CoreV1().Nodes().Get(ctx, nodeName, metav1.GetOptions{})
 	if err != nil {
 		return 0, "", status.Error(codes.InvalidArgument, err.Error())
 	}
@@ -998,11 +1009,11 @@ func (d *ControllerService) getVMIDbyNode(ctx context.Context, nodeID string) (i
 			return id, region, nil
 		}
 
-		klog.InfoS("failed to get proxmox VMID from ProviderID", "nodeID", nodeID, "providerID", node.Spec.ProviderID)
+		klog.InfoS("failed to get proxmox VMID from ProviderID", "nodeID", nodeName, "providerID", node.Spec.ProviderID)
 
 		id, region, err := d.pxpool.FindVMByNode(ctx, node)
 		if err != nil {
-			klog.ErrorS(err, "failed to get vm ref by nodeID", "nodeID", nodeID)
+			klog.ErrorS(err, "failed to get vm ref by nodeID", "nodeID", nodeName)
 
 			return 0, "", status.Error(codes.Internal, err.Error())
 		}

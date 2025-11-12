@@ -28,6 +28,7 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/csi"
+	utilsnode "github.com/sergelogvinov/proxmox-csi-plugin/pkg/utils/node"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clientkubernetes "k8s.io/client-go/kubernetes"
@@ -106,6 +107,10 @@ func main() {
 		if nodeName == "" {
 			klog.Fatalln("node-id or NODE_NAME environment must be provided")
 		}
+	}
+
+	if _, err = utilsnode.ParseNodeID(nodeName); err != nil {
+		klog.Fatalf("Failed to parse nodeID %s: %v", nodeName, err)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
