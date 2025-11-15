@@ -421,7 +421,7 @@ func (d *ControllerService) DeleteVolume(ctx context.Context, request *csi.Delet
 	_, err = d.checkVolume(ctx, vol)
 	if err != nil {
 		if status.Code(err) == codes.NotFound {
-			klog.ErrorS(err, "DeleteVolume: zone or volume not found", "volumeID", vol.VolumeID())
+			klog.V(3).InfoS("DeleteVolume: zone or volume not found", "volumeID", vol.VolumeID())
 
 			return &csi.DeleteVolumeResponse{}, nil
 		}
@@ -586,7 +586,7 @@ func (d *ControllerService) ControllerUnpublishVolume(ctx context.Context, reque
 	_, err = d.checkVolume(ctx, vol)
 	if err != nil {
 		if status.Code(err) == codes.NotFound {
-			klog.ErrorS(err, "ControllerUnpublishVolume: zone or volume not found", "cluster", vol.Cluster(), "volumeID", vol.VolumeID())
+			klog.V(3).InfoS("ControllerUnpublishVolume: zone or volume not found", "volumeID", vol.VolumeID())
 
 			return &csi.ControllerUnpublishVolumeResponse{}, nil
 		}
@@ -829,7 +829,7 @@ func (d *ControllerService) DeleteSnapshot(ctx context.Context, request *csi.Del
 	_, err = d.checkVolume(ctx, vol)
 	if err != nil {
 		if status.Code(err) == codes.NotFound {
-			klog.ErrorS(err, "DeleteSnapshot: zone or volume not found", "cluster", vol.Cluster(), "volumeID", vol.VolumeID())
+			klog.V(3).InfoS("DeleteSnapshot: zone or volume not found", "volumeID", vol.VolumeID())
 
 			return &csi.DeleteSnapshotResponse{}, nil
 		}

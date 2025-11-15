@@ -23,8 +23,10 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	proxmox "github.com/luthermonson/go-proxmox"
+	"github.com/siderolabs/go-retry/retry"
 
 	goproxmox "github.com/sergelogvinov/go-proxmox"
 	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/metrics"
@@ -377,6 +379,10 @@ func attachVolume(ctx context.Context, cl *goproxmox.APIClient, id int, vol *vol
 					return nil, fmt.Errorf("unable to attach virtual machine disk: %w", err)
 				}
 
+				if err := waitAttachVolume(ctx, cl, id, vol); err != nil {
+					return nil, err
+				}
+
 				break
 			}
 		}
@@ -493,6 +499,30 @@ func copyVolume(ctx context.Context, cl *goproxmox.APIClient, srcVol *volume.Vol
 		}
 
 		return fmt.Errorf("failed to copy disk, exit status: %s", task.ExitStatus)
+	}
+
+	return nil
+}
+
+func waitAttachVolume(ctx context.Context, cl *goproxmox.APIClient, id int, vol *volume.Volume) error {
+	err := retry.Constant(TaskTimeout*time.Second, retry.WithUnits(TaskStatusCheckInterval*time.Second)).Retry(func() error {
+		vm, err := cl.GetVMConfig(ctx, id)
+		if err != nil {
+			return fmt.Errorf("failed to get vm config: %v", err)
+		}
+
+		if _, ok := isVolumeAttached(vm.VirtualMachineConfig, vol.Disk()); ok {
+			return nil
+		}
+
+		return retry.ExpectedError(fmt.Errorf("volume %s is not attached to VM %d", vol.VolumeID(), id))
+	})
+	if err != nil {
+		if retry.IsTimeout(err) {
+			return fmt.Errorf("volume %s is not attached to VM %d", vol.VolumeID(), id)
+		}
+
+		return err
 	}
 
 	return nil
