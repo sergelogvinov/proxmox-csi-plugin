@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - "charts/**"
+      - "!charts/proxmox-csi-plugin/README.md.gotmpl"
 
 jobs:
   helm-lint:
