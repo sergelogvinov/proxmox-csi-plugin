@@ -21,6 +21,7 @@ import (
 	"context"
 	"flag"
 	"net"
+	"net/http"
 	"os"
 	"time"
 
@@ -34,6 +35,7 @@ import (
 	clientkubernetes "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/component-base/metrics/legacyregistry"
 	"k8s.io/klog/v2"
 )
 
@@ -44,6 +46,9 @@ var (
 	showVersion = flag.Bool("version", false, "Print the version and exit.")
 	csiEndpoint = flag.String("csi-address", "unix:///csi/csi.sock", "CSI Endpoint")
 	nodeID      = flag.String("node-id", "", "Node name")
+
+	metricsAddress = flag.String("metrics-address", "", "The TCP network address where the HTTP server for metrics, will listen (example: `:8080`). By default the server is disabled.")
+	metricsPath    = flag.String("metrics-path", "/metrics", "The HTTP path where prometheus metrics will be exposed.")
 
 	master     = flag.String("master", "", "Master URL to build a client config from. Either this or kubeconfig needs to be set if the provisioner is being run out of cluster.")
 	kubeconfig = flag.String("kubeconfig", "", "Absolute path to the kubeconfig file. Either this or master needs to be set if the provisioner is being run out of cluster.")
@@ -149,6 +154,21 @@ func main() {
 
 	opts := []grpc.ServerOption{
 		grpc.UnaryInterceptor(logErr),
+	}
+
+	// Prepare http endpoint for metrics
+	mux := http.NewServeMux()
+	if *metricsAddress != "" {
+		mux.Handle("/metrics", legacyregistry.Handler())
+
+		go func() {
+			klog.V(2).InfoS("Metrics listening", "address", *metricsAddress, "metricsPath", *metricsPath)
+
+			err := http.ListenAndServe(*metricsAddress, mux)
+			if err != nil {
+				klog.ErrorS(err, "Failed to start HTTP server at specified address and metrics path", "address", addr, "metricsPath", *metricsPath)
+			}
+		}()
 	}
 
 	srv := grpc.NewServer(opts...)

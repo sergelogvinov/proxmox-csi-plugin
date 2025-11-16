@@ -52,6 +52,15 @@ spec:
             - "-v={{ .Values.logVerbosityLevel }}"
             - "--csi-address=unix:///csi/csi.sock"
             - "--node-id=$(NODE_NAME)"
+            {{- if .Values.nodeMetrics.enabled }}
+            - "--metrics-address=:{{ .Values.nodeMetrics.port }}"
+            {{- end }}
+          ports:
+            {{- if .Values.nodeMetrics.enabled }}
+            - name: metrics
+              containerPort: {{ .Values.nodeMetrics.port }}
+              protocol: TCP
+            {{- end }}
           env:
             - name: NODE_NAME
               valueFrom:

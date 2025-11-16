@@ -81,6 +81,12 @@ storageClass:
     reclaimPolicy: Delete
     fstype: ext4
     cache: writethrough
+
+# Enable Prometheus metrics for node daemonset using PodMonitor
+nodeMetrics:
+  enabled: true
+  type: podmonitor
+  port: 8080
 ```
 
 ## Deploy
@@ -155,6 +161,10 @@ helm upgrade -i --namespace=csi-proxmox -f proxmox-csi.yaml \
 | metrics | object | `{"enabled":false,"port":8080,"type":"annotation"}` | Prometheus metrics |
 | metrics.enabled | bool | `false` | Enable Prometheus metrics. |
 | metrics.port | int | `8080` | Prometheus metrics port. |
+| nodeMetrics | object | `{"enabled":false,"port":8080,"type":"podmonitor"}` | Prometheus metrics for node daemonset |
+| nodeMetrics.enabled | bool | `false` | Enable Prometheus metrics for node daemonset. |
+| nodeMetrics.port | int | `8080` | Prometheus metrics port for node daemonset. |
+| nodeMetrics.type | string | `"podmonitor"` | Metrics type for node daemonset. Currently only supports "podmonitor" for Prometheus Operator PodMonitor. |
 | nodeSelector | object | `{}` | Node labels for controller assignment. ref: https://kubernetes.io/docs/user-guide/node-selection/ |
 | tolerations | list | `[]` | Tolerations for controller assignment. ref: https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/ |
 | affinity | object | `{}` | Affinity for controller assignment. ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity |

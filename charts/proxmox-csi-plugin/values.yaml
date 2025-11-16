@@ -329,6 +329,15 @@ metrics:
 
   type: annotation
 
+# -- Prometheus metrics for node daemonset
+nodeMetrics:
+  # -- Enable Prometheus metrics for node daemonset.
+  enabled: false
+  # -- Prometheus metrics port for node daemonset.
+  port: 8080
+  # -- Metrics type for node daemonset (podmonitor).
+  type: podmonitor
+
 # -- Node labels for controller assignment.
 # ref: https://kubernetes.io/docs/user-guide/node-selection/
 nodeSelector: {}

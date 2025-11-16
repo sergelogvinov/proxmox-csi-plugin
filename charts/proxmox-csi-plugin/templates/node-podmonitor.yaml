@@ -1,0 +1,17 @@
+{{- if and .Values.nodeMetrics.enabled (eq .Values.nodeMetrics.type "podmonitor") }}
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: {{ include "proxmox-csi-plugin.fullname" . }}-node
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "proxmox-csi-plugin.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "proxmox-csi-plugin-node.selectorLabels" . | nindent 6 }}
+  podMetricsEndpoints:
+    - port: metrics
+      path: /metrics
+{{- end }}
+
