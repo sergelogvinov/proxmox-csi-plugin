@@ -82,7 +82,7 @@ func MoveQemuDisk(ctx context.Context, cluster *goproxmox.APIClient, vol *volume
 
 	task := proxmox.NewTask(upid, cluster.Client)
 	if task != nil {
-		_, completed, err := task.WaitForCompleteStatus(ctx, taskTimeout/60, 60)
+		_, completed, err := task.WaitForCompleteStatus(ctx, taskTimeout/15, 15)
 		if err != nil {
 			return fmt.Errorf("unable to delete virtual machine disk: %w", err)
 		}
