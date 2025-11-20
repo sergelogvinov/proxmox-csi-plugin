@@ -3,8 +3,9 @@ module github.com/sergelogvinov/proxmox-csi-plugin
 go 1.25.3
 
 // replace github.com/sergelogvinov/go-proxmox => ../proxmox/go-proxmox
+// replace github.com/luthermonson/go-proxmox => ../proxmox/go-proxmox-luthermonson
 
-replace github.com/luthermonson/go-proxmox => github.com/sergelogvinov/go-proxmox-luthermonson v0.0.0-20251108105505-bebdd99daf36
+replace github.com/luthermonson/go-proxmox => github.com/sergelogvinov/go-proxmox-luthermonson v0.0.0-20251120040418-5221e184a018
 
 require (
 	github.com/container-storage-interface/spec v1.12.0
