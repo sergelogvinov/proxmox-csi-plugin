@@ -1,6 +1,6 @@
 module github.com/sergelogvinov/proxmox-csi-plugin
 
-go 1.25.3
+go 1.25.4
 
 // replace github.com/sergelogvinov/go-proxmox => ../proxmox/go-proxmox
 // replace github.com/luthermonson/go-proxmox => ../proxmox/go-proxmox-luthermonson
