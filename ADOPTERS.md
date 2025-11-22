@@ -7,6 +7,9 @@ This is a list of organizations or projects that have adopted the Proxmox CSI dr
 * **[Boriss Novickovs](https://github.com/kubebn/talos-proxmox-kaas)**
   Kubernetes As a Service in Proxmox. Homelab using Talos and Proxmox, including base add-ons and GitOps practices. Proxmox CCM/CSI to manage VMs and storages.
 
+* **[Proxmox Kubernetes Engine](https://github.com/Caprox-eu/Proxmox-Kubernetes-Engine)**
+  PKE (Proxmox Kubernetes Engine) is a solution for automatically deploying and managing high available Kubernetes clusters directly on Proxmox VE environments. Based on Kubernetes Cluster-API and fully API-Driven.
+
 * **[Serge Logvinov](https://github.com/sergelogvinov/terraform-talos/tree/main/proxmox)**
    Terraform example for Talos on Proxmox. I am using the Proxmox CSI plugin for GitHub Actions (for ephemeral storage) and databases on Proxmox. _Not so well documented_.
 
