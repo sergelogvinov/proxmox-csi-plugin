@@ -5,6 +5,27 @@
 
 * enable support for capmox ([6145c7d](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/6145c7d91cfc47c131ac453e2a90a915e5694b2b))
 
+## [0.16.0](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.15.1...v0.16.0) (2025-11-22)
+
+
+### Features
+
+* cache for storage capacity ([edfc432](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/edfc432861e90af45b72748d3357744f5c20136d))
+* **chart:** support snapshotter sidecar ([f8acb55](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/f8acb553d183b55bb120202c9af9e629dae2bf1e))
+* check topology labels ([1faa701](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/1faa701e3d76939576884c78b87a90bb9e7f555c))
+* full copy snapshot ([a333412](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/a3334128eac63c8557c1d5d9f85f876b933fb299))
+* node discovery service by smbios ([2fccb94](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/2fccb9490468bee6156130bd82b0bc115323e734))
+
+
+### Bug Fixes
+
+* documentation ([78b4b19](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/78b4b19012247782e7467d0bcbc23f5ce1edb64b))
+* goreleaser homebrew artifacts ([a2ed7f3](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/a2ed7f3d1045e36a3a54ad1c66c2ad4bad5634e8))
+* handle snapshot creation with missing parameters ([3258de0](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/3258de012a2d5cf8f6c339771376f31707e44273))
+* migrate default timeout ([42ad22a](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/42ad22ae04fa7b4ee594e82df579d08b73e2739e))
+* volume attributes ([af7a276](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/af7a27629691f030d1ec5ffbff3240ef834fb14f))
+* wait for volume to attach ([4912d43](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/4912d43f472a5bca8b1026d309a050c4dd6131bc))
+
 ## [0.15.1](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.15.0...v0.15.1) (2025-11-03)
 
 
