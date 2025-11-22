@@ -32,6 +32,7 @@ It enables the use of a single storage class to deploy one or many deployments/s
 * [Volume migration](docs/pvecsictl.md): Offline migration of PV to another Proxmox node (region).
 * [Volume attributes class](docs/options.md): Detailed options for StorageClass.
 * [Volume zone replication](docs/options.md): ZFS replication to another Proxmox node (zone).
+* [Volume snapshots](https://kubernetes.io/docs/concepts/storage/volume-snapshots/): Create and restore volume snapshots. See [limits](docs/volumesnapshot.md) in the documentation.
 
 ## Overview
 
@@ -53,7 +54,7 @@ Arrows with dotted lines indicate the capability of attaching a Persistent Volum
 To make use of the Proxmox CSI Plugin you need to correctly configure your Proxmox installation as well as your Kubernetes instance.
 
 Requirements for Proxmox CSI Plugin
-* Proxmox must be clustered
+* Proxmox nodes must be clustered
 * Proxmox CSI Plugin must have privileges in your Proxmox instance
 * Kubernetes must be labelled with the correct topology
 * A StoreClass referencing the CSI plugin exists
@@ -67,6 +68,7 @@ For details about how to install and deploy the CSI plugin, see [Installation in
 For the Proxmox CSI Plugin to work you need to cluster your Proxmox nodes.
 You can cluster a single Proxmox node with itself.
 Read more about Proxmox clustering [here](https://pve.proxmox.com/wiki/Cluster_Manager).
+Additionally, you can add [SMBIOS information](docs/options-node.md#cloud-init-smbios-custom-fields) to your VM configuration.
 
 VM config after creating a Pod with PVC:
 
@@ -74,7 +76,7 @@ VM config after creating a Pod with PVC:
 
 `scsi2` disk on VM is a Kubernetes PV created by this CSI plugin.
 
-It is very important to use disk controller `VirtIO SCSI single` with `iothread`.
+For better performance use SCSI Controller - `VirtIO SCSI single`.
 
 ### Kubernetes Topology Labels
 
@@ -88,8 +90,10 @@ Proxmox CSI Plugin uses the well-known node labels to define the disk location:
 Node spec:
 * `Spec.ProviderID` - providerID magic string `proxmox://$REGION/$VMID` to help define the virtual machine ID, it cannot be changed after the first update. If it not exists, the plugin will find the VM by the name or UUID.
 
-**Important**: The `topology.kubernetes.io/region` and `topology.kubernetes.io/zone` topology labels **must** be set.
-Region is the Proxmox cluster name in cloud config, and zone is the Proxmox node name.
+**Important**: The `topology.kubernetes.io/region` topology label **must** be set.
+Region is the Proxmox cluster name in cloud config.
+
+See [Node Annotations and Labels](docs/options-node.md) for more details.
 
 The labels can be set manually using `kubectl`,
 or automatically through a tool like [Proxmox CCM](https://github.com/sergelogvinov/proxmox-cloud-controller-manager).
