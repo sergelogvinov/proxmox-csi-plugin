@@ -28,6 +28,7 @@ go.work
 /hack/cloud-config.yaml
 /hack/kubeconfig
 /hack/kubeconfig*
+/hack/*.yaml
 kubeconfig
 .cache/
 /log
