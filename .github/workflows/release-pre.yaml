@@ -16,7 +16,7 @@ jobs:
       packages: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
       - name: Unshallow
         run: git fetch --prune --unshallow
 
@@ -41,7 +41,7 @@ jobs:
     if: startsWith(github.head_ref, 'release-')
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
       - name: Unshallow
         run: git fetch --prune --unshallow
 
