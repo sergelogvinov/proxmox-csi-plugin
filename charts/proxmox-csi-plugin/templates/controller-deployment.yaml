@@ -86,6 +86,9 @@ spec:
             {{- range .Values.controller.attacher.args }}
             - {{ . | quote }}
             {{- end }}
+            {{- range .Values.controller.attacher.extraArgs }}
+            - {{ . | quote }}
+            {{- end }}
           volumeMounts:
             - name: socket-dir
               mountPath: /csi
@@ -105,6 +108,9 @@ spec:
             - "--capacity-ownerref-level=2"
             {{- end }}
             {{- range .Values.controller.provisioner.args }}
+            - {{ . | quote }}
+            {{- end }}
+            {{- range .Values.controller.provisioner.extraArgs }}
             - {{ . | quote }}
             {{- end }}
           env:
@@ -134,6 +140,9 @@ spec:
             {{- range .Values.controller.resizer.args }}
             - {{ . | quote }}
             {{- end }}
+            {{- range .Values.controller.resizer.extraArgs }}
+            - {{ . | quote }}
+            {{- end }}
           volumeMounts:
             - name: socket-dir
               mountPath: /csi
@@ -152,6 +161,9 @@ spec:
             {{- range .Values.controller.snapshotter.args }}
             - {{ . | quote }}
             {{- end }}
+            {{- range .Values.controller.snapshotter.extraArgs }}
+            - {{ . | quote }}
+            {{- end }}
           volumeMounts:
             - name: socket-dir
               mountPath: /csi
@@ -165,6 +177,9 @@ spec:
           args:
             - "-v={{ .Values.logVerbosityLevel }}"
             - "--csi-address=unix:///csi/csi.sock"
+            {{- range .Values.livenessprobe.extraArgs }}
+            - {{ . | quote }}
+            {{- end }}
           volumeMounts:
             - name: socket-dir
               mountPath: /csi

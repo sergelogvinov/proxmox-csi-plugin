@@ -83,6 +83,9 @@ spec:
             - "-v={{ .Values.logVerbosityLevel }}"
             - "--csi-address=unix:///csi/csi.sock"
             - "--kubelet-registration-path={{ .Values.node.kubeletDir }}/plugins/{{ .Values.provisionerName }}/csi.sock"
+            {{- range .Values.node.driverRegistrar.extraArgs }}
+            - {{ . | quote }}
+            {{- end }}
           volumeMounts:
             - name: socket
               mountPath: /csi
@@ -103,6 +106,9 @@ spec:
           args:
             - "-v={{ .Values.logVerbosityLevel }}"
             - "--csi-address=unix:///csi/csi.sock"
+            {{- range .Values.livenessprobe.extraArgs }}
+            - {{ . | quote }}
+            {{- end }}
           volumeMounts:
             - name: socket
               mountPath: /csi

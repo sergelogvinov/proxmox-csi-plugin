@@ -134,6 +134,13 @@ controller:
     # example: --default-fstype=ext4
     args:
       - --default-fstype=ext4
+    # -- Extra arguments for tuning csi-attacher performance.
+    # Useful for high-load environments with many PVCs.
+    # ref: https://github.com/kubernetes-csi/external-attacher?tab=readme-ov-file#command-line-options
+    extraArgs: []
+      # - --worker-threads=10
+      # - --retry-interval-start=1s
+      # - --retry-interval-max=5m
     # -- Attacher resource requests and limits.
     # ref: https://kubernetes.io/docs/user-guide/compute-resources/
     resources:
@@ -151,6 +158,15 @@ controller:
     # example: --feature-gates=VolumeAttributesClass=true
     args:
       - --default-fstype=ext4
+    # -- Extra arguments for tuning csi-provisioner performance.
+    # Useful for high-load environments with many PVCs.
+    # ref: https://github.com/kubernetes-csi/external-provisioner?tab=readme-ov-file#command-line-options
+    extraArgs: []
+      # - --worker-threads=100
+      # - --retry-interval-start=1s
+      # - --retry-interval-max=5m
+      # - --kube-api-qps=20
+      # - --kube-api-burst=40
     # -- Provisioner resource requests and limits.
     # ref: https://kubernetes.io/docs/user-guide/compute-resources/
     resources:
@@ -167,6 +183,15 @@ controller:
     # -- Resizer arguments.
     # example: --feature-gates=VolumeAttributesClass=true
     args: []
+    # -- Extra arguments for tuning csi-resizer performance.
+    # Useful for high-load environments with many PVCs.
+    # ref: https://github.com/kubernetes-csi/external-resizer?tab=readme-ov-file#command-line-options
+    extraArgs: []
+      # - --workers=10
+      # - --retry-interval-start=1s
+      # - --retry-interval-max=5m
+      # - --kube-api-qps=20
+      # - --kube-api-burst=40
     # -- Resizer resource requests and limits.
     # ref: https://kubernetes.io/docs/user-guide/compute-resources/
     resources:
@@ -184,6 +209,15 @@ controller:
     # -- Snapshotter arguments.
     # example: --feature-gates=CSIVolumeGroupSnapshot=true
     args: []
+    # -- Extra arguments for tuning csi-snapshotter performance.
+    # Useful for high-load environments with many snapshots.
+    # ref: https://github.com/kubernetes-csi/external-snapshotter?tab=readme-ov-file#command-line-options
+    extraArgs: []
+      # - --worker-threads=10
+      # - --retry-interval-start=1s
+      # - --retry-interval-max=5m
+      # - --kube-api-qps=20
+      # - --kube-api-burst=40
     # -- Snapshotter resource requests and limits.
     # ref: https://kubernetes.io/docs/user-guide/compute-resources/
     resources:
@@ -209,6 +243,10 @@ node:
       repository: registry.k8s.io/sig-storage/csi-node-driver-registrar
       pullPolicy: IfNotPresent
       tag: v2.15.0
+    # -- Extra arguments for csi-node-driver-registrar.
+    # ref: https://github.com/kubernetes-csi/node-driver-registrar?tab=readme-ov-file#command-line-options
+    extraArgs: []
+      # - --health-port=9809
     # -- Node registrar resource requests and limits.
     # ref: https://kubernetes.io/docs/user-guide/compute-resources/
     resources:
@@ -244,6 +282,11 @@ livenessprobe:
     repository: registry.k8s.io/sig-storage/livenessprobe
     pullPolicy: IfNotPresent
     tag: v2.16.0
+  # -- Extra arguments for livenessprobe sidecar.
+  # ref: https://github.com/kubernetes-csi/livenessprobe?tab=readme-ov-file#command-line-options
+  extraArgs: []
+    # - --probe-timeout=3s
+    # - --health-port=9898
   # -- Failure threshold for livenessProbe
   failureThreshold: 5
   # -- Initial delay seconds for livenessProbe
