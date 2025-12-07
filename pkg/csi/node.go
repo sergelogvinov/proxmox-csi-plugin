@@ -504,7 +504,7 @@ func (n *NodeService) NodeExpandVolume(_ context.Context, request *csi.NodeExpan
 	} else {
 		// comparing current volume size with the expected one
 		newSize := request.GetCapacityRange().GetRequiredBytes()
-		if err := blockdevice.RescanBlockDeviceGeometry(devicePath, volumePath, newSize); err != nil {
+		if err := blockdevice.RescanBlockDeviceGeometry(devicePath, volumePath, newSize); err != nil { // nolint:staticcheck
 			return nil, status.Errorf(codes.Internal, "Could not verify %q volume size: %v", volumeID, err)
 		}
 	}

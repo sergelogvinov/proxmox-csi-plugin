@@ -237,7 +237,7 @@ func (d *ControllerService) CreateVolume(ctx context.Context, request *csi.Creat
 	if storageConfig.Shared == 1 {
 		// https://pve.proxmox.com/wiki/Storage only block/local storage are supported
 		switch storageConfig.PluginType {
-		case "cifs", "pbs":
+		case "cifs", "pbs": // nolint: goconst
 			return nil, status.Error(codes.Internal, "error: shared storage type cifs, pbs are not supported")
 		}
 
@@ -277,7 +277,7 @@ func (d *ControllerService) CreateVolume(ctx context.Context, request *csi.Creat
 	}
 
 	format := ""
-	if storageConfig.PluginType == "dir" {
+	if getStorageLevel(storageConfig) == "file" {
 		format = "raw"
 		if params.StorageFormat == "qcow2" {
 			format = params.StorageFormat
