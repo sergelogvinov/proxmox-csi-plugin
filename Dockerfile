@@ -1,7 +1,7 @@
 # syntax = docker/dockerfile:1.18
 ########################################
 
-FROM golang:1.25.4-trixie AS develop
+FROM golang:1.25.5-trixie AS develop
 
 WORKDIR /src
 COPY ["go.mod", "go.sum", "/src/"]
@@ -9,7 +9,7 @@ RUN go mod download
 
 ########################################
 
-FROM --platform=${BUILDPLATFORM} golang:1.25.4-alpine3.22 AS builder
+FROM --platform=${BUILDPLATFORM} golang:1.25.5-alpine3.22 AS builder
 RUN apk update && apk add --no-cache make
 ENV GO111MODULE=on
 WORKDIR /src
