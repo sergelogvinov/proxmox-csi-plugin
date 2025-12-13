@@ -209,6 +209,9 @@ node:
       repository: registry.k8s.io/sig-storage/csi-node-driver-registrar
       pullPolicy: IfNotPresent
       tag: v2.15.0
+    # -- Driver registrar arguments.
+    # example: --timeout=60s
+    args: []
     # -- Node registrar resource requests and limits.
     # ref: https://kubernetes.io/docs/user-guide/compute-resources/
     resources:
