@@ -5,6 +5,19 @@
 
 * enable support for capmox ([6145c7d](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/6145c7d91cfc47c131ac453e2a90a915e5694b2b))
 
+## [0.17.0](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.16.0...v0.17.0) (2025-12-13)
+
+
+### Features
+
+* **chart:** add driver registrar arguments ([5d87c4b](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/5d87c4bbd47f119b7dd666f857243b0b0e4d186a))
+* **chart:** support affinity for node-plugin assignment ([cb57e84](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/cb57e84c0a6caad8678a5d4143289c85c9d3ece2))
+
+
+### Bug Fixes
+
+* file storage type definition ([e0aea19](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/e0aea19dd01a3c2c2baf271d9e85374e37df77ae))
+
 ## [0.16.0](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.15.1...v0.16.0) (2025-11-22)
 
 
