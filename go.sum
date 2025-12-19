@@ -148,10 +148,10 @@ github.com/prometheus/procfs v0.19.2/go.mod h1:M0aotyiemPhBCM0z5w87kL22CxfcH05Zp
 github.com/rogpeppe/go-internal v1.14.1 h1:UQB4HGPB6osV0SQTLymcB4TgvyWu6ZyliaW0tI/otEQ=
 github.com/rogpeppe/go-internal v1.14.1/go.mod h1:MaRKkUm5W0goXpeCfT7UZI6fk/L7L7so1lCWt35ZSgc=
 github.com/russross/blackfriday/v2 v2.1.0/go.mod h1:+Rmxgy9KzJVeS9/2gXHxylqXiyQDYRxCVz55jmeOWTM=
-github.com/sergelogvinov/go-proxmox v0.0.0-20251111120129-70a3eea3125a h1:R8ngi2YoMY3Ju/lFi6FfWA99fPxLy140Dg5YSmFSXVo=
-github.com/sergelogvinov/go-proxmox v0.0.0-20251111120129-70a3eea3125a/go.mod h1:vSTg/WC771SByc5087tu7uyGaXUv6fS8q3ak2X+xwqk=
-github.com/sergelogvinov/go-proxmox-luthermonson v0.0.0-20251120040418-5221e184a018 h1:ya2kTpNTlYjBpkz7sFKQDLr0c9SfphNbWuZ9qmNserc=
-github.com/sergelogvinov/go-proxmox-luthermonson v0.0.0-20251120040418-5221e184a018/go.mod h1:oyFgg2WwTEIF0rP6ppjiixOHa5ebK1p8OaRiFhvICBQ=
+github.com/sergelogvinov/go-proxmox v0.0.0-20251219072020-49df3ed01611 h1:go15cG9BJ0lZkd4LrZuRCUSmx0pFZVznh/DMTtphaEQ=
+github.com/sergelogvinov/go-proxmox v0.0.0-20251219072020-49df3ed01611/go.mod h1:vIa+xLgb+t+nhKECRBFASUpmiPgtx3hffnrZKYOCBmg=
+github.com/sergelogvinov/go-proxmox-luthermonson v0.0.0-20251219045710-d9f1c0a0ac1c h1:tQX0rDpqE+30D88DXfHPzxFFb+0+wMNeBF5L/Hy9Kxo=
+github.com/sergelogvinov/go-proxmox-luthermonson v0.0.0-20251219045710-d9f1c0a0ac1c/go.mod h1:oyFgg2WwTEIF0rP6ppjiixOHa5ebK1p8OaRiFhvICBQ=
 github.com/siderolabs/go-blockdevice v0.4.8 h1:KfdWvIx0Jft5YVuCsFIJFwjWEF1oqtzkgX9PeU9cX4c=
 github.com/siderolabs/go-blockdevice v0.4.8/go.mod h1:4PeOuk71pReJj1JQEXDE7kIIQJPVe8a+HZQa+qjxSEA=
 github.com/siderolabs/go-cmd v0.1.3 h1:JrgZwqhJQeoec3QRON0LK+fv+0y7d0DyY7zsfkO6ciw=
@@ -278,8 +278,8 @@ k8s.io/kube-openapi v0.0.0-20251125145642-4e65d59e963e h1:iW9ChlU0cU16w8MpVYjXk1
 k8s.io/kube-openapi v0.0.0-20251125145642-4e65d59e963e/go.mod h1:kdmbQkyfwUagLfXIad1y2TdrjPFWp2Q89B3qkRwf/pQ=
 k8s.io/mount-utils v0.34.3 h1:+sk7PVMQhGoNkGnxmxhyjEXpFcTaD6s3a6NXZNhqERc=
 k8s.io/mount-utils v0.34.3/go.mod h1:MIjjYlqJ0ziYQg0MO09kc9S96GIcMkhF/ay9MncF0GA=
-k8s.io/utils v0.0.0-20251002143259-bc988d571ff4 h1:SjGebBtkBqHFOli+05xYbK8YF1Dzkbzn+gDM4X9T4Ck=
-k8s.io/utils v0.0.0-20251002143259-bc988d571ff4/go.mod h1:OLgZIPagt7ERELqWJFomSt595RzquPNLL48iOWgYOg0=
+k8s.io/utils v0.0.0-20251218160917-61b37f7a4624 h1:wadElzGW3vTZ1Et18CImPEErLaXvMSU5369b0to32+0=
+k8s.io/utils v0.0.0-20251218160917-61b37f7a4624/go.mod h1:xDxuJ0whA3d0I4mf/C4ppKHxXynQ+fxnkmQH0vTHnuk=
 sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730 h1:IpInykpT6ceI+QxKBbEflcR5EXP7sU1kvOlxwZh5txg=
 sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730/go.mod h1:mdzfpAEoE6DHQEN0uh9ZbOCuHbLK5wOm7dK4ctXE9Tg=
 sigs.k8s.io/randfill v1.0.0 h1:JfjMILfT8A6RbawdsK2JXGBR5AQVfd+9TbzrlneTyrU=

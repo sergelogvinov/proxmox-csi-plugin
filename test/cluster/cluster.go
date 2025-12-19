@@ -161,6 +161,18 @@ func SetupMockResponders() {
 			})
 		})
 
+	httpmock.RegisterResponder(http.MethodGet, `=~/storage/rbd$`,
+		func(_ *http.Request) (*http.Response, error) {
+			return httpmock.NewJsonResponse(200, map[string]any{
+				"data": proxmox.ClusterStorage{
+					Type:    "dir",
+					Storage: "rbd",
+					Shared:  1,
+					Content: "images",
+				},
+			})
+		},
+	)
 	httpmock.RegisterResponder(http.MethodGet, `=~/nodes/\S+/storage/rbd/status`,
 		func(_ *http.Request) (*http.Response, error) {
 			return httpmock.NewJsonResponse(200, map[string]any{
