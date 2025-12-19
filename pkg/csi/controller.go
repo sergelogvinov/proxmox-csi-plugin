@@ -241,12 +241,34 @@ func (d *ControllerService) CreateVolume(ctx context.Context, request *csi.Creat
 			return nil, status.Error(codes.Internal, "error: shared storage type cifs, pbs are not supported")
 		}
 
-		topology = []*csi.Topology{
-			{
+		config, err := cl.Client.ClusterStorage(ctx, params.StorageID)
+		if err != nil {
+			klog.ErrorS(err, "CreateVolume: failed to get proxmox storage config", "cluster", region, "storageID", params.StorageID)
+
+			return nil, status.Errorf(codes.Internal, "failed to get proxmox storage config: %v", err)
+		}
+
+		topology = []*csi.Topology{}
+
+		for node := range strings.SplitSeq(config.Nodes, ",") {
+			if node == "" {
+				continue
+			}
+
+			topology = append(topology, &csi.Topology{
+				Segments: map[string]string{
+					corev1.LabelTopologyRegion: region,
+					corev1.LabelTopologyZone:   node,
+				},
+			})
+		}
+
+		if len(topology) == 0 {
+			topology = append(topology, &csi.Topology{
 				Segments: map[string]string{
 					corev1.LabelTopologyRegion: region,
 				},
-			},
+			})
 		}
 	}
 
@@ -612,6 +634,12 @@ func (d *ControllerService) ControllerUnpublishVolume(ctx context.Context, reque
 	mc := metrics.NewMetricContext("detachVolume")
 	if err := detachVolume(ctx, cl, id, vol); mc.ObserveRequest(err) != nil {
 		klog.ErrorS(err, "ControllerUnpublishVolume: failed to detach volume", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "vmID", id)
+
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	if err := waitDetachVolume(ctx, cl, id, vol); err != nil {
+		klog.ErrorS(err, "ControllerUnpublishVolume: failed to wait for volume detachment", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "vmID", id)
 
 		return nil, status.Error(codes.Internal, err.Error())
 	}

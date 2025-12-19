@@ -36,6 +36,7 @@ services:
       - "--v=5"
       - "--csi-address=unix:///csi/csi.sock"
       - "--leader-election=false"
+      - "--timeout=1m"
       - "--default-fstype=ext4"
       - "--kubeconfig=/etc/kubernetes/kubeconfig"
     volumes:
@@ -54,6 +55,7 @@ services:
       - "--workers=1"
       - "--csi-address=unix:///csi/csi.sock"
       - "--leader-election=false"
+      - "--timeout=1m"
       - "--kubeconfig=/etc/kubernetes/kubeconfig"
       # - "--feature-gates=VolumeAttributesClass=true"
     volumes:

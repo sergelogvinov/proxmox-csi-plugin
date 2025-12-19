@@ -538,6 +538,30 @@ func waitAttachVolume(ctx context.Context, cl *goproxmox.APIClient, id int, vol 
 	return nil
 }
 
+func waitDetachVolume(ctx context.Context, cl *goproxmox.APIClient, id int, vol *volume.Volume) error {
+	err := retry.Constant(TaskTimeout*time.Second, retry.WithUnits(TaskStatusCheckInterval*time.Second)).Retry(func() error {
+		vm, err := cl.GetVMConfig(ctx, id)
+		if err != nil {
+			return fmt.Errorf("failed to get vm config: %v", err)
+		}
+
+		if _, ok := isVolumeAttached(vm.VirtualMachineConfig, vol.Disk()); ok {
+			return retry.ExpectedError(fmt.Errorf("volume %s still attached to VM %d", vol.VolumeID(), id))
+		}
+
+		return nil
+	})
+	if err != nil {
+		if retry.IsTimeout(err) {
+			return fmt.Errorf("volume %s still attached to VM %d", vol.VolumeID(), id)
+		}
+
+		return err
+	}
+
+	return nil
+}
+
 // For shared storage, get all nodes that have access to the storage, to emulate real shared storage behavior.
 // We need to find the node where the volume exists.
 func getNodesForStorage(ctx context.Context, cl *goproxmox.APIClient, storage string) ([]string, error) {
