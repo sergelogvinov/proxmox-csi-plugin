@@ -338,7 +338,7 @@ func (ts *configuredTestSuite) TestCreateVolume() {
 					},
 				},
 			},
-			expectedError: status.Error(codes.Internal, "cannot find best region and zone: storage fake-storage not found"),
+			expectedError: status.Error(codes.Internal, "failed to get zones with storage fake-storage: not found"),
 		},
 		{
 			msg: "EmptyRegion",

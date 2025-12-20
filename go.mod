@@ -4,8 +4,7 @@ go 1.25.5
 
 // replace github.com/sergelogvinov/go-proxmox => ../proxmox/go-proxmox
 // replace github.com/luthermonson/go-proxmox => ../proxmox/go-proxmox-luthermonson
-
-replace github.com/luthermonson/go-proxmox => github.com/sergelogvinov/go-proxmox-luthermonson v0.0.0-20251219045710-d9f1c0a0ac1c
+// replace github.com/luthermonson/go-proxmox => github.com/sergelogvinov/go-proxmox-luthermonson v0.0.0-20251223032417-72ddd47a4a37
 
 require (
 	github.com/container-storage-interface/spec v1.12.0
@@ -16,7 +15,7 @@ require (
 	github.com/luthermonson/go-proxmox v0.2.4
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pkg/errors v0.9.1
-	github.com/sergelogvinov/go-proxmox v0.0.0-20251219072020-49df3ed01611
+	github.com/sergelogvinov/go-proxmox v0.0.0-20251223031111-e5bbe2b0806d
 	github.com/siderolabs/go-blockdevice v0.4.8
 	github.com/siderolabs/go-retry v0.3.3
 	github.com/sirupsen/logrus v1.9.4-0.20230606125235-dd1b4c2e81af

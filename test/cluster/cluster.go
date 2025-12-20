@@ -292,6 +292,14 @@ func SetupMockResponders() {
 			})
 		},
 	)
+	httpmock.RegisterResponder(http.MethodGet, `=~/nodes/\S+/storage/\S+/content`,
+		func(_ *http.Request) (*http.Response, error) {
+			return httpmock.NewJsonResponse(500, map[string]any{
+				"data":    nil,
+				"message": "storage does not exist",
+			})
+		},
+	)
 
 	httpmock.RegisterResponder(http.MethodGet, `=~/nodes/pve-1/qemu$`,
 		func(_ *http.Request) (*http.Response, error) {

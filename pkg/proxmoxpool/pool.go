@@ -230,20 +230,12 @@ func (c *ProxmoxPool) FindVMByNode(ctx context.Context, node *v1.Node) (vmID int
 				return false, nil
 			}
 
-			pxnode, err := px.Client.Node(ctx, rs.Node)
+			vm, err := px.GetVMConfig(ctx, int(rs.VMID))
 			if err != nil {
 				return false, err
 			}
 
-			vm, err := pxnode.VirtualMachine(ctx, int(rs.VMID))
-			if err != nil {
-				return false, err
-			}
-
-			smbios1 := goproxmox.VMSMBIOS{}
-			smbios1.UnmarshalString(vm.VirtualMachineConfig.SMBios1) //nolint:errcheck
-
-			if smbios1.UUID == node.Status.NodeInfo.SystemUUID {
+			if c.GetVMUUID(vm) == node.Status.NodeInfo.SystemUUID {
 				return true, nil
 			}
 
@@ -275,12 +267,7 @@ func (c *ProxmoxPool) FindVMByUUID(ctx context.Context, uuid string) (vmID int, 
 				return false, nil
 			}
 
-			pxnode, err := px.Client.Node(ctx, rs.Node)
-			if err != nil {
-				return false, err
-			}
-
-			vm, err := pxnode.VirtualMachine(ctx, int(rs.VMID))
+			vm, err := px.GetVMConfig(ctx, int(rs.VMID))
 			if err != nil {
 				return false, err
 			}
