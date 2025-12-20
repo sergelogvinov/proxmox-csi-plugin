@@ -211,11 +211,20 @@ func (d *ControllerService) CreateVolume(ctx context.Context, request *csi.Creat
 	}
 
 	if zone == "" {
-		if zone, err = cl.GetNodeForStorage(ctx, params.StorageID); err != nil {
-			klog.ErrorS(err, "CreateVolume: failed to get node with storage", "cluster", region, "storage", params.StorageID)
+		zones, err := cl.GetNodesForStorage(ctx, params.StorageID)
+		if err != nil {
+			klog.ErrorS(err, "CreateVolume: failed to get zones with storage", "cluster", region, "storage", params.StorageID)
 
-			return nil, status.Errorf(codes.Internal, "cannot find best region and zone: storage %s %v", params.StorageID, err)
+			return nil, status.Errorf(codes.Internal, "failed to get zones with storage %s: %v", params.StorageID, err)
 		}
+
+		if len(zones) == 0 {
+			klog.ErrorS(err, "CreateVolume: failed to find best zone: no nodes with the storage", "cluster", region, "storage", params.StorageID)
+
+			return nil, status.Errorf(codes.Internal, "failed to find best zone: no nodes with the storage %s", params.StorageID)
+		}
+
+		zone = zones[0]
 	}
 
 	storageConfig, err := cl.GetClusterStorage(ctx, params.StorageID)
@@ -454,7 +463,7 @@ func (d *ControllerService) DeleteVolume(ctx context.Context, request *csi.Delet
 	}
 
 	mc := metrics.NewMetricContext("deleteVolume")
-	if err := cl.DeleteVMDisk(ctx, vmID, vol.Node(), vol.Storage(), vol.Disk()); mc.ObserveRequest(err) != nil {
+	if err := cl.DeleteVMDisk(ctx, vol.Node(), vol.Storage(), vol.Disk()); mc.ObserveRequest(err) != nil {
 		klog.ErrorS(err, "DeleteVolume: failed to delete volume", "cluster", vol.Cluster(), "volumeID", vol.VolumeID())
 
 		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to delete volume: %s, %v", vol.VolumeID(), err))
@@ -695,10 +704,20 @@ func (d *ControllerService) GetCapacity(ctx context.Context, request *csi.GetCap
 				return nil, status.Error(codes.InvalidArgument, "zone must be provided")
 			}
 
-			zone, err = cl.GetNodeForStorage(ctx, storageID)
+			zones, err := cl.GetNodesForStorage(ctx, storageID)
 			if err != nil {
-				return nil, status.Error(codes.Internal, err.Error())
+				klog.ErrorS(err, "GetCapacity: failed to get zones with storage", "cluster", region, "storage", storageID)
+
+				return nil, status.Errorf(codes.Internal, "failed to get zones with storage %s: %v", storageID, err)
 			}
+
+			if len(zones) == 0 {
+				klog.ErrorS(err, "GetCapacity: failed to find best zone: no nodes with the storage", "cluster", region, "storage", storageID)
+
+				return nil, status.Errorf(codes.Internal, "failed to find best zone: no nodes with the storage %s", storageID)
+			}
+
+			zone = zones[0]
 		}
 
 		availableCapacity := int64(0)
@@ -868,7 +887,7 @@ func (d *ControllerService) DeleteSnapshot(ctx context.Context, request *csi.Del
 	}
 
 	mc := metrics.NewMetricContext("deleteVolume")
-	if err := cl.DeleteVMDisk(ctx, vmID, vol.Node(), vol.Storage(), vol.Disk()); mc.ObserveRequest(err) != nil {
+	if err := cl.DeleteVMDisk(ctx, vol.Node(), vol.Storage(), vol.Disk()); mc.ObserveRequest(err) != nil {
 		klog.ErrorS(err, "DeleteSnapshot: failed to delete volume", "cluster", vol.Cluster(), "volumeName", vol.Disk())
 
 		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to delete volume: %s", vol.Disk()))
@@ -925,7 +944,7 @@ func (d *ControllerService) ControllerExpandVolume(ctx context.Context, request 
 
 	id, lun, err := getVMByAttachedVolume(ctx, cl, vol)
 	if err != nil || id == 0 {
-		if err == goproxmox.ErrNotFound {
+		if err == goproxmox.ErrVirtualMachineNotFound {
 			klog.V(3).InfoS("ControllerExpandVolume: volume is not published, cannot resize unpublished volumeID", "cluster", vol.Cluster(), "volumeID", vol.VolumeID())
 
 			return nil, status.Error(codes.Internal, "cannot resize unpublished")
@@ -995,7 +1014,7 @@ func (d *ControllerService) ControllerModifyVolume(ctx context.Context, request 
 
 	id, _, err := getVMByAttachedVolume(ctx, cl, vol)
 	if err != nil || id == 0 {
-		if err == goproxmox.ErrNotFound {
+		if err == goproxmox.ErrVirtualMachineNotFound {
 			klog.V(3).InfoS("ControllerModifyVolume: volume is not published, cannot modify unpublished volumeID", "cluster", vol.Cluster(), "volumeID", vol.VolumeID())
 
 			return nil, status.Error(codes.NotFound, "volume is not published")
@@ -1070,7 +1089,7 @@ func (d *ControllerService) checkVolume(ctx context.Context, vol *volume.Volume)
 	}
 
 	if vol.Node() == "" {
-		nodes, err := getNodesForStorage(ctx, cl, vol.Storage())
+		nodes, err := cl.GetNodesForStorage(ctx, vol.Storage())
 		if err != nil {
 			return 0, status.Error(codes.Internal, err.Error())
 		}

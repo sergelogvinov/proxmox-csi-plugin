@@ -21,6 +21,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -47,60 +48,78 @@ const (
 func getNodeForVolume(ctx context.Context, cl *goproxmox.APIClient, vol *volume.Volume) (node string, err error) {
 	node = vol.Node()
 	if node == "" {
-		node, err = cl.GetNodeForStorage(ctx, vol.Storage())
+		nodes, err := cl.GetNodesForStorage(ctx, vol.Storage())
 		if err != nil {
-			return "", fmt.Errorf("failed to find best zone for storage %s: %v", vol.Storage(), err)
+			return "", fmt.Errorf("failed to find zones for storage %s: %v", vol.Storage(), err)
 		}
+
+		if len(nodes) == 0 {
+			return "", fmt.Errorf("failed to find best zone for storage %s", vol.Storage())
+		}
+
+		node = nodes[0]
 	}
 
 	return
 }
 
 func getVMByAttachedVolume(ctx context.Context, cl *goproxmox.APIClient, vol *volume.Volume) (int, int, error) {
+	var err error
+
 	nodes := []string{}
 	if vol.Node() != "" {
 		nodes = append(nodes, vol.Node())
 	}
 
 	if len(nodes) == 0 {
-		ns, err := cl.Client.Nodes(ctx)
+		nodes, err = cl.GetNodesForStorage(ctx, vol.Storage())
 		if err != nil {
-			return 0, 0, fmt.Errorf("failed to get node list: %v", err)
-		}
-
-		for _, n := range ns {
-			nodes = append(nodes, n.Node)
+			return 0, 0, fmt.Errorf("failed to find zones for storage %s: %v", vol.Storage(), err)
 		}
 	}
 
-	for _, n := range nodes {
-		node, err := cl.Client.Node(ctx, n)
-		if err != nil {
-			return 0, 0, fmt.Errorf("unable to find node with name %s: %w", n, err)
-		}
-
-		vms, err := node.VirtualMachines(ctx)
-		if err != nil {
-			return 0, 0, fmt.Errorf("failed to get vm list from node %s: %v", n, err)
-		}
-
-		for _, v := range vms {
-			if vol.VMID() == fmt.Sprintf("%d", v.VMID) {
-				continue
-			}
-
-			config, err := node.VirtualMachine(ctx, int(v.VMID))
-			if err != nil {
-				return 0, 0, fmt.Errorf("failed to get vm config: %v", err)
-			}
-
-			if lun, exist := isVolumeAttached(config.VirtualMachineConfig, vol.Disk()); exist {
-				return int(v.VMID), lun, nil
-			}
-		}
+	if len(nodes) == 0 {
+		return 0, 0, fmt.Errorf("failed to find best zone: no nodes with the storage %s", vol.Storage())
 	}
 
-	return 0, 0, goproxmox.ErrNotFound
+	lun := 0
+
+	vmid, err := cl.FindVMByFilter(ctx, func(rs *proxmox.ClusterResource) (bool, error) {
+		if rs.Type != "qemu" {
+			return false, nil
+		}
+
+		// Skip the storage owner VM (e.g., 9999), as the VM uses for the replications
+		if vol.VMID() == fmt.Sprintf("%d", rs.VMID) {
+			return false, nil
+		}
+
+		if !slices.Contains(nodes, rs.Node) {
+			return false, nil
+		}
+
+		vm, err := cl.GetVMConfig(ctx, int(rs.VMID))
+		if err != nil {
+			return false, err
+		}
+
+		if l, exist := isVolumeAttached(vm.VirtualMachineConfig, vol.Disk()); exist {
+			lun = l
+
+			return true, nil
+		}
+
+		return false, nil
+	})
+	if err != nil {
+		return 0, lun, err
+	}
+
+	if vmid != 0 {
+		return vmid, lun, nil
+	}
+
+	return 0, 0, goproxmox.ErrVirtualMachineNotFound
 }
 
 func getStorageContent(ctx context.Context, cl *goproxmox.APIClient, vol *volume.Volume) (*proxmox.StorageContent, error) {
@@ -108,13 +127,7 @@ func getStorageContent(ctx context.Context, cl *goproxmox.APIClient, vol *volume
 		return nil, errors.New("node is required")
 	}
 
-	n, err := cl.Client.Node(ctx, vol.Node())
-	if err != nil {
-		return nil, fmt.Errorf("unable to find node with name %s: %w", vol.Node(), err)
-	}
-
-	st, err := n.Storage(ctx, vol.Storage())
-	if err != nil {
+	if _, err := cl.GetStorageStatus(ctx, vol.Node(), vol.Storage()); err != nil {
 		if strings.Contains(err.Error(), "No such storage") {
 			return nil, errors.New(ErrorNotFound)
 		}
@@ -122,7 +135,7 @@ func getStorageContent(ctx context.Context, cl *goproxmox.APIClient, vol *volume
 		return nil, err
 	}
 
-	contents, err := st.GetContent(ctx)
+	contents, err := cl.GetStorageContent(ctx, vol.Node(), vol.Storage())
 	if err != nil {
 		return nil, err
 	}
@@ -560,34 +573,6 @@ func waitDetachVolume(ctx context.Context, cl *goproxmox.APIClient, id int, vol 
 	}
 
 	return nil
-}
-
-// For shared storage, get all nodes that have access to the storage, to emulate real shared storage behavior.
-// We need to find the node where the volume exists.
-func getNodesForStorage(ctx context.Context, cl *goproxmox.APIClient, storage string) ([]string, error) {
-	cluster, err := cl.Cluster(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	nodes := []string{}
-
-	storageResources, err := cluster.Resources(ctx, "storage")
-	if err != nil {
-		return nil, err
-	}
-
-	for _, resource := range storageResources {
-		if resource.Storage == storage && resource.Status == "available" {
-			nodes = append(nodes, resource.Node)
-		}
-	}
-
-	if len(nodes) == 0 {
-		return nil, errors.New(ErrorNotFound)
-	}
-
-	return nodes, nil
 }
 
 func defaultVMConfig() map[string]interface{} {
