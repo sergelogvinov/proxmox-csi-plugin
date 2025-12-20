@@ -4,7 +4,7 @@ go 1.25.5
 
 // replace github.com/sergelogvinov/go-proxmox => ../proxmox/go-proxmox
 // replace github.com/luthermonson/go-proxmox => ../proxmox/go-proxmox-luthermonson
-replace github.com/luthermonson/go-proxmox => github.com/sergelogvinov/go-proxmox-luthermonson v0.0.0-20251223043756-0890be30cf58
+// replace github.com/luthermonson/go-proxmox => github.com/sergelogvinov/go-proxmox-luthermonson v0.0.0-20251223043756-0890be30cf58
 
 require (
 	github.com/container-storage-interface/spec v1.12.0
@@ -12,17 +12,17 @@ require (
 	github.com/golang/protobuf v1.5.4
 	github.com/jarcoal/httpmock v1.4.1
 	github.com/kubernetes-csi/csi-lib-utils v0.23.0
-	github.com/luthermonson/go-proxmox v0.2.4
+	github.com/luthermonson/go-proxmox v0.3.1
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pkg/errors v0.9.1
-	github.com/sergelogvinov/go-proxmox v0.0.0-20251223092621-b2408158419a
+	github.com/sergelogvinov/go-proxmox v0.0.0-20260102042734-3efde9166fb0
 	github.com/siderolabs/go-blockdevice v0.4.8
 	github.com/siderolabs/go-retry v0.3.3
 	github.com/sirupsen/logrus v1.9.4-0.20230606125235-dd1b4c2e81af
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.11.1
 	google.golang.org/grpc v1.77.0
-	google.golang.org/protobuf v1.36.10
+	google.golang.org/protobuf v1.36.11
 	gopkg.in/yaml.v3 v3.0.1
 	k8s.io/api v0.34.3
 	k8s.io/apimachinery v0.34.3
@@ -31,7 +31,7 @@ require (
 	k8s.io/component-base v0.34.3
 	k8s.io/klog/v2 v2.130.1
 	k8s.io/mount-utils v0.34.3
-	k8s.io/utils v0.0.0-20251218160917-61b37f7a4624
+	k8s.io/utils v0.0.0-20251222233032-718f0e51e6d2
 )
 
 require (
