@@ -53,36 +53,24 @@ const (
 
 // VMLocks is a structure that protects to multiple VMs changes.
 type VMLocks struct {
-	mux   sync.Mutex
-	locks map[string]*sync.Mutex
+	locks sync.Map
 }
 
 // NewVMLocks creates a new instance of VMLocks.
 func NewVMLocks() *VMLocks {
-	return &VMLocks{
-		locks: make(map[string]*sync.Mutex),
-	}
+	return &VMLocks{}
 }
 
 // Lock method locks a VM by its name.
 func (v *VMLocks) Lock(name string) {
-	v.mux.Lock()
-
-	if _, exists := v.locks[name]; !exists {
-		v.locks[name] = &sync.Mutex{}
-	}
-
-	v.mux.Unlock()
-	v.locks[name].Lock()
+	actual, _ := v.locks.LoadOrStore(name, &sync.Mutex{})
+	actual.(*sync.Mutex).Lock()
 }
 
 // Unlock method unlocks a VM by its name.
 func (v *VMLocks) Unlock(name string) {
-	v.mux.Lock()
-	defer v.mux.Unlock()
-
-	if lock, exists := v.locks[name]; exists {
-		lock.Unlock()
+	if actual, ok := v.locks.Load(name); ok {
+		actual.(*sync.Mutex).Unlock()
 	}
 }
 

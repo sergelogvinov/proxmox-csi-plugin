@@ -108,8 +108,6 @@ github.com/kubernetes-csi/csi-lib-utils v0.23.0 h1:070SC4ubEvJpQak0ibxgv7l5dUoDV
 github.com/kubernetes-csi/csi-lib-utils v0.23.0/go.mod h1:H5+JRXAvb7lpC4nrddI7sfQfaXA1O8Tek3uNrTIx1/g=
 github.com/kylelemons/godebug v1.1.0 h1:RPNrshWIDI6G2gRW9EHilWtl7Z6Sb1BR0xunSBf0SNc=
 github.com/kylelemons/godebug v1.1.0/go.mod h1:9/0rRGxNHcop5bhtWyNeEfOS8JIWk580+fNqagV/RAw=
-github.com/luthermonson/go-proxmox v0.2.4 h1:XQ6YNUTVvHS7N4EJxWpuqWLW2s1VPtsIblxLV/rGHLw=
-github.com/luthermonson/go-proxmox v0.2.4/go.mod h1:oyFgg2WwTEIF0rP6ppjiixOHa5ebK1p8OaRiFhvICBQ=
 github.com/magefile/mage v1.15.0 h1:BvGheCMAsG3bWUDbZ8AyXXpCNwU9u5CB6sM+HNb9HYg=
 github.com/magefile/mage v1.15.0/go.mod h1:z5UZb/iS3GoOSn0JgWuiw7dxlurVYTu+/jHXqQg881A=
 github.com/maxatome/go-testdeep v1.14.0 h1:rRlLv1+kI8eOI3OaBXZwb3O7xY3exRzdW5QyX48g9wI=
@@ -150,10 +148,10 @@ github.com/prometheus/procfs v0.19.2/go.mod h1:M0aotyiemPhBCM0z5w87kL22CxfcH05Zp
 github.com/rogpeppe/go-internal v1.14.1 h1:UQB4HGPB6osV0SQTLymcB4TgvyWu6ZyliaW0tI/otEQ=
 github.com/rogpeppe/go-internal v1.14.1/go.mod h1:MaRKkUm5W0goXpeCfT7UZI6fk/L7L7so1lCWt35ZSgc=
 github.com/russross/blackfriday/v2 v2.1.0/go.mod h1:+Rmxgy9KzJVeS9/2gXHxylqXiyQDYRxCVz55jmeOWTM=
-github.com/sergelogvinov/go-proxmox v0.0.0-20251222234728-f7868c4d3a33 h1:Wbr1h0++3PSGf1QZ5z4sntSlObppXrgiGyQhFX4D/SI=
-github.com/sergelogvinov/go-proxmox v0.0.0-20251222234728-f7868c4d3a33/go.mod h1:AO+Yjxw7jBqTXThO1UTDqwqFwx6moyrRjpSqisNBP98=
-github.com/sergelogvinov/go-proxmox v0.0.0-20251223031111-e5bbe2b0806d h1:p6/qaBexU5loUb0nz0KuPdouL30DF2VI5p9SEj5W6UI=
-github.com/sergelogvinov/go-proxmox v0.0.0-20251223031111-e5bbe2b0806d/go.mod h1:AO+Yjxw7jBqTXThO1UTDqwqFwx6moyrRjpSqisNBP98=
+github.com/sergelogvinov/go-proxmox v0.0.0-20251223092621-b2408158419a h1:XuNC1nQH9VJ+LUau4fnMjIbOv+9AiKPXNumR8nrXIvg=
+github.com/sergelogvinov/go-proxmox v0.0.0-20251223092621-b2408158419a/go.mod h1:AO+Yjxw7jBqTXThO1UTDqwqFwx6moyrRjpSqisNBP98=
+github.com/sergelogvinov/go-proxmox-luthermonson v0.0.0-20251223043756-0890be30cf58 h1:H1BbMeEt9AwLMkuKKTILHpXrDp5wCBZdH1aASqIKArQ=
+github.com/sergelogvinov/go-proxmox-luthermonson v0.0.0-20251223043756-0890be30cf58/go.mod h1:oyFgg2WwTEIF0rP6ppjiixOHa5ebK1p8OaRiFhvICBQ=
 github.com/siderolabs/go-blockdevice v0.4.8 h1:KfdWvIx0Jft5YVuCsFIJFwjWEF1oqtzkgX9PeU9cX4c=
 github.com/siderolabs/go-blockdevice v0.4.8/go.mod h1:4PeOuk71pReJj1JQEXDE7kIIQJPVe8a+HZQa+qjxSEA=
 github.com/siderolabs/go-cmd v0.1.3 h1:JrgZwqhJQeoec3QRON0LK+fv+0y7d0DyY7zsfkO6ciw=
