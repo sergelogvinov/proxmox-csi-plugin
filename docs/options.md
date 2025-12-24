@@ -112,7 +112,7 @@ metadata:
 * `storageFormat` - disk format: `raw`, `qcow2` [Official documentation](https://pve.proxmox.com/wiki/Storage)
 
 * `cache` - qemu cache param: `directsync`, `none`, `writeback`, `writethrough` [Official documentation](https://pve.proxmox.com/wiki/Performance_Tweaks)
-* `ssd` - set true if SSD/NVME disk
+* `ssd` - set true if SSD/NVME disk, which enables both SSD emulation *and* Discard options in the attached Proxmox disk
 
 * `diskIOPS` - maximum r/w I/O in operations per second
 * `diskMBps` - maximum r/w throughput in megabytes per second
