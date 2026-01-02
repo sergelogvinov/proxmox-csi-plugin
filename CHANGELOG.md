@@ -5,6 +5,15 @@
 
 * enable support for capmox ([6145c7d](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/6145c7d91cfc47c131ac453e2a90a915e5694b2b))
 
+## [0.17.1](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.17.0...v0.17.1) (2026-01-02)
+
+
+### Bug Fixes
+
+* gorelease version ([8179b2c](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/8179b2c0c3221e90a8d02152d151b0f7b6253baf))
+* storage topology ([d7d31ca](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/d7d31cad770cc8c1607013adc63624b17b079234))
+* vmlock race condition ([2d34bec](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/2d34becc117b9c429e6deb14e51a9591aa4e196a))
+
 ## [0.17.0](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.16.0...v0.17.0) (2025-12-13)
 
 
