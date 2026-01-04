@@ -495,25 +495,25 @@ func TestNodeServiceNodeGetInfo(t *testing.T) {
 	}{
 		{
 			msg:           "NodeDesntExist",
-			kclient:       fake.NewSimpleClientset(nodes),
+			kclient:       fake.NewClientset(nodes),
 			nodeName:      "nonexist-node",
 			expectedError: fmt.Errorf("rpc error: code = Internal desc = failed to get node nonexist-node: nodes \"nonexist-node\" not found"),
 		},
 		{
 			msg:           "RegionNode",
-			kclient:       fake.NewSimpleClientset(nodes),
+			kclient:       fake.NewClientset(nodes),
 			nodeName:      "node-zone",
 			expectedError: fmt.Errorf("rpc error: code = Internal desc = failed to get region or zone for node node-zone"),
 		},
 		{
 			msg:           "ZoneNode",
-			kclient:       fake.NewSimpleClientset(nodes),
+			kclient:       fake.NewClientset(nodes),
 			nodeName:      "node-region",
 			expectedError: fmt.Errorf("rpc error: code = Internal desc = failed to get region or zone for node node-region"),
 		},
 		{
 			msg:      "GoodNode",
-			kclient:  fake.NewSimpleClientset(nodes),
+			kclient:  fake.NewClientset(nodes),
 			nodeName: "node-1",
 			expectedResponse: &proto.NodeGetInfoResponse{
 				NodeId:            "node-1",
@@ -528,7 +528,7 @@ func TestNodeServiceNodeGetInfo(t *testing.T) {
 		},
 		{
 			msg:      "GoodNode",
-			kclient:  fake.NewSimpleClientset(nodes),
+			kclient:  fake.NewClientset(nodes),
 			nodeName: "node-max-volumes-override",
 			expectedResponse: &proto.NodeGetInfoResponse{
 				NodeId:            "node-max-volumes-override",
@@ -543,7 +543,7 @@ func TestNodeServiceNodeGetInfo(t *testing.T) {
 		},
 		{
 			msg:      "GoodNode",
-			kclient:  fake.NewSimpleClientset(nodes),
+			kclient:  fake.NewClientset(nodes),
 			nodeName: "node-max-volumes-override-negative",
 			expectedResponse: &proto.NodeGetInfoResponse{
 				NodeId:            "node-max-volumes-override-negative",
@@ -558,7 +558,7 @@ func TestNodeServiceNodeGetInfo(t *testing.T) {
 		},
 		{
 			msg:      "GoodNode",
-			kclient:  fake.NewSimpleClientset(nodes),
+			kclient:  fake.NewClientset(nodes),
 			nodeName: "node-max-volumes-override-over-limit",
 			expectedResponse: &proto.NodeGetInfoResponse{
 				NodeId:            "node-max-volumes-override-over-limit",
