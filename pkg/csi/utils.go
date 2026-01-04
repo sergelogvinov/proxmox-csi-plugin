@@ -84,7 +84,7 @@ func getVMByAttachedVolume(ctx context.Context, cl *goproxmox.APIClient, vol *vo
 
 	lun := 0
 
-	vmid, err := cl.FindVMByFilter(ctx, func(rs *proxmox.ClusterResource) (bool, error) {
+	vm, err := cl.GetVMByFilter(ctx, func(rs *proxmox.ClusterResource) (bool, error) {
 		if rs.Type != "qemu" {
 			return false, nil
 		}
@@ -115,8 +115,8 @@ func getVMByAttachedVolume(ctx context.Context, cl *goproxmox.APIClient, vol *vo
 		return 0, lun, err
 	}
 
-	if vmid != 0 {
-		return vmid, lun, nil
+	if vm.VMID != 0 {
+		return int(vm.VMID), lun, nil
 	}
 
 	return 0, 0, goproxmox.ErrVirtualMachineNotFound
@@ -193,9 +193,11 @@ func isVolumeAttached(vm *proxmox.VirtualMachineConfig, pvc string) (int, bool) 
 }
 
 func prepareReplication(ctx context.Context, cl *goproxmox.APIClient, node string, name string) (int, error) {
-	id, err := cl.FindVMByName(ctx, name)
-	if err != nil || id == 0 {
-		id, err = cl.GetNextID(ctx, vmID+1)
+	vmr, err := cl.GetVMByFilter(ctx, func(r *proxmox.ClusterResource) (bool, error) {
+		return r.Name == name, nil
+	})
+	if err != nil || vmr.VMID == 0 {
+		id, err := cl.GetNextID(ctx, vmID+1)
 		if err != nil {
 			return 0, err
 		}
@@ -208,9 +210,11 @@ func prepareReplication(ctx context.Context, cl *goproxmox.APIClient, node strin
 		if err = cl.CreateVM(ctx, node, vm); mc.ObserveRequest(err) != nil {
 			return 0, err
 		}
+
+		return id, nil
 	}
 
-	return id, nil
+	return int(vmr.VMID), nil
 }
 
 func createReplication(ctx context.Context, cl *goproxmox.APIClient, id int, vol *volume.Volume, params StorageParameters) error {
@@ -259,12 +263,12 @@ func migrateReplication(ctx context.Context, cl *goproxmox.APIClient, target int
 		return nil
 	}
 
-	sourceVM, err := cl.FindVMByID(ctx, uint64(volid))
+	sourceVM, err := cl.GetVMByID(ctx, uint64(volid))
 	if err != nil {
 		return fmt.Errorf("failed to find vm by id %d: %v", volid, err)
 	}
 
-	targetVM, err := cl.FindVMByID(ctx, uint64(target))
+	targetVM, err := cl.GetVMByID(ctx, uint64(target))
 	if err != nil {
 		return fmt.Errorf("failed to find vm by id %d: %v", target, err)
 	}

@@ -20,7 +20,6 @@ package proxmoxpool
 import (
 	"context"
 	"crypto/tls"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"net/http"
@@ -166,31 +165,6 @@ func (c *ProxmoxPool) GetProxmoxCluster(region string) (*goproxmox.APIClient, er
 	return nil, ErrRegionNotFound
 }
 
-// GetVMByIDInRegion returns a Proxmox VM by its ID in a given region.
-func (c *ProxmoxPool) GetVMByIDInRegion(ctx context.Context, region string, vmid uint64) (*proxmox.ClusterResource, error) {
-	px, err := c.GetProxmoxCluster(region)
-	if err != nil {
-		return nil, err
-	}
-
-	vm, err := px.FindVMByID(ctx, uint64(vmid)) //nolint: unconvert
-	if err != nil {
-		return nil, err
-	}
-
-	return vm, nil
-}
-
-// DeleteVMByIDInRegion deletes a Proxmox VM by its ID in a given region.
-func (c *ProxmoxPool) DeleteVMByIDInRegion(ctx context.Context, region string, vm *proxmox.ClusterResource) error {
-	px, err := c.GetProxmoxCluster(region)
-	if err != nil {
-		return err
-	}
-
-	return px.DeleteVMByID(ctx, vm.Node, int(vm.VMID))
-}
-
 // GetNodeGroup returns a Proxmox node ha-group in a given region.
 func (c *ProxmoxPool) GetNodeGroup(ctx context.Context, region string, node string) (string, error) {
 	px, err := c.GetProxmoxCluster(region)
@@ -221,7 +195,7 @@ func (c *ProxmoxPool) GetNodeGroup(ctx context.Context, region string, node stri
 // FindVMByNode find a VM by kubernetes node resource in all Proxmox clusters.
 func (c *ProxmoxPool) FindVMByNode(ctx context.Context, node *v1.Node) (vmID int, region string, err error) {
 	for region, px := range c.clients {
-		vmid, err := px.FindVMByFilter(ctx, func(rs *proxmox.ClusterResource) (bool, error) {
+		vm, err := px.GetVMByFilter(ctx, func(rs *proxmox.ClusterResource) (bool, error) {
 			if rs.Type != "qemu" {
 				return false, nil
 			}
@@ -235,7 +209,7 @@ func (c *ProxmoxPool) FindVMByNode(ctx context.Context, node *v1.Node) (vmID int
 				return false, err
 			}
 
-			if c.GetVMUUID(vm) == node.Status.NodeInfo.SystemUUID {
+			if goproxmox.GetVMUUID(vm) == node.Status.NodeInfo.SystemUUID {
 				return true, nil
 			}
 
@@ -249,11 +223,11 @@ func (c *ProxmoxPool) FindVMByNode(ctx context.Context, node *v1.Node) (vmID int
 			return 0, "", err
 		}
 
-		if vmid == 0 {
+		if vm.VMID == 0 {
 			continue
 		}
 
-		return vmid, region, nil
+		return int(vm.VMID), region, nil
 	}
 
 	return 0, "", ErrInstanceNotFound
@@ -262,7 +236,7 @@ func (c *ProxmoxPool) FindVMByNode(ctx context.Context, node *v1.Node) (vmID int
 // FindVMByUUID find a VM by uuid in all Proxmox clusters.
 func (c *ProxmoxPool) FindVMByUUID(ctx context.Context, uuid string) (vmID int, region string, err error) {
 	for region, px := range c.clients {
-		vmid, err := px.FindVMByFilter(ctx, func(rs *proxmox.ClusterResource) (bool, error) {
+		vm, err := px.GetVMByFilter(ctx, func(rs *proxmox.ClusterResource) (bool, error) {
 			if rs.Type != "qemu" {
 				return false, nil
 			}
@@ -272,7 +246,7 @@ func (c *ProxmoxPool) FindVMByUUID(ctx context.Context, uuid string) (vmID int, 
 				return false, err
 			}
 
-			if c.GetVMUUID(vm) == uuid {
+			if goproxmox.GetVMUUID(vm) == uuid {
 				return true, nil
 			}
 
@@ -286,28 +260,10 @@ func (c *ProxmoxPool) FindVMByUUID(ctx context.Context, uuid string) (vmID int, 
 			return 0, "", ErrInstanceNotFound
 		}
 
-		return vmid, region, nil
+		return int(vm.VMID), region, nil
 	}
 
 	return 0, "", ErrInstanceNotFound
-}
-
-// GetVMUUID returns the VM UUID.
-func (c *ProxmoxPool) GetVMUUID(vm *proxmox.VirtualMachine) string {
-	smbios1 := goproxmox.VMSMBIOS{}
-	smbios1.UnmarshalString(vm.VirtualMachineConfig.SMBios1) //nolint:errcheck
-
-	return smbios1.UUID
-}
-
-// GetVMSKU returns the VM instance type name.
-func (c *ProxmoxPool) GetVMSKU(vm *proxmox.VirtualMachine) string {
-	smbios1 := goproxmox.VMSMBIOS{}
-	smbios1.UnmarshalString(vm.VirtualMachineConfig.SMBios1) //nolint:errcheck
-
-	sku, _ := base64.StdEncoding.DecodeString(smbios1.SKU) //nolint:errcheck
-
-	return string(sku)
 }
 
 func readValueFromFile(path string) (string, error) {

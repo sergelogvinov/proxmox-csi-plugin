@@ -34,7 +34,9 @@ func WaitForVolumeDetach(ctx context.Context, client *goproxmox.APIClient, vmNam
 		return nil
 	}
 
-	vmID, err := client.FindVMByName(ctx, vmName)
+	vmr, err := client.GetVMByFilter(ctx, func(r *proxmox.ClusterResource) (bool, error) {
+		return r.Name == vmName, nil
+	})
 	if err != nil {
 		return fmt.Errorf("failed to find vm by name %s: %v", vmName, err)
 	}
@@ -42,7 +44,7 @@ func WaitForVolumeDetach(ctx context.Context, client *goproxmox.APIClient, vmNam
 	for {
 		time.Sleep(5 * time.Second)
 
-		vmConfig, err := client.GetVMConfig(ctx, vmID)
+		vmConfig, err := client.GetVMConfig(ctx, int(vmr.VMID))
 		if err != nil {
 			return fmt.Errorf("failed to get vm config: %v", err)
 		}
