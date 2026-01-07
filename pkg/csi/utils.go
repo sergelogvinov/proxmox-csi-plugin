@@ -44,6 +44,11 @@ const (
 	ErrorNotFound string = "not found"
 )
 
+type replicationJob struct {
+	ID    string `json:"id"`
+	Guest int    `json:"guest"`
+}
+
 // nolint:unused
 func getNodeForVolume(ctx context.Context, cl *goproxmox.APIClient, vol *volume.Volume) (node string, err error) {
 	node = vol.Node()
@@ -211,10 +216,34 @@ func prepareReplication(ctx context.Context, cl *goproxmox.APIClient, node strin
 			return 0, err
 		}
 
+		if err = waitVMAvailable(ctx, cl, id); err != nil {
+			return 0, err
+		}
+
 		return id, nil
 	}
 
 	return int(vmr.VMID), nil
+}
+
+func waitVMAvailable(ctx context.Context, cl *goproxmox.APIClient, id int) error {
+	err := retry.Constant(TaskTimeout*time.Second, retry.WithUnits(TaskStatusCheckInterval*time.Second)).Retry(func() error {
+		_, err := cl.GetVMConfig(ctx, id)
+		if err != nil {
+			return retry.ExpectedError(fmt.Errorf("failed to get vm config: %v", err))
+		}
+
+		return nil
+	})
+	if err != nil {
+		if retry.IsTimeout(err) {
+			return fmt.Errorf("vm %d is not available", id)
+		}
+
+		return err
+	}
+
+	return nil
 }
 
 func createReplication(ctx context.Context, cl *goproxmox.APIClient, id int, vol *volume.Volume, params StorageParameters) error {
@@ -330,9 +359,20 @@ func deleteReplication(ctx context.Context, cl *goproxmox.APIClient, vol *volume
 			return nil
 		}
 
-		if err := cl.Client.Delete(ctx, fmt.Sprintf("/cluster/replication/%d-%d", id, 0), nil); err != nil {
-			if !strings.Contains(err.Error(), "no such job") {
-				return fmt.Errorf("failed to delete replication schedule: %v", err)
+		var jobs []replicationJob
+
+		data := make(map[string]interface{})
+		data["guest"] = id
+
+		if err := cl.Client.GetWithParams(ctx, fmt.Sprintf("/nodes/%s/replication", vm.Node), data, &jobs); err != nil {
+			return fmt.Errorf("failed to get replication jobs: %v", err)
+		}
+
+		for _, job := range jobs {
+			if err := cl.Client.Delete(ctx, fmt.Sprintf("/cluster/replication/%s", job.ID), nil); err != nil {
+				if !strings.Contains(err.Error(), "no such job") {
+					return fmt.Errorf("failed to delete replication schedule %s: %v", job.ID, err)
+				}
 			}
 		}
 
