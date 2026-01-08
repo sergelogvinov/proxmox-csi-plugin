@@ -317,26 +317,33 @@ func deleteReplication(ctx context.Context, cl *goproxmox.APIClient, vol *volume
 	}
 
 	if id != vmID {
-		vm, err := cl.GetVMConfig(ctx, id)
+		vmr, err := cl.GetVMByFilter(ctx, func(r *proxmox.ClusterResource) (bool, error) {
+			return r.VMID == uint64(id) && r.Name == vol.PV(), nil
+		})
 		if err != nil {
-			if strings.Contains(err.Error(), "machine not found") {
-				return nil
+			return err
+		}
+
+		type VirtualMachineReplicationJobs struct {
+			ID    string `json:"id"`
+			Guest int    `json:"guest"`
+		}
+
+		jobs := []VirtualMachineReplicationJobs{}
+
+		if err := cl.Get(ctx, fmt.Sprintf("/nodes/%s/replication?guest=%d", vmr.Node, vmr.VMID), &jobs); err != nil {
+			return fmt.Errorf("could not get replication list: %w", err)
+		}
+
+		for _, job := range jobs {
+			if err := cl.Client.Delete(ctx, fmt.Sprintf("/cluster/replication/%s", job.ID), nil); err != nil {
+				if !strings.Contains(err.Error(), "no such job") {
+					return fmt.Errorf("failed to delete replication schedule: %v", err)
+				}
 			}
-
-			return fmt.Errorf("failed to get vm config: %v", err)
 		}
 
-		if vm.Name != vol.PV() {
-			return nil
-		}
-
-		if err := cl.Client.Delete(ctx, fmt.Sprintf("/cluster/replication/%d-%d", id, 0), nil); err != nil {
-			if !strings.Contains(err.Error(), "no such job") {
-				return fmt.Errorf("failed to delete replication schedule: %v", err)
-			}
-		}
-
-		err = cl.DeleteVMByID(ctx, vm.Node, id)
+		err = cl.DeleteVMByID(ctx, vmr.Node, int(vmr.VMID))
 		if err != nil {
 			return fmt.Errorf("failed to delete replication vm: %v", err)
 		}
