@@ -5,6 +5,13 @@
 
 * enable support for capmox ([6145c7d](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/6145c7d91cfc47c131ac453e2a90a915e5694b2b))
 
+## [0.17.2](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.17.1...v0.17.2) (2026-01-08)
+
+
+### Bug Fixes
+
+* zfs replication ([831f13b](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/831f13b2090427ab69202bfd21e3fa174245a378))
+
 ## [0.17.1](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.17.0...v0.17.1) (2026-01-02)
 
 
