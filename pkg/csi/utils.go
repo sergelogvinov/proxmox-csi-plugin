@@ -364,9 +364,14 @@ func createVolume(ctx context.Context, cl *goproxmox.APIClient, vol *volume.Volu
 		return fmt.Errorf("failed to parse volume vm id: %v", err)
 	}
 
-	err = cl.CreateVMDisk(ctx, id, vol.Node(), vol.Storage(), filename[len(filename)-1], sizeBytes)
+	disk, err := cl.CreateVMDisk(ctx, id, vol.Node(), vol.Storage(), filename[len(filename)-1], sizeBytes)
 	if err != nil {
 		return fmt.Errorf("failed to create vm disk: %v", err)
+	}
+
+	diskName := strings.Split(disk, ":")
+	if len(diskName) > 1 {
+		vol.SetDisk(diskName[1])
 	}
 
 	return nil

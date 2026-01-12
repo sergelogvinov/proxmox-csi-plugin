@@ -16,7 +16,7 @@ require (
 	github.com/luthermonson/go-proxmox v0.3.1
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pkg/errors v0.9.1
-	github.com/sergelogvinov/go-proxmox v0.1.1-0.20260108083905-63ad3d61b87a
+	github.com/sergelogvinov/go-proxmox v0.1.1-0.20260114043701-a813c5df5a79
 	github.com/siderolabs/go-blockdevice v0.4.8
 	github.com/siderolabs/go-retry v0.3.3
 	github.com/sirupsen/logrus v1.9.4-0.20230606125235-dd1b4c2e81af
