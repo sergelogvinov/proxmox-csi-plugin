@@ -11,7 +11,7 @@ GO_LDFLAGS := -ldflags "-w -s -X main.version=$(TAG) -X main.commit=$(SHA)"
 
 OS ?= $(shell go env GOOS)
 ARCH ?= $(shell go env GOARCH)
-ARCHS = amd64 arm64
+ARCHS ?= amd64 arm64
 
 BUILD_ARGS := --platform=$(PLATFORM)
 ifeq ($(PUSH),true)

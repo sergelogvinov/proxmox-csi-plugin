@@ -170,3 +170,8 @@ func (v *Volume) SetNode(node string) {
 func (v *Volume) SetStorage(storage string) {
 	v.storage = storage
 }
+
+// SetDisk sets the proxmox disk name.
+func (v *Volume) SetDisk(disk string) {
+	v.disk = disk
+}
