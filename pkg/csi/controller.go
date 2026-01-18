@@ -41,7 +41,6 @@ import (
 	volume "github.com/sergelogvinov/proxmox-csi-plugin/pkg/utils/volume"
 
 	corev1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog/v2"
@@ -425,21 +424,6 @@ func (d *ControllerService) DeleteVolume(ctx context.Context, request *csi.Delet
 		klog.ErrorS(err, "DeleteVolume: failed to get proxmox cluster", "cluster", vol.Cluster())
 
 		return nil, status.Error(codes.Internal, err.Error())
-	}
-
-	pv, err := d.kclient.CoreV1().PersistentVolumes().Get(ctx, vol.PV(), metav1.GetOptions{})
-	if err != nil {
-		if apierrors.IsNotFound(err) {
-			return &csi.DeleteVolumeResponse{}, nil
-		}
-
-		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to get PersistentVolumes: %v", err))
-	}
-
-	if pv.Annotations[PVAnnotationLifecycle] == "keep" {
-		klog.V(3).InfoS("DeleteVolume: volume lifecycle is keep, skipping deletion", "volumeID", vol.VolumeID())
-
-		return &csi.DeleteVolumeResponse{}, nil
 	}
 
 	err = deleteReplication(ctx, cl, vol)
