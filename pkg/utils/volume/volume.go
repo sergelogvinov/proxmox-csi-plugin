@@ -19,8 +19,11 @@ package volume
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 )
+
+var vmidre = regexp.MustCompile(`(^|-|/)vm-([1-9][0-9]{2,8})(-|$)`)
 
 // Volume is the volume ID type.
 type Volume struct {
@@ -134,12 +137,12 @@ func (v *Volume) VolID() string {
 
 // VMID function returns the vmID in which the volume was created.
 func (v *Volume) VMID() string {
-	parts := strings.SplitN(v.disk, "-", 3)
-	if len(parts) != 3 {
+	matches := vmidre.FindStringSubmatch(v.disk)
+	if matches == nil {
 		return ""
 	}
 
-	return parts[1]
+	return matches[2]
 }
 
 // PV function returns the kubernetes Persistent Volume (PV) name associated with the volume.
