@@ -523,7 +523,7 @@ func (n *NodeService) NodeExpandVolume(_ context.Context, request *csi.NodeExpan
 func (n *NodeService) NodeGetCapabilities(_ context.Context, _ *csi.NodeGetCapabilitiesRequest) (*csi.NodeGetCapabilitiesResponse, error) {
 	klog.V(4).InfoS("NodeGetCapabilities: called")
 
-	caps := []*csi.NodeServiceCapability{}
+	caps := make([]*csi.NodeServiceCapability, 0, len(nodeCaps))
 
 	for _, cap := range nodeCaps {
 		c := &csi.NodeServiceCapability{

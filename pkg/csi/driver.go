@@ -34,9 +34,6 @@ const (
 
 	// EncryptionPassphraseKey is the encryption passphrase secret key
 	EncryptionPassphraseKey = "encryption-passphrase"
-
-	// PVAnnotationLifecycle is the annotation key for the lifecycle of a PersistentVolume
-	PVAnnotationLifecycle = DriverName + "/lifecycle"
 )
 
 // constants for fstypes

@@ -1,7 +1,7 @@
 # syntax = docker/dockerfile:1.18
 ########################################
 
-FROM golang:1.25.5-trixie AS develop
+FROM golang:1.25.6-trixie AS develop
 
 WORKDIR /src
 COPY ["go.mod", "go.sum", "/src/"]
@@ -9,7 +9,7 @@ RUN go mod download
 
 ########################################
 
-FROM --platform=${BUILDPLATFORM} golang:1.25.5-alpine3.22 AS builder
+FROM --platform=${BUILDPLATFORM} golang:1.25.6-alpine3.22 AS builder
 RUN apk update && apk add --no-cache make git
 ENV GO111MODULE=on
 WORKDIR /src
@@ -37,7 +37,7 @@ ENTRYPOINT ["/bin/proxmox-csi-controller"]
 
 ########################################
 
-FROM --platform=${TARGETARCH} debian:13.2 AS tools
+FROM --platform=${TARGETARCH} debian:13.3 AS tools
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     bash \

@@ -121,18 +121,6 @@ func (ts *baseCSITestSuite) setupTestSuite(config string) error {
 					APIVersion: "v1",
 				},
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "pvc-123-lifecycle",
-					Annotations: map[string]string{
-						csi.PVAnnotationLifecycle: "keep",
-					},
-				},
-			},
-			{
-				TypeMeta: metav1.TypeMeta{
-					Kind:       "PersistentVolume",
-					APIVersion: "v1",
-				},
-				ObjectMeta: metav1.ObjectMeta{
 					Name: "pvc-error",
 				},
 			},
