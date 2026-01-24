@@ -4,7 +4,7 @@ metadata:
   name: test-2
   namespace: default
   labels:
-    app: alpine
+    app: test-alpine
 spec:
   podManagementPolicy: Parallel # default is OrderedReady
   serviceName: test
@@ -12,15 +12,15 @@ spec:
   template:
     metadata:
       labels:
-        app: alpine
+        app: test-alpine
     spec:
       terminationGracePeriodSeconds: 3
-      tolerations:
-        - effect: NoSchedule
-          key: node-role.kubernetes.io/control-plane
+      # tolerations:
+      #   - effect: NoSchedule
+      #     key: node-role.kubernetes.io/control-plane
       nodeSelector:
         # kubernetes.io/hostname: kube-01a
-        # topology.kubernetes.io/zone: hvm-1
+        topology.kubernetes.io/zone: rnd-1
       affinity:
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -30,7 +30,7 @@ spec:
                   - key: app
                     operator: In
                     values:
-                      - alpine
+                      - test-alpine
       containers:
         - name: alpine
           image: alpine
@@ -47,7 +47,7 @@ spec:
     type: RollingUpdate
   selector:
     matchLabels:
-      app: alpine
+      app: test-alpine
   volumeClaimTemplates:
     - metadata:
         name: storage

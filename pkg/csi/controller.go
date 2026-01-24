@@ -462,7 +462,7 @@ func (d *ControllerService) DeleteVolume(ctx context.Context, request *csi.Delet
 func (d *ControllerService) ControllerGetCapabilities(_ context.Context, _ *csi.ControllerGetCapabilitiesRequest) (*csi.ControllerGetCapabilitiesResponse, error) {
 	klog.V(4).InfoS("ControllerGetCapabilities: called")
 
-	caps := []*csi.ControllerServiceCapability{}
+	caps := make([]*csi.ControllerServiceCapability, 0, len(controllerCaps))
 
 	for _, cap := range controllerCaps {
 		c := &csi.ControllerServiceCapability{
