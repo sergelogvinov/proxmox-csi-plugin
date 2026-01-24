@@ -230,6 +230,9 @@ node:
   # -- Tolerations for node-plugin assignment.
   # ref: https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
   tolerations:
+    - key: karpenter.sh/disrupted
+      operator: Exists
+      effect: NoSchedule
     - key: node.kubernetes.io/unschedulable
       operator: Exists
       effect: NoSchedule
