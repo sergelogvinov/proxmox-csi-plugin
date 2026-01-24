@@ -5,6 +5,22 @@
 
 * enable support for capmox ([6145c7d](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/6145c7d91cfc47c131ac453e2a90a915e5694b2b))
 
+## [0.18.0](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.17.1...v0.18.0) (2026-01-24)
+
+
+### Features
+
+* rename disk_name to diskName to follow best practices ([415d2e2](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/415d2e27bfbc691911dcc0057ebef8f4a0081857))
+* use returned proxmox disk name as volumeHandle ([415d2e2](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/415d2e27bfbc691911dcc0057ebef8f4a0081857))
+* use returned proxmox disk name as volumeHandle during volume ([415d2e2](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/415d2e27bfbc691911dcc0057ebef8f4a0081857))
+
+
+### Bug Fixes
+
+* remove redundant PV keep-flag check and support arbitrary VolumeIDs ([be54c6b](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/be54c6b40da108b9b9d88a6c40888a0bf3e66e16))
+* remove storage pool from disk name as this is already known ([415d2e2](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/415d2e27bfbc691911dcc0057ebef8f4a0081857))
+* zfs replication ([831f13b](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/831f13b2090427ab69202bfd21e3fa174245a378))
+
 ## [0.17.1](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.17.0...v0.17.1) (2026-01-02)
 
 
