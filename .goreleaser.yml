@@ -26,7 +26,20 @@ archives:
     name_template: "{{ .Binary }}"
 
 checksum:
-  name_template: "checksums.txt"
+  name_template: checksums.txt
+  algorithm: sha256
+
+signs:
+  - artifacts: checksum
+    certificate: "${artifact}.pem"
+    cmd: cosign
+    args:
+      - sign-blob
+      - "--yes"
+      - "--output-certificate=${certificate}"
+      - "--output-signature=${signature}"
+      - "${artifact}"
+    output: true
 
 snapshot:
   version_template: edge
