@@ -30,6 +30,7 @@ go.work
 /hack/kubeconfig*
 /hack/*.yaml
 kubeconfig
+clusters.yaml
 .cache/
 /log
 

@@ -14,8 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package log is cli logger configurator.
-package log
+// Package logger is cli logger configurator.
+package logger
 
 import (
 	"os"
