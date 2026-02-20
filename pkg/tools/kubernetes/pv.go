@@ -23,6 +23,7 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
@@ -94,9 +95,12 @@ func PVCCreateOrUpdate(
 
 // PVWaitDelete waits for the specified PersistentVolume to be deleted.
 func PVWaitDelete(ctx context.Context, clientset *clientkubernetes.Clientset, pvName string) error {
-	_, err := clientset.CoreV1().PersistentVolumes().Get(ctx, pvName, metav1.GetOptions{})
-	if err != nil {
-		return nil //nolint: nilerr
+	if _, err := clientset.CoreV1().PersistentVolumes().Get(ctx, pvName, metav1.GetOptions{}); err != nil {
+		if errors.IsNotFound(err) {
+			return nil
+		}
+
+		return err
 	}
 
 	watcher, err := clientset.CoreV1().PersistentVolumes().Watch(ctx, metav1.ListOptions{
@@ -105,8 +109,10 @@ func PVWaitDelete(ctx context.Context, clientset *clientkubernetes.Clientset, pv
 	if err != nil {
 		return err
 	}
-
 	defer watcher.Stop()
+
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
 
 	timeout := time.After(10 * time.Minute)
 
@@ -119,6 +125,13 @@ func PVWaitDelete(ctx context.Context, clientset *clientkubernetes.Clientset, pv
 
 			if event.Type == watch.Deleted {
 				return nil
+			}
+
+		case <-ticker.C:
+			if _, err := clientset.CoreV1().PersistentVolumes().Get(ctx, pvName, metav1.GetOptions{}); err != nil {
+				if errors.IsNotFound(err) {
+					return nil
+				}
 			}
 
 		case <-timeout:

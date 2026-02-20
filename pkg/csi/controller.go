@@ -41,6 +41,7 @@ import (
 	volume "github.com/sergelogvinov/proxmox-csi-plugin/pkg/utils/volume"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog/v2"
@@ -617,6 +618,12 @@ func (d *ControllerService) ControllerUnpublishVolume(ctx context.Context, reque
 
 		id, _, err = d.getVMIDbyNode(ctx, n.GetNodeName())
 		if err != nil {
+			if errors.IsNotFound(err) {
+				klog.V(3).InfoS("ControllerUnpublishVolume: VM not found for node, assuming volume is already unpublished", "nodeID", n.String())
+
+				return &csi.ControllerUnpublishVolumeResponse{}, nil
+			}
+
 			return nil, err
 		}
 	}
@@ -1026,7 +1033,7 @@ func (d *ControllerService) ControllerModifyVolume(ctx context.Context, request 
 func (d *ControllerService) getVMIDbyNode(ctx context.Context, nodeName string) (int, string, error) { // nolint:unparam
 	node, err := d.kclient.CoreV1().Nodes().Get(ctx, nodeName, metav1.GetOptions{})
 	if err != nil {
-		return 0, "", status.Error(codes.InvalidArgument, err.Error())
+		return 0, "", err
 	}
 
 	id, err := ProxmoxVMIDbyNode(node)
