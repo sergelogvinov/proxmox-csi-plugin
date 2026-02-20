@@ -5,6 +5,14 @@
 
 * enable support for capmox ([6145c7d](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/6145c7d91cfc47c131ac453e2a90a915e5694b2b))
 
+## [0.18.1](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.18.0...v0.18.1) (2026-02-20)
+
+
+### Bug Fixes
+
+* goreleaser ([c1d0907](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/c1d090788efcb1dff46782b4c14cb1877d72dd24))
+* pv migrate watch ([7b8a477](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/7b8a477febad84fc70da833e93bcc1b1574af560))
+
 ## [0.18.0](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.17.1...v0.18.0) (2026-01-24)
 
 
