@@ -52,10 +52,8 @@ const (
 
 	deviceNamePrefix = "scsi"
 
-	// resizeSizeBytes is the key for the volume context parameter to specify the new size in bytes after restore from snapshot
-	// we cannot change size offline, so we pass it via volume context
-	resizeSizeBytes = "resizeSizeBytes"
-	resizeRequired  = "resizeRequired"
+	// resizeRequired is the key for the volume context parameter to indicate whether resize is required after restore from snapshot
+	resizeRequired = "resizeRequired"
 )
 
 var controllerCaps = []csi.ControllerServiceCapability_RPC_Type{
