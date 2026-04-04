@@ -440,6 +440,10 @@ func attachVolume(ctx context.Context, cl *goproxmox.APIClient, id int, vol *vol
 func detachVolume(ctx context.Context, cl *goproxmox.APIClient, id int, vol *volume.Volume) error {
 	vm, err := cl.GetVMConfig(ctx, id)
 	if err != nil {
+		if errors.Is(err, goproxmox.ErrVirtualMachineNotFound) {
+			return nil
+		}
+
 		return fmt.Errorf("failed to get vm config: %v", err)
 	}
 
@@ -571,6 +575,10 @@ func waitDetachVolume(ctx context.Context, cl *goproxmox.APIClient, id int, vol 
 	err := retry.Constant(TaskTimeout*time.Second, retry.WithUnits(TaskStatusCheckInterval*time.Second)).Retry(func() error {
 		vm, err := cl.GetVMConfig(ctx, id)
 		if err != nil {
+			if errors.Is(err, goproxmox.ErrVirtualMachineNotFound) {
+				return nil
+			}
+
 			return fmt.Errorf("failed to get vm config: %v", err)
 		}
 
