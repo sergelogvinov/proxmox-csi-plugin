@@ -6,6 +6,10 @@ This file is used to configure the Proxmox CSI driver plugin.
 features:
   # Provider type
   provider: default|capmox
+  # Controller VM ID. Must be greater than 100.
+  # Default is 9999, which is a safe value that is unlikely to conflict with existing VMs.
+  # You can change it if needed, but make sure to choose a value that is not used by any existing VM in your Proxmox cluster.
+  controllerVMID: 9999
 
 clusters:
   # List of Proxmox clusters
