@@ -116,6 +116,10 @@ func getVMByAttachedVolume(ctx context.Context, cl *goproxmox.APIClient, vol *vo
 	}
 
 	if vm.VMID != 0 {
+		if vol.Node() == "" {
+			vol.SetNode(vm.Node)
+		}
+
 		return int(vm.VMID), lun, nil
 	}
 
