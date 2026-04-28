@@ -82,6 +82,16 @@ func SetupMockResponders() {
 						Status:     "available",
 					},
 					&proxmox.ClusterResource{
+						ID:         "storage/rbd",
+						Type:       "storage",
+						PluginType: "dir",
+						Node:       "pve-2",
+						Storage:    "rbd",
+						Content:    "images",
+						Shared:     1,
+						Status:     "available",
+					},
+					&proxmox.ClusterResource{
 						ID:         "storage/zfs",
 						Type:       "storage",
 						PluginType: "zfspool",
@@ -371,6 +381,7 @@ func SetupMockResponders() {
 					"vmid":    101,
 					"scsi0":   "local-lvm:vm-101-disk-0,size=10G",
 					"scsi1":   "local-lvm:vm-101-disk-1,size=1G",
+					"scsi2":   "rbd:9999/vm-9999-volume-rbd.raw,backup=0,iothread=1",
 					"scsi3":   "local-lvm:vm-101-disk-2,size=1G",
 					"smbios1": "uuid=11833f4c-341f-4bd3-aad7-f7abed000001",
 				},
@@ -390,6 +401,14 @@ func SetupMockResponders() {
 	)
 
 	httpmock.RegisterResponder("PUT", "https://127.0.0.1:8006/api2/json/nodes/pve-1/qemu/100/resize",
+		func(_ *http.Request) (*http.Response, error) {
+			return httpmock.NewJsonResponse(200, map[string]any{
+				"data": "",
+			})
+		},
+	)
+
+	httpmock.RegisterResponder("PUT", "https://127.0.0.1:8006/api2/json/nodes/pve-2/qemu/101/resize",
 		func(_ *http.Request) (*http.Response, error) {
 			return httpmock.NewJsonResponse(200, map[string]any{
 				"data": "",

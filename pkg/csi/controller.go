@@ -1077,16 +1077,22 @@ func (d *ControllerService) checkVolume(ctx context.Context, vol *volume.Volume)
 		}
 	}
 
+	// Check shared storage volumes across all nodes in the cluster
 	if vol.Node() == "" {
-		nodes, err := cl.GetNodesForStorage(ctx, vol.Storage())
+		probeVol, err := volume.NewVolumeFromVolumeID(vol.VolumeID())
+		if err != nil {
+			return 0, status.Error(codes.Internal, err.Error())
+		}
+
+		nodes, err := cl.GetNodesForStorage(ctx, probeVol.Storage())
 		if err != nil {
 			return 0, status.Error(codes.Internal, err.Error())
 		}
 
 		for _, n := range nodes {
-			vol.SetNode(n)
+			probeVol.SetNode(n)
 
-			size, err := getVolumeSize(ctx, cl, vol)
+			size, err := getVolumeSize(ctx, cl, probeVol)
 			if err != nil {
 				if err.Error() == ErrorNotFound {
 					continue
@@ -1101,12 +1107,6 @@ func (d *ControllerService) checkVolume(ctx context.Context, vol *volume.Volume)
 		}
 
 		return 0, status.Errorf(codes.NotFound, "volume %s not found in any node for storage %s", vol.VolumeID(), vol.Storage())
-
-		// node, err := getNodeForVolume(ctx, cl, vol)
-		// if err != nil {
-		// 	return 0, status.Error(codes.Internal, err.Error())
-		// }
-		// vol.SetNode(node)
 	}
 
 	size, err := getVolumeSize(ctx, cl, vol)
