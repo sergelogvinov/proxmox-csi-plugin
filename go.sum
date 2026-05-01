@@ -104,8 +104,8 @@ github.com/kubernetes-csi/csi-lib-utils v0.23.2 h1:+x9W4RRyuRnJcTiSHKEFpl0cYUeLU
 github.com/kubernetes-csi/csi-lib-utils v0.23.2/go.mod h1:aIcqnC6EyesZpe7kX5PxHUZePw1tKrYFKwg7RaqlPh8=
 github.com/kylelemons/godebug v1.1.0 h1:RPNrshWIDI6G2gRW9EHilWtl7Z6Sb1BR0xunSBf0SNc=
 github.com/kylelemons/godebug v1.1.0/go.mod h1:9/0rRGxNHcop5bhtWyNeEfOS8JIWk580+fNqagV/RAw=
-github.com/luthermonson/go-proxmox v0.4.1-0.20260319134006-cefc556cc24e h1:CFUfVy0fOs7dFUyhM4e8kA9XH5tBHmQeXUaZIjvmkps=
-github.com/luthermonson/go-proxmox v0.4.1-0.20260319134006-cefc556cc24e/go.mod h1:U6dAkJ+iiwaeb1g/LMWpWuWN4nmvWeXhmoMuYJMumS4=
+github.com/luthermonson/go-proxmox v0.4.1 h1:1WnUBHzCQEa5goHuzewkApi6LKtQcFB8/tXTtS2D5w8=
+github.com/luthermonson/go-proxmox v0.4.1/go.mod h1:U6dAkJ+iiwaeb1g/LMWpWuWN4nmvWeXhmoMuYJMumS4=
 github.com/magefile/mage v1.17.0 h1:dS4tkq997Ism03akafC8509iqDjeE7TNTexI25Y7sXM=
 github.com/magefile/mage v1.17.0/go.mod h1:Yj51kqllmsgFpvvSzgrZPK9WtluG3kUhFaBUVLo4feA=
 github.com/maxatome/go-testdeep v1.14.0 h1:rRlLv1+kI8eOI3OaBXZwb3O7xY3exRzdW5QyX48g9wI=

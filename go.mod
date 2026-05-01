@@ -12,7 +12,7 @@ require (
 	github.com/golang/protobuf v1.5.4
 	github.com/jarcoal/httpmock v1.4.1
 	github.com/kubernetes-csi/csi-lib-utils v0.23.2
-	github.com/luthermonson/go-proxmox v0.4.1-0.20260319134006-cefc556cc24e
+	github.com/luthermonson/go-proxmox v0.4.1
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pkg/errors v0.9.1
 	github.com/sergelogvinov/go-proxmox v0.1.1-0.20260114043701-a813c5df5a79
