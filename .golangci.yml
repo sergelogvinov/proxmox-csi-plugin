@@ -54,6 +54,7 @@ linters:
     - varnamelen
     - wrapcheck
     - wsl
+    - gomodguard
 
     # temporarily disabled linters
     - copyloopvar
@@ -61,6 +62,7 @@ linters:
     - noinlineerr
     - noctx
     - modernize
+    - goconst
   settings:
     wsl_v5:
       allow-first-in-block: true
@@ -86,7 +88,7 @@ linters:
       min-complexity: 30
     gomoddirectives:
       replace-local: true
-      replace-allow-list: [github.com/luthermonson/go-proxmox]
+      replace-allow-list: [ github.com/luthermonson/go-proxmox ]
       retract-allow-no-explanation: false
       exclude-forbidden: true
     lll:
@@ -117,8 +119,12 @@ linters:
         ]
     unused:
       local-variables-are-used: false
-
   exclusions:
+    rules:
+      - path: _test\.go
+        linters:
+          - dupl
+          - goconst
     paths:
       - pkg/helpers/ptr/ptr.go
 issues:
