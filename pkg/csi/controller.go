@@ -1096,6 +1096,10 @@ func (d *ControllerService) checkVolume(ctx context.Context, vol *volume.Volume)
 			}
 
 			klog.V(5).InfoS("checkVolume: determined node for volume", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "node", n)
+			// Reset node to avoid pinning the volume to a specific node.
+			// When storage is shared across multiple nodes, callers like
+			// getVMByAttachedVolume need to search all nodes to find the VM.
+			vol.SetNode("")
 
 			return size, nil
 		}

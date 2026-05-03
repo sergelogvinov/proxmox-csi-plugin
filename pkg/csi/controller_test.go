@@ -1087,6 +1087,23 @@ func (ts *configuredTestSuite) TestControllerExpandVolumeError() {
 				NodeExpansionRequired: true,
 			},
 		},
+		{
+			// The volume ID has no zone (cluster//<storage>/<disk>), so vol.Node() starts
+			// empty and checkVolume must iterate all nodes to find the disk. pvc-on-pve2
+			// only exists in pve-2's storage content, so checkVolume sets vol.Node()=pve-2.
+			// Without the fix, getVMByAttachedVolume only searches pve-2 and misses VM 100
+			// which runs on pve-1. A zoned volume ID (cluster-1/pve-1/...) would bypass
+			// this code path entirely and not catch the regression.
+			msg: "ExpandVolumeSharedStorageVMOnDifferentNode",
+			request: &proto.ControllerExpandVolumeRequest{
+				VolumeId:      "cluster-1//local-lvm/vm-9999-pvc-on-pve2",
+				CapacityRange: capRange,
+			},
+			expected: &proto.ControllerExpandVolumeResponse{
+				CapacityBytes:         100 * csi.GiB,
+				NodeExpansionRequired: true,
+			},
+		},
 	}
 
 	for _, testCase := range tests {
