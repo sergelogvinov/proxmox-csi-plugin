@@ -115,7 +115,8 @@ clusters:
 `),
 			expected: &providerconfig.ClustersConfig{
 				Features: providerconfig.ClustersFeatures{
-					Provider: providerconfig.ProviderDefault,
+					Provider:       providerconfig.ProviderDefault,
+					ControllerVMID: providerconfig.DefaultControllerVMID,
 				},
 				Clusters: []*pxpool.ProxmoxCluster{
 					{
@@ -140,7 +141,8 @@ clusters:
 `),
 			expected: &providerconfig.ClustersConfig{
 				Features: providerconfig.ClustersFeatures{
-					Provider: providerconfig.ProviderDefault,
+					Provider:       providerconfig.ProviderDefault,
+					ControllerVMID: providerconfig.DefaultControllerVMID,
 				},
 				Clusters: []*pxpool.ProxmoxCluster{
 					{
@@ -167,7 +169,8 @@ clusters:
 `),
 			expected: &providerconfig.ClustersConfig{
 				Features: providerconfig.ClustersFeatures{
-					Provider: providerconfig.ProviderCapmox,
+					Provider:       providerconfig.ProviderCapmox,
+					ControllerVMID: providerconfig.DefaultControllerVMID,
 				},
 				Clusters: []*pxpool.ProxmoxCluster{
 					{

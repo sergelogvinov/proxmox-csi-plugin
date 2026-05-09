@@ -192,7 +192,7 @@ func isVolumeAttached(vm *proxmox.VirtualMachineConfig, pvc string) (int, bool) 
 	return 0, false
 }
 
-func prepareReplication(ctx context.Context, cl *goproxmox.APIClient, node string, name string) (int, error) {
+func prepareReplication(ctx context.Context, cl *goproxmox.APIClient, node string, name string, vmID int) (int, error) {
 	vmr, err := cl.GetVMByFilter(ctx, func(r *proxmox.ClusterResource) (bool, error) {
 		return r.Name == name, nil
 	})
@@ -277,7 +277,7 @@ func createReplication(ctx context.Context, cl *goproxmox.APIClient, id int, vol
 	return nil
 }
 
-func migrateReplication(ctx context.Context, cl *goproxmox.APIClient, target int, vol *volume.Volume) error {
+func migrateReplication(ctx context.Context, cl *goproxmox.APIClient, target int, vol *volume.Volume, vmID int) error {
 	volid, err := strconv.Atoi(vol.VMID())
 	if err != nil {
 		return fmt.Errorf("failed to parse volumeID %s: %v", vol.VolumeID(), err)
@@ -334,7 +334,7 @@ func migrateReplication(ctx context.Context, cl *goproxmox.APIClient, target int
 	return nil
 }
 
-func deleteReplication(ctx context.Context, cl *goproxmox.APIClient, vol *volume.Volume) error {
+func deleteReplication(ctx context.Context, cl *goproxmox.APIClient, vol *volume.Volume, vmID int) error {
 	id, err := strconv.Atoi(vol.VMID())
 	if err != nil {
 		return fmt.Errorf("failed to parse volumeID %s: %v", vol.VolumeID(), err)

@@ -13,7 +13,7 @@ metadata:
   {{- end }}
 provisioner: {{ $.Values.provisionerName }}
 allowVolumeExpansion: true
-volumeBindingMode: WaitForFirstConsumer
+volumeBindingMode: {{ default "WaitForFirstConsumer" $storage.volumeBindingMode }}
 reclaimPolicy: {{ default "Delete" $storage.reclaimPolicy }}
 parameters:
   {{- mustMergeOverwrite (default (dict) $storage.extraParameters) (include "storageClass.parameters" . | fromYaml) | toYaml | nindent 2 -}}

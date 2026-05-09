@@ -48,8 +48,6 @@ import (
 )
 
 const (
-	vmID = 9999
-
 	deviceNamePrefix = "scsi"
 
 	// resizeRequired is the key for the volume context parameter to indicate whether resize is required after restore from snapshot
@@ -75,6 +73,7 @@ type ControllerService struct {
 	pxpool   *pxpool.ProxmoxPool
 	kclient  kubernetes.Interface
 	Provider csiconfig.Provider
+	vmID     int
 
 	storageCapacity *cache.Cache
 	vmLocks         *VMLocks
@@ -96,6 +95,7 @@ func NewControllerService(kclient kubernetes.Interface, cloudConfig string) (*Co
 		pxpool:   px,
 		kclient:  kclient,
 		Provider: cfg.Features.Provider,
+		vmID:     cfg.Features.ControllerVMID,
 	}
 
 	d.Init()
@@ -279,14 +279,14 @@ func (d *ControllerService) CreateVolume(ctx context.Context, request *csi.Creat
 		}
 	}
 
-	id := vmID
+	id := d.vmID
 
 	if params.Replicate {
 		if storageConfig.PluginType != "zfspool" {
 			return nil, status.Error(codes.Internal, "error: storage type is not zfs in replication mode")
 		}
 
-		id, err = prepareReplication(ctx, cl, zone, pvc)
+		id, err = prepareReplication(ctx, cl, zone, pvc, d.vmID)
 		if err != nil {
 			klog.ErrorS(err, "CreateVolume: failed to prepare replication", "cluster", region, "zone", zone)
 
@@ -425,7 +425,7 @@ func (d *ControllerService) DeleteVolume(ctx context.Context, request *csi.Delet
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
-	err = deleteReplication(ctx, cl, vol)
+	err = deleteReplication(ctx, cl, vol, d.vmID)
 	if err != nil {
 		klog.ErrorS(err, "DeleteVolume: failed to delete replication", "cluster", vol.Cluster(), "volumeID", vol.VolumeID())
 
@@ -539,7 +539,7 @@ func (d *ControllerService) ControllerPublishVolume(ctx context.Context, request
 	defer d.vmLocks.Unlock(n.GetNodeName())
 
 	if params.Replicate {
-		err = migrateReplication(ctx, cl, id, vol)
+		err = migrateReplication(ctx, cl, id, vol, d.vmID)
 		if err != nil {
 			klog.ErrorS(err, "ControllerPublishVolume: failed to migrate/sync replication", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "vmID", id)
 
@@ -792,7 +792,7 @@ func (d *ControllerService) CreateSnapshot(ctx context.Context, request *csi.Cre
 		return nil, err
 	}
 
-	snapshotID := vol.CopyVolume(fmt.Sprintf("vm-%d-%s", vmID, name))
+	snapshotID := vol.CopyVolume(fmt.Sprintf("vm-%d-%s", d.vmID, name))
 
 	if params["zone"] != "" {
 		if storageConfig.Nodes != "" {

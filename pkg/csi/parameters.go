@@ -199,7 +199,7 @@ func mapByTag(p any, m map[string]string, tag string) {
 		tag = params[0]
 
 		fieldValue := val.Field(i)
-		if fieldValue.Kind() == reflect.Ptr {
+		if fieldValue.Kind() == reflect.Pointer {
 			if fieldValue.IsNil() {
 				continue
 			}
@@ -243,7 +243,7 @@ func unmarshalTag(m map[string]string, p any, tag string) error {
 
 		fieldName := strings.Split(tag, ",")[0]
 		if v := m[fieldName]; v != "" {
-			if f.Kind() == reflect.Ptr {
+			if f.Kind() == reflect.Pointer {
 				switch f.Type().Elem().Kind() { //nolint:exhaustive
 				case reflect.String:
 					f.Set(reflect.ValueOf(ptr.Ptr(v)))

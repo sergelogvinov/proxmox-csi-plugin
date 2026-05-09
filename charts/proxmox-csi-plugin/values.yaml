@@ -71,6 +71,8 @@ config:
 storageClass: []
   # - name: proxmox-data-xfs
   #   storage: data
+  #   For ceph storage you should use volumeBindingMode Immediate, defaults to WaitForFirstConsumer
+  #   volumeBindingMode: WaitForFirstConsumer|Immediate
   #   reclaimPolicy: Delete
   #   fstype: ext4|xfs
   #

@@ -33,17 +33,30 @@ import (
 // Provider specifies the provider. Can be 'default' or 'capmox'
 type Provider string
 
-// ProviderDefault is the default provider
-const ProviderDefault Provider = "default"
+const (
+	// ProviderDefault is the default provider
+	ProviderDefault Provider = "default"
 
-// ProviderCapmox is the Provider for capmox
-const ProviderCapmox Provider = "capmox"
+	// ProviderCapmox is the Provider for capmox
+	ProviderCapmox Provider = "capmox"
+)
+
+const (
+	// DefaultControllerVMID is the default VM ID used by the controller when none is specified.
+	DefaultControllerVMID = 9999
+
+	// MinControllerVMID is the minimum valid VM ID for the controller.
+	MinControllerVMID = 100
+)
 
 // ClustersFeatures specifies the features for the cloud provider.
 type ClustersFeatures struct {
 	// Provider specifies the provider to use. Can be 'default' or 'capmox'.
 	// Default is 'default'.
 	Provider Provider `yaml:"provider,omitempty"`
+	// ControllerVMID is the VM ID used by the controller for volume operations (e.g. volume naming).
+	// Default is 9999.
+	ControllerVMID int `yaml:"controllerVmID,omitempty"`
 }
 
 // ClustersConfig is proxmox multi-cluster cloud config.
@@ -59,6 +72,7 @@ var (
 	ErrAuthCredentialsMissing = errors.New("user, token or file credentials are required")
 	ErrInvalidAuthCredentials = errors.New("must specify one of user, token or file credentials, not multiple")
 	ErrInvalidCloudConfig     = errors.New("invalid cloud config")
+	ErrInvalidVMID            = errors.New("invalid VM ID, must be greater than 100")
 )
 
 // ReadCloudConfig reads cloud config from a reader.
@@ -95,6 +109,14 @@ func ReadCloudConfig(config io.Reader) (ClustersConfig, error) {
 
 	if cfg.Features.Provider == "" {
 		cfg.Features.Provider = ProviderDefault
+	}
+
+	if cfg.Features.ControllerVMID == 0 {
+		cfg.Features.ControllerVMID = DefaultControllerVMID
+	}
+
+	if cfg.Features.ControllerVMID <= MinControllerVMID {
+		return ClustersConfig{}, fmt.Errorf("invalid VM ID, must be greater than %d", MinControllerVMID)
 	}
 
 	return cfg, nil
