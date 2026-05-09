@@ -1,0 +1,34 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "github>sm-moshi/infra//.github/renovate/base.json",
+    "config:best-practices",
+    ":preserveSemverRanges"
+  ],
+  "enabledManagers": [
+    "gomod",
+    "dockerfile",
+    "github-actions",
+    "woodpecker"
+  ],
+  "packageRules": [
+    {
+      "description": "Group Kubernetes Go modules",
+      "matchManagers": ["gomod"],
+      "matchPackageNames": ["/^k8s\\.io\\//"],
+      "groupName": "kubernetes go modules"
+    },
+    {
+      "description": "Group all GitHub Actions into a single PR",
+      "matchManagers": ["github-actions"],
+      "groupName": "github actions",
+      "automerge": true
+    },
+    {
+      "description": "Auto-merge patch and minor Go module updates",
+      "matchManagers": ["gomod"],
+      "matchUpdateTypes": ["patch", "minor"],
+      "automerge": true
+    }
+  ]
+}

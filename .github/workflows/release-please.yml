@@ -16,7 +16,11 @@ jobs:
     steps:
       - name: Create release PR
         id: release
+<<<<<<< HEAD
         uses: googleapis/release-please-action@v5
+=======
+        uses: googleapis/release-please-action@5c625bfb5d1ff62eadeeb3772007f7f66fdcf071 # v4
+>>>>>>> origin/renovate/github-actions
         with:
           config-file: hack/release-please-config.json
           manifest-file: hack/release-please-manifest.json

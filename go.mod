@@ -17,6 +17,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/sergelogvinov/go-proxmox v0.2.0
 	github.com/siderolabs/go-blockdevice v0.4.8
+	github.com/siderolabs/go-blockdevice/v2 v2.0.28
 	github.com/siderolabs/go-retry v0.3.3
 	github.com/sirupsen/logrus v1.9.4
 	github.com/spf13/cobra v1.10.2
@@ -67,7 +68,11 @@ require (
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/jinzhu/copier v0.4.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
+<<<<<<< HEAD
 	github.com/magefile/mage v1.17.2 // indirect
+=======
+	github.com/magefile/mage v1.17.1 // indirect
+>>>>>>> origin/renovate/github-actions
 	github.com/moby/sys/mountinfo v0.7.2 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee // indirect
@@ -81,8 +86,13 @@ require (
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/stretchr/objx v0.5.3 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
+<<<<<<< HEAD
 	go.opentelemetry.io/otel v1.43.0 // indirect
 	go.opentelemetry.io/otel/trace v1.43.0 // indirect
+=======
+	go.opentelemetry.io/otel v1.41.0 // indirect
+	go.opentelemetry.io/otel/trace v1.41.0 // indirect
+>>>>>>> origin/renovate/github-actions
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/net v0.53.0 // indirect
