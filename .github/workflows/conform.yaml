@@ -13,7 +13,7 @@ jobs:
     if: github.event.pull_request.draft == false
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha }}
@@ -21,6 +21,6 @@ jobs:
         run: git fetch --no-tags origin main:main
 
       - name: Conform action
-        uses: talos-systems/conform@v0.1.0-alpha.31
+        uses: talos-systems/conform@cfdb3cce90daece912e6a5cb3f20b2316a78a5bf # v0.1.0-alpha.31
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
