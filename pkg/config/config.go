@@ -86,15 +86,24 @@ func ReadCloudConfig(config io.Reader) (ClustersConfig, error) {
 	}
 
 	for idx, c := range cfg.Clusters {
-		hasTokenAuth := c.TokenID != "" || c.TokenSecret != ""
-		hasTokenFileAuth := c.TokenIDFile != "" || c.TokenSecretFile != ""
+		hasTokenIDInline := c.TokenID != ""
+		hasTokenIDFile := c.TokenIDFile != ""
+		hasTokenSecretInline := c.TokenSecret != ""
+		hasTokenSecretFile := c.TokenSecretFile != ""
 
-		hasUserAuth := c.Username != "" && c.Password != ""
-		if (hasTokenAuth && hasUserAuth) || (hasTokenFileAuth && hasUserAuth) || (hasTokenAuth && hasTokenFileAuth) {
+		if (hasTokenIDInline && hasTokenIDFile) || (hasTokenSecretInline && hasTokenSecretFile) {
 			return ClustersConfig{}, fmt.Errorf("cluster #%d: %w", idx+1, ErrInvalidAuthCredentials)
 		}
 
-		if !hasTokenAuth && !hasTokenFileAuth && !hasUserAuth {
+		hasTokenID := hasTokenIDInline || hasTokenIDFile
+		hasTokenSecret := hasTokenSecretInline || hasTokenSecretFile
+
+		hasUserAuth := c.Username != "" && c.Password != ""
+		if (hasTokenID && hasUserAuth) || (hasTokenSecret && hasUserAuth) {
+			return ClustersConfig{}, fmt.Errorf("cluster #%d: %w", idx+1, ErrInvalidAuthCredentials)
+		}
+
+		if !(hasTokenID && hasTokenSecret) && !hasUserAuth {
 			return ClustersConfig{}, fmt.Errorf("cluster #%d: %w", idx+1, ErrAuthCredentialsMissing)
 		}
 
