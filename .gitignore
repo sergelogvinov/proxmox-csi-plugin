@@ -26,6 +26,7 @@ go.work
 #
 /charts/proxmox-csi-plugin/values.*.yaml
 /hack/cloud-config.yaml
+/hack/token_secret.txt
 /hack/kubeconfig
 /hack/kubeconfig*
 /hack/*.yaml

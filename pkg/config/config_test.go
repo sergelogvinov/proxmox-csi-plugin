@@ -156,6 +156,32 @@ clusters:
 			},
 		},
 		{
+			msg: "valid config with one cluster and secret_file",
+			config: strings.NewReader(`
+clusters:
+  - url: https://example.com
+    insecure: false
+    token_id: "ha"
+    token_secret_file: "/etc/proxmox-secrets/cluster1/token_secret"
+    region: cluster-1
+`),
+			expected: &providerconfig.ClustersConfig{
+				Features: providerconfig.ClustersFeatures{
+					Provider:       providerconfig.ProviderDefault,
+					ControllerVMID: providerconfig.DefaultControllerVMID,
+				},
+				Clusters: []*pxpool.ProxmoxCluster{
+					{
+						URL:             "https://example.com",
+						Insecure:        false,
+						TokenID:         "ha",
+						TokenSecretFile: "/etc/proxmox-secrets/cluster1/token_secret",
+						Region:          "cluster-1",
+					},
+				},
+			},
+		},
+		{
 			msg: "provider capmox",
 			config: strings.NewReader(`
 features:
