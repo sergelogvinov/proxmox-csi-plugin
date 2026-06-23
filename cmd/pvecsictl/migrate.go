@@ -86,6 +86,10 @@ func (c *migrateCmd) runMigration(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to get resources: %v", err)
 	}
 
+	if kubePV.Spec.CSI == nil || kubePV.Spec.CSI.Driver != csi.DriverName {
+		return fmt.Errorf("persistentvolume %s is not provisioned by Proxmox CSI driver", kubePV.Name)
+	}
+
 	vol, err := volume.NewVolumeFromVolumeID(kubePV.Spec.CSI.VolumeHandle)
 	if err != nil {
 		return fmt.Errorf("failed to parse volume ID: %v", err)
@@ -141,7 +145,7 @@ func (c *migrateCmd) runMigration(cmd *cobra.Command, args []string) error {
 
 			logger.Infof("cordoning nodes: %s", strings.Join(cordonedNodes, ","))
 
-			if _, err = tools.CondonNodes(ctx, c.kclient, cordonedNodes); err != nil {
+			if cordonedNodes, err = tools.CondonNodes(ctx, c.kclient, cordonedNodes); err != nil {
 				return fmt.Errorf("failed to cordon nodes: %v", err)
 			}
 
