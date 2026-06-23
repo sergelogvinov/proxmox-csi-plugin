@@ -67,6 +67,8 @@ func replacePVTopology(
 	newPVC.ObjectMeta.ResourceVersion = ""
 	delete(newPVC.ObjectMeta.Annotations, csi.DriverName+"/migrate")
 	delete(newPVC.ObjectMeta.Annotations, csi.DriverName+"/migrate-node")
+	newPVC.ObjectMeta.DeletionTimestamp = nil
+	newPVC.ObjectMeta.DeletionGracePeriodSeconds = nil
 	newPVC.Status = corev1.PersistentVolumeClaimStatus{}
 	newPVC.Spec.Resources.Requests = corev1.ResourceList{
 		corev1.ResourceStorage: pvc.Status.Capacity[corev1.ResourceStorage],
@@ -77,6 +79,8 @@ func replacePVTopology(
 	newPV.ObjectMeta.ResourceVersion = ""
 	delete(newPV.ObjectMeta.Annotations, csi.DriverName+"/migrate")
 	delete(newPV.ObjectMeta.Annotations, csi.DriverName+"/migrate-node")
+	newPV.ObjectMeta.DeletionTimestamp = nil
+	newPV.ObjectMeta.DeletionGracePeriodSeconds = nil
 	newPV.Spec.ClaimRef = nil
 	newPV.Status = corev1.PersistentVolumeStatus{}
 	newPV.Spec.CSI.VolumeHandle = volume.NewVolume(vol.Region(), node, vol.Storage(), vol.Disk()).VolumeID()
