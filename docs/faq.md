@@ -57,6 +57,18 @@ spec:
 
 The disk name is `vm-100-disk-1`, and the storage class name is `proxmox-zfs`.
 
+## Device is not found error
+
+In rare cases, you may see the following error in the pod events:
+
+```shell
+MountVolume.MountDevice failed for volume "pvc-a5aed967-e96a-482a-a12f-212f81b9a1f8":
+rpc error: code = InvalidArgument desc = device /dev/disk/by-id/wwn-0x5056432d49443032 is not found
+```
+
+This error occurs in some Intel architectures with SCSI controller `VirtIO SCSI Single`, and the disk is not visible in Linux.
+The solution is to change the SCSI controller to `VirtIO SCSI` in the Proxmox VM configuration.
+
 ## How to change encrypted disk secret key?
 
 The secret key cannot be change through kubernetes API, but you can use the following instructions.
