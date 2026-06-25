@@ -445,8 +445,17 @@ func (d *ControllerService) DeleteVolume(ctx context.Context, request *csi.Delet
 		return nil, err
 	}
 
+	node := vol.Node()
+	if node == "" {
+		if node, err = getNodeForVolume(ctx, cl, vol); err != nil {
+			klog.ErrorS(err, "DeleteVolume: failed to get node for volume", "cluster", vol.Cluster(), "volumeID", vol.VolumeID())
+
+			return nil, status.Error(codes.Internal, fmt.Sprintf("failed to get node for volume: %s, %v", vol.VolumeID(), err))
+		}
+	}
+
 	mc := metrics.NewMetricContext("deleteVolume")
-	if err := cl.DeleteVMDisk(ctx, vol.Node(), vol.Storage(), vol.Disk()); mc.ObserveRequest(err) != nil {
+	if err := cl.DeleteVMDisk(ctx, node, vol.Storage(), vol.Disk()); mc.ObserveRequest(err) != nil {
 		klog.ErrorS(err, "DeleteVolume: failed to delete volume", "cluster", vol.Cluster(), "volumeID", vol.VolumeID())
 
 		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to delete volume: %s, %v", vol.VolumeID(), err))
@@ -783,6 +792,19 @@ func (d *ControllerService) CreateSnapshot(ctx context.Context, request *csi.Cre
 		klog.ErrorS(err, "CreateSnapshot: unsupported storage type for snapshot", "cluster", vol.Cluster(), "storageID", vol.Storage(), "storageType", storageConfig.Type)
 
 		return nil, err
+
+	case "rbd":
+		err = status.Error(codes.Internal, "storage type rbd(ceph) does not support snapshot")
+		klog.ErrorS(err, "CreateSnapshot: unsupported storage type for snapshot", "cluster", vol.Cluster(), "storageID", vol.Storage(), "storageType", storageConfig.Type)
+
+		return nil, err
+	}
+
+	if storageConfig.Shared == 1 {
+		err = status.Error(codes.Internal, "shared storage does not support snapshot")
+		klog.ErrorS(err, "CreateSnapshot: unsupported storage type for snapshot", "cluster", vol.Cluster(), "storageID", vol.Storage(), "storageType", storageConfig.Type)
+
+		return nil, err
 	}
 
 	_, err = d.checkVolume(ctx, vol)
@@ -790,6 +812,17 @@ func (d *ControllerService) CreateSnapshot(ctx context.Context, request *csi.Cre
 		klog.ErrorS(err, "CreateSnapshot: failed to check volume", "cluster", vol.Cluster(), "volumeID", vol.VolumeID())
 
 		return nil, err
+	}
+
+	if vol.Node() == "" {
+		node, err := getNodeForVolume(ctx, cl, vol)
+		if err != nil {
+			klog.ErrorS(err, "CreateSnapshot: failed to get node for volume", "cluster", vol.Cluster(), "volumeID", vol.VolumeID())
+
+			return nil, status.Error(codes.Internal, fmt.Sprintf("failed to get node for volume: %s, %v", vol.VolumeID(), err))
+		}
+
+		vol.SetNode(node)
 	}
 
 	snapshotID := vol.CopyVolume(fmt.Sprintf("vm-%d-%s", d.vmID, name))
@@ -808,7 +841,7 @@ func (d *ControllerService) CreateSnapshot(ctx context.Context, request *csi.Cre
 		snapshotID.SetZone(params["zone"])
 	}
 
-	klog.V(5).InfoS("CreateSnapshot", "storageConfig", storageConfig, "snapshotID", snapshotID.VolumeID(), "params", params)
+	klog.V(5).InfoS("CreateSnapshot", "storageConfig", storageConfig, "volumeID", vol.VolumeID(), "snapshotID", snapshotID.VolumeID(), "params", params)
 
 	size, err := getVolumeSize(ctx, cl, snapshotID)
 	if err != nil {
@@ -875,8 +908,17 @@ func (d *ControllerService) DeleteSnapshot(ctx context.Context, request *csi.Del
 		return nil, err
 	}
 
+	node := vol.Node()
+	if node == "" {
+		if node, err = getNodeForVolume(ctx, cl, vol); err != nil {
+			klog.ErrorS(err, "DeleteSnapshot: failed to get node for volume", "cluster", vol.Cluster(), "volumeID", vol.VolumeID())
+
+			return nil, status.Error(codes.Internal, fmt.Sprintf("failed to get node for volume: %s, %v", vol.VolumeID(), err))
+		}
+	}
+
 	mc := metrics.NewMetricContext("deleteVolume")
-	if err := cl.DeleteVMDisk(ctx, vol.Node(), vol.Storage(), vol.Disk()); mc.ObserveRequest(err) != nil {
+	if err := cl.DeleteVMDisk(ctx, node, vol.Storage(), vol.Disk()); mc.ObserveRequest(err) != nil {
 		klog.ErrorS(err, "DeleteSnapshot: failed to delete volume", "cluster", vol.Cluster(), "volumeName", vol.Disk())
 
 		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to delete volume: %s", vol.Disk()))
