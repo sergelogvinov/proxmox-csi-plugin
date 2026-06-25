@@ -5,6 +5,15 @@
 
 * enable support for capmox ([6145c7d](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/6145c7d91cfc47c131ac453e2a90a915e5694b2b))
 
+## [0.19.1](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.19.0...v0.19.1) (2026-06-25)
+
+
+### Bug Fixes
+
+* goreleaser cosign signing ([57e9907](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/57e9907502ac9da137f97adda18bb0f11a5bc381))
+* handle shared volumes ([ba9306c](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/ba9306c866d93f6f811d943a1acee3b5ad3cf848))
+* pvc migration ([51cf245](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/51cf245ab7e824e3c536e7d71b90659f0b4e7da7))
+
 ## [0.19.0](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.18.1...v0.19.0) (2026-06-19)
 
 
