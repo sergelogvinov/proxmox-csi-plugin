@@ -149,7 +149,7 @@ func (c *renameCmd) runRename(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// nolint: dupl
+// nolint: dupl,goconst
 func (c *renameCmd) renameValidate(cmd *cobra.Command, _ []string) error {
 	flags := cmd.Flags()
 

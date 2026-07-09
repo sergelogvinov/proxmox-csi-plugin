@@ -28,6 +28,7 @@ import (
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/kubernetes-csi/csi-lib-utils/protosanitizer"
 	"github.com/patrickmn/go-cache"
+	"github.com/siderolabs/go-retry/retry"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -358,7 +359,20 @@ func (d *ControllerService) CreateVolume(ctx context.Context, request *csi.Creat
 			}
 		}
 
-		size, err = getVolumeSize(ctx, cl, vol)
+		err := retry.Constant(TaskTimeout*time.Second, retry.WithUnits(TaskStatusCheckInterval*time.Second)).RetryWithContext(ctx, func(ctx context.Context) error {
+			size, err = getVolumeSize(ctx, cl, vol)
+			if err != nil {
+				if err.Error() == ErrorNotFound {
+					klog.V(5).InfoS("CreateVolume: failed to get volume size, retrying", "cluster", region, "volumeID", vol.VolumeID())
+
+					return retry.ExpectedError(err)
+				}
+
+				return fmt.Errorf("failed to get volume size: %v", err)
+			}
+
+			return nil
+		})
 		if err != nil {
 			klog.ErrorS(err, "CreateVolume: failed to get volume size after creation", "cluster", region, "volumeID", vol.VolumeID())
 

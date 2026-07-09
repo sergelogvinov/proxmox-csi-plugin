@@ -57,12 +57,10 @@ linters:
     - gomodguard
 
     # temporarily disabled linters
-    - copyloopvar
     - intrange
     - noinlineerr
     - noctx
     - modernize
-    - goconst
   settings:
     wsl_v5:
       allow-first-in-block: true
@@ -88,7 +86,7 @@ linters:
       min-complexity: 30
     gomoddirectives:
       replace-local: true
-      replace-allow-list: [ github.com/luthermonson/go-proxmox ]
+      replace-allow-list: [github.com/luthermonson/go-proxmox]
       retract-allow-no-explanation: false
       exclude-forbidden: true
     lll:
@@ -122,6 +120,10 @@ linters:
   exclusions:
     rules:
       - path: _test\.go
+        linters:
+          - dupl
+          - goconst
+      - path: test/cluster/
         linters:
           - dupl
           - goconst

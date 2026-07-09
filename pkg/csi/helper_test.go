@@ -215,8 +215,6 @@ func TestRoundUpSizeBytes(t *testing.T) {
 	}
 
 	for _, testCase := range tests {
-		testCase := testCase
-
 		t.Run(fmt.Sprint(testCase.msg), func(t *testing.T) {
 			t.Parallel()
 

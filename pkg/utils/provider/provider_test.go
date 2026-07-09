@@ -49,8 +49,6 @@ func TestGetProviderID(t *testing.T) {
 	}
 
 	for _, testCase := range tests {
-		testCase := testCase
-
 		t.Run(fmt.Sprint(testCase.msg), func(t *testing.T) {
 			t.Parallel()
 
@@ -108,8 +106,6 @@ func TestGetVmID(t *testing.T) {
 	}
 
 	for _, testCase := range tests {
-		testCase := testCase
-
 		t.Run(fmt.Sprint(testCase.msg), func(t *testing.T) {
 			t.Parallel()
 
@@ -172,8 +168,6 @@ func TestParseProviderID(t *testing.T) {
 	}
 
 	for _, testCase := range tests {
-		testCase := testCase
-
 		t.Run(fmt.Sprint(testCase.msg), func(t *testing.T) {
 			t.Parallel()
 

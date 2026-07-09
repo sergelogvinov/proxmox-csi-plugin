@@ -198,7 +198,7 @@ func (c *swapCmd) runSwap(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// nolint: dupl
+// nolint: dupl,goconst
 func (c *swapCmd) swapValidate(cmd *cobra.Command, _ []string) error {
 	flags := cmd.Flags()
 
