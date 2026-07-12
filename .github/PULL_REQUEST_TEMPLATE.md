@@ -19,6 +19,7 @@ Please use the following checklist:
 - [ ] you included tests (if applicable)
 - [ ] you ran conformance (`make conformance`)
 - [ ] you linted your code (`make lint`)
-- [ ] you linted your code (`make unit`)
+- [ ] you ran unit tests (`make unit`)
+- [ ] I disclosed AI usage honestly (if applicable)
 
 > See `make help` for a description of the available targets.
