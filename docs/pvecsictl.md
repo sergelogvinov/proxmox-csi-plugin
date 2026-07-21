@@ -48,12 +48,30 @@ Usage:
   pvecsictl [command]
 
 Available Commands:
+  clean       List Proxmox volumes and check if they exist in Kubernetes PVs
   migrate     Migrate data from one Proxmox node to another
   rename      Rename PersistentVolumeClaim
   swap        Swap PersistentVolumes between two PersistentVolumeClaims
 ```
 
 ## Commands
+
+### Clean
+
+List all Proxmox volumes in the specified storage and check if they exist in Kubernetes PersistentVolumes.
+
+```shell
+pvecsictl clean --config=clusters.yaml storage-ID proxmox-node
+```
+
+Example output:
+
+```shell
+$ pvecsictl clean --config=clusters.yaml data worker-1
+Found unused volume vm-9999-pvc-5901c1d7-395f-4730-b75a-f971b26d12d2 with size 50Gi on storage data on region homelab
+Found unused volume vm-9999-pvc-5bbb49f6-0789-4323-9ac3-d87f1c0e491e with size 50Gi on storage data on region homelab
+Found unused volume vm-9999-pvc-a7aae4d6-36bd-4fc6-83d2-55c0aa26f45a with size 1Gi on storage data on region homelab
+```
 
 ### Migrate
 
