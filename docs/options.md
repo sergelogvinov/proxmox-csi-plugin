@@ -35,6 +35,7 @@ parameters:
 
   ## Optional: Proxmox csi options
   cache: directsync|none|writeback|writethrough
+  discard: on|ignore
   ssd: "true|false"
 
   ## Optional: Proxmox disk speed limit
@@ -86,6 +87,11 @@ parameters:
   ## Optional: Backup disk with VM
   backup: "true"
 
+  ## Optional: TRIM/UNMAP pass-through
+  ## On a running VM, Proxmox queues this change as pending, so UNMAP keeps
+  ## being ignored until the VM is next started.
+  discard: "on"
+
   ## Optional: Zone replication
   replicateSchedule: "*/30"
   replicateZones: "rnd-1,rnd-2"
@@ -112,6 +118,7 @@ metadata:
 * `storageFormat` - disk format: `raw`, `qcow2` [Official documentation](https://pve.proxmox.com/wiki/Storage)
 
 * `cache` - qemu cache param: `directsync`, `none`, `writeback`, `writethrough` [Official documentation](https://pve.proxmox.com/wiki/Performance_Tweaks)
+* `discard` - qemu discard param: `on`, `ignore`. Enables TRIM/UNMAP pass-through so freed blocks are released by the underlying storage. Useful on rotational disks, where `ssd` would be inaccurate. Defaults to `on` when `ssd` is true, an explicit value is never overridden. When set through a `VolumeAttributesClass` on a running VM, Proxmox queues the change as pending and qemu keeps ignoring UNMAP until the VM is next started.
 * `ssd` - set true if SSD/NVME disk, which enables both SSD emulation *and* Discard options in the attached Proxmox disk
 
 * `diskIOPS` - maximum r/w I/O in operations per second

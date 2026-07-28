@@ -62,6 +62,34 @@ func Test_ExtractAndDefaultParameters(t *testing.T) {
 			},
 		},
 		{
+			msg: "discard without ssd emulation",
+			params: map[string]string{
+				csi.StorageIDKey:      "local-lvm",
+				csi.StorageDiscardKey: "on",
+			},
+			storage: csi.StorageParameters{
+				StorageID: "local-lvm",
+				Backup:    ptr.Ptr(false),
+				IOThread:  true,
+				Discard:   "on",
+			},
+		},
+		{
+			msg: "explicit discard is not overridden by ssd",
+			params: map[string]string{
+				csi.StorageIDKey:      "local-lvm",
+				csi.StorageSSDKey:     "true",
+				csi.StorageDiscardKey: "ignore",
+			},
+			storage: csi.StorageParameters{
+				StorageID: "local-lvm",
+				Backup:    ptr.Ptr(false),
+				IOThread:  true,
+				SSD:       ptr.Ptr(true),
+				Discard:   "ignore",
+			},
+		},
+		{
 			msg: "disk limits",
 			params: map[string]string{
 				csi.StorageIDKey:       "local-lvm",
@@ -292,6 +320,19 @@ func Test_MergeMap(t *testing.T) {
 				"storage":   "lvm",
 				"ssd":       "true",
 				"blockSize": "1024",
+			},
+		},
+		{
+			msg: "Discard param",
+			storage: csi.ModifyVolumeParameters{
+				Discard: ptr.Ptr("on"),
+			},
+			params: map[string]string{
+				"storage": "lvm",
+			},
+			expected: map[string]string{
+				"discard": "on",
+				"storage": "lvm",
 			},
 		},
 		{
