@@ -32,6 +32,9 @@ const (
 	StorageFormatKey = "storageFormat"
 	// StorageCacheKey is the cache type, can be one of "directsync", "none", "writeback", "writethrough"
 	StorageCacheKey = "cache"
+	// StorageDiscardKey enables TRIM/UNMAP pass-through, can be one of "on", "ignore".
+	// Setting ssd implies "on", this key allows it without SSD emulation.
+	StorageDiscardKey = "discard"
 	// StorageSSDKey is it ssd disk
 	StorageSSDKey = "ssd"
 
@@ -58,7 +61,7 @@ type StorageParameters struct {
 	AIO            string `json:"aio,omitempty"            cfg:"aio"`
 	Backup         *bool  `json:"backup,omitempty"         cfg:"backup"`
 	Cache          string `json:"cache,omitempty"          cfg:"cache"`
-	Discard        string `json:"-"                        cfg:"discard,omitempty"`
+	Discard        string `json:"discard,omitempty"        cfg:"discard,omitempty"`
 	IOThread       bool   `json:"iothread"                 cfg:"iothread,omitempty"`
 	IopsRead       *int   `json:"-"                        cfg:"iops_rd,omitempty"`
 	IopsWrite      *int   `json:"-"                        cfg:"iops_wr,omitempty"`
@@ -84,13 +87,14 @@ type StorageParameters struct {
 // json - tags are used to map the struct to the Kubernetes resource
 // cfg  - tags are used to map the struct to the Proxmox API
 type ModifyVolumeParameters struct {
-	Backup         *bool `json:"backup,omitempty"         cfg:"backup"`
-	IopsRead       *int  `json:"-"                        cfg:"iops_rd,omitempty"`
-	IopsWrite      *int  `json:"-"                        cfg:"iops_wr,omitempty"`
-	ReadSpeedMbps  *int  `json:"-"                        cfg:"mbps_rd,omitempty"`
-	WriteSpeedMbps *int  `json:"-"                        cfg:"mbps_wr,omitempty"`
-	Iops           *int  `json:"diskIOPS,omitempty"`
-	SpeedMbps      *int  `json:"diskMBps,omitempty"`
+	Backup         *bool   `json:"backup,omitempty"         cfg:"backup"`
+	Discard        *string `json:"discard,omitempty"        cfg:"discard,omitempty"`
+	IopsRead       *int    `json:"-"                        cfg:"iops_rd,omitempty"`
+	IopsWrite      *int    `json:"-"                        cfg:"iops_wr,omitempty"`
+	ReadSpeedMbps  *int    `json:"-"                        cfg:"mbps_rd,omitempty"`
+	WriteSpeedMbps *int    `json:"-"                        cfg:"mbps_wr,omitempty"`
+	Iops           *int    `json:"diskIOPS,omitempty"`
+	SpeedMbps      *int    `json:"diskMBps,omitempty"`
 
 	ReplicateSchedule string `json:"replicateSchedule,omitempty"`
 }
@@ -108,7 +112,8 @@ func ExtractParameters(parameters map[string]string) (StorageParameters, error) 
 		return p, err
 	}
 
-	if p.SSD != nil && *p.SSD {
+	// SSD emulation implies discard, unless discard was set explicitly.
+	if p.Discard == "" && p.SSD != nil && *p.SSD {
 		p.Discard = "on"
 	}
 
