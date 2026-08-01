@@ -10,7 +10,7 @@ require (
 	github.com/container-storage-interface/spec v1.12.0
 	github.com/digitalocean/go-smbios v0.0.0-20180907143718-390a4f403a8e
 	github.com/golang/protobuf v1.5.4
-	github.com/jarcoal/httpmock v1.4.1
+	github.com/jarcoal/httpmock v1.4.2
 	github.com/kubernetes-csi/csi-lib-utils v0.24.0
 	github.com/luthermonson/go-proxmox v0.5.1
 	github.com/patrickmn/go-cache v2.1.0+incompatible
