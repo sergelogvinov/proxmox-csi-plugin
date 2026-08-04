@@ -418,8 +418,14 @@ func attachVolume(ctx context.Context, cl *goproxmox.APIClient, id int, vol *vol
 					return nil, fmt.Errorf("unable to attach disk: %v, options=%+v", err, vmOptions)
 				}
 
-				if err := task.WaitFor(ctx, 5*60); err != nil {
-					return nil, fmt.Errorf("unable to attach virtual machine disk: %w", err)
+				if task != nil {
+					if err := task.WaitFor(ctx, 5*60); err != nil {
+						return nil, fmt.Errorf("unable to attach virtual machine disk: %w", err)
+					}
+
+					if task.IsFailed {
+						return nil, fmt.Errorf("unable to attach virtual machine disk: %s", task.ExitStatus)
+					}
 				}
 
 				if err := waitAttachVolume(ctx, cl, id, vol); err != nil {
@@ -460,6 +466,10 @@ func detachVolume(ctx context.Context, cl *goproxmox.APIClient, id int, vol *vol
 		if task != nil {
 			if err := task.WaitFor(ctx, 5*60); err != nil {
 				return fmt.Errorf("unable to detach virtual machine disk: %w", err)
+			}
+
+			if task.IsFailed {
+				return fmt.Errorf("unable to detach virtual machine disk: %s", task.ExitStatus)
 			}
 		}
 	}
