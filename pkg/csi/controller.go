@@ -233,6 +233,8 @@ func (d *ControllerService) CreateVolume(ctx context.Context, request *csi.Creat
 		return nil, status.Errorf(codes.Internal, "failed to get proxmox storage config: %v", err)
 	}
 
+	klog.V(5).InfoS("CreateVolume: storage config", "storage", storageConfig)
+
 	topology := []*csi.Topology{
 		{
 			Segments: map[string]string{
@@ -307,6 +309,12 @@ func (d *ControllerService) CreateVolume(ctx context.Context, request *csi.Creat
 	}
 
 	format := ""
+
+	// LVM Snapshots as Volume-Chain are a technology preview.
+	if storageConfig.PluginType == "lvm" && params.StorageFormat == "qcow2" {
+		format = params.StorageFormat
+	}
+
 	if getStorageLevel(storageConfig) == "file" {
 		format = "raw"
 		if params.StorageFormat == "qcow2" {
