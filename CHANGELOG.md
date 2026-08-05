@@ -5,6 +5,21 @@
 
 * enable support for capmox ([6145c7d](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/6145c7d91cfc47c131ac453e2a90a915e5694b2b))
 
+## [0.20.0](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.19.1...v0.20.0) (2026-08-05)
+
+
+### Features
+
+* add pvecsictl clean command ([8a19f5e](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/8a19f5e6aeb8120c4e46be3e394eee375e47793c))
+* allow discard to be set without ssd emulation ([12d725c](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/12d725c9a1f30810789c2b80d8c39e20995e3df7))
+
+
+### Bug Fixes
+
+* support lvm volume chains ([f0a9004](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/f0a900426f7aec29f49711ac2c7ce76f1c2a8b66))
+* verify volume attachment status ([6d4a79a](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/6d4a79ab2579c8484c5170294a3f6dbfb9ccdd3c))
+* volume size check ([e8c0b7d](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/e8c0b7d3b6e0ca1d4eb555598d7ea0ae7dfac1dd))
+
 ## [0.19.1](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.19.0...v0.19.1) (2026-06-25)
 
 
