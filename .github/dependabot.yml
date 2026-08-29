@@ -1,5 +1,4 @@
 ---
-
 # See https://docs.github.com/en/github/administering-a-repository/configuration-options-for-dependency-updates
 
 version: 2
@@ -46,5 +45,21 @@ updates:
     schedule:
       interval: "monthly"
       day: "monday"
-      time: "07:00"
+      time: "08:10"
       timezone: "UTC"
+
+  - package-ecosystem: "docker-compose"
+    directory: "/"
+    commit-message:
+      prefix: "chore:"
+    open-pull-requests-limit: 8
+    rebase-strategy: disabled
+    schedule:
+      interval: "monthly"
+      day: "monday"
+      time: "08:10"
+      timezone: "UTC"
+    groups:
+      sig-storage:
+        patterns:
+          - "registry.k8s.io/sig-storage/*"
