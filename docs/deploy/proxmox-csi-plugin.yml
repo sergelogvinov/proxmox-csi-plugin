@@ -8,6 +8,7 @@ metadata:
     pod-security.kubernetes.io/enforce: privileged
     pod-security.kubernetes.io/audit: baseline
     pod-security.kubernetes.io/warn: baseline
+
 ---
 # Source: proxmox-csi-plugin/templates/serviceaccount.yaml
 apiVersion: v1
@@ -16,11 +17,12 @@ metadata:
   name: proxmox-csi-plugin-controller
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.5.10
+    helm.sh/chart: proxmox-csi-plugin-0.5.11
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
     app.kubernetes.io/version: "v0.20.0"
     app.kubernetes.io/managed-by: Helm
+
 ---
 # Source: proxmox-csi-plugin/templates/serviceaccount.yaml
 apiVersion: v1
@@ -29,11 +31,12 @@ metadata:
   name: proxmox-csi-plugin-node
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.5.10
+    helm.sh/chart: proxmox-csi-plugin-0.5.11
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
     app.kubernetes.io/version: "v0.20.0"
     app.kubernetes.io/managed-by: Helm
+
 ---
 # Source: proxmox-csi-plugin/templates/storageclass.yaml
 apiVersion: storage.k8s.io/v1
@@ -47,6 +50,7 @@ reclaimPolicy: Delete
 parameters:
   csi.storage.k8s.io/fstype: xfs
   storage: data
+
 ---
 # Source: proxmox-csi-plugin/templates/storageclass.yaml
 apiVersion: storage.k8s.io/v1
@@ -61,6 +65,7 @@ parameters:
   csi.storage.k8s.io/fstype: ext4
   ssd: "true"
   storage: data
+
 ---
 # Source: proxmox-csi-plugin/templates/controller-clusterrole.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -69,7 +74,7 @@ metadata:
   name: proxmox-csi-plugin-controller
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.5.10
+    helm.sh/chart: proxmox-csi-plugin-0.5.11
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
     app.kubernetes.io/version: "v0.20.0"
@@ -111,6 +116,7 @@ rules:
   - apiGroups: ["snapshot.storage.k8s.io"]
     resources: ["volumesnapshots"]
     verbs: ["get", "list"]
+
 ---
 # Source: proxmox-csi-plugin/templates/node-clusterrole.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -119,7 +125,7 @@ metadata:
   name: proxmox-csi-plugin-node
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.5.10
+    helm.sh/chart: proxmox-csi-plugin-0.5.11
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
     app.kubernetes.io/version: "v0.20.0"
@@ -131,6 +137,7 @@ rules:
       - nodes
     verbs:
       - get
+
 ---
 # Source: proxmox-csi-plugin/templates/controller-rolebinding.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -138,7 +145,7 @@ kind: ClusterRoleBinding
 metadata:
   name: proxmox-csi-plugin-controller
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.5.10
+    helm.sh/chart: proxmox-csi-plugin-0.5.11
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
     app.kubernetes.io/version: "v0.20.0"
@@ -151,6 +158,7 @@ subjects:
   - kind: ServiceAccount
     name: proxmox-csi-plugin-controller
     namespace: csi-proxmox
+
 ---
 # Source: proxmox-csi-plugin/templates/node-rolebinding.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -165,6 +173,7 @@ subjects:
   - kind: ServiceAccount
     name: proxmox-csi-plugin-node
     namespace: csi-proxmox
+
 ---
 # Source: proxmox-csi-plugin/templates/controller-role.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -173,7 +182,7 @@ metadata:
   name: proxmox-csi-plugin-controller
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.5.10
+    helm.sh/chart: proxmox-csi-plugin-0.5.11
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
     app.kubernetes.io/version: "v0.20.0"
@@ -192,6 +201,7 @@ rules:
   - apiGroups: ["apps"]
     resources: ["replicasets"]
     verbs: ["get"]
+
 ---
 # Source: proxmox-csi-plugin/templates/controller-rolebinding.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -200,7 +210,7 @@ metadata:
   name: proxmox-csi-plugin-controller
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.5.10
+    helm.sh/chart: proxmox-csi-plugin-0.5.11
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
     app.kubernetes.io/version: "v0.20.0"
@@ -213,6 +223,7 @@ subjects:
   - kind: ServiceAccount
     name: proxmox-csi-plugin-controller
     namespace: csi-proxmox
+
 ---
 # Source: proxmox-csi-plugin/templates/node-deployment.yaml
 apiVersion: apps/v1
@@ -221,7 +232,7 @@ metadata:
   name: proxmox-csi-plugin-node
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.5.10
+    helm.sh/chart: proxmox-csi-plugin-0.5.11
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
     app.kubernetes.io/version: "v0.20.0"
@@ -292,7 +303,7 @@ spec:
             readOnlyRootFilesystem: true
             seccompProfile:
               type: RuntimeDefault
-          image: "registry.k8s.io/sig-storage/csi-node-driver-registrar:v2.15.0"
+          image: "registry.k8s.io/sig-storage/csi-node-driver-registrar:v2.17.0"
           imagePullPolicy: IfNotPresent
           args:
             - "-v=5"
@@ -316,7 +327,7 @@ spec:
             readOnlyRootFilesystem: true
             seccompProfile:
               type: RuntimeDefault
-          image: "registry.k8s.io/sig-storage/livenessprobe:v2.16.0"
+          image: "registry.k8s.io/sig-storage/livenessprobe:v2.19.0"
           imagePullPolicy: IfNotPresent
           args:
             - "-v=5"
@@ -359,6 +370,7 @@ spec:
         - effect: NoSchedule
           key: node.kubernetes.io/disk-pressure
           operator: Exists
+
 ---
 # Source: proxmox-csi-plugin/templates/controller-deployment.yaml
 apiVersion: apps/v1
@@ -367,7 +379,7 @@ metadata:
   name: proxmox-csi-plugin-controller
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.5.10
+    helm.sh/chart: proxmox-csi-plugin-0.5.11
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
     app.kubernetes.io/version: "v0.20.0"
@@ -440,7 +452,7 @@ spec:
             readOnlyRootFilesystem: true
             seccompProfile:
               type: RuntimeDefault
-          image: "registry.k8s.io/sig-storage/csi-attacher:v4.10.0"
+          image: "registry.k8s.io/sig-storage/csi-attacher:v4.12.0"
           imagePullPolicy: IfNotPresent
           args:
             - "-v=5"
@@ -464,7 +476,7 @@ spec:
             readOnlyRootFilesystem: true
             seccompProfile:
               type: RuntimeDefault
-          image: "registry.k8s.io/sig-storage/csi-provisioner:v5.3.0"
+          image: "registry.k8s.io/sig-storage/csi-provisioner:v6.3.0"
           imagePullPolicy: IfNotPresent
           args:
             - "-v=5"
@@ -499,7 +511,7 @@ spec:
             readOnlyRootFilesystem: true
             seccompProfile:
               type: RuntimeDefault
-          image: "registry.k8s.io/sig-storage/csi-resizer:v1.14.0"
+          image: "registry.k8s.io/sig-storage/csi-resizer:v2.2.1"
           imagePullPolicy: IfNotPresent
           args:
             - "-v=5"
@@ -523,7 +535,7 @@ spec:
             readOnlyRootFilesystem: true
             seccompProfile:
               type: RuntimeDefault
-          image: "registry.k8s.io/sig-storage/livenessprobe:v2.16.0"
+          image: "registry.k8s.io/sig-storage/livenessprobe:v2.19.0"
           imagePullPolicy: IfNotPresent
           args:
             - "-v=5"
@@ -555,6 +567,7 @@ spec:
               app.kubernetes.io/name: proxmox-csi-plugin
               app.kubernetes.io/instance: proxmox-csi-plugin
               app.kubernetes.io/component: controller
+
 ---
 # Source: proxmox-csi-plugin/templates/csidriver.yaml
 apiVersion: storage.k8s.io/v1

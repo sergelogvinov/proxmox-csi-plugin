@@ -29,7 +29,8 @@ services:
         source: ../proxmox
         target: /proxmox
   csi-attacher:
-    image: registry.k8s.io/sig-storage/csi-attacher:v4.10.0
+    # https://github.com/kubernetes-csi/external-attacher
+    image: registry.k8s.io/sig-storage/csi-attacher:v4.12.0
     restart: always
     network_mode: "service:base"
     command:
@@ -47,7 +48,8 @@ services:
         source: ./hack
         target: /etc/kubernetes
   csi-resizer:
-    image: registry.k8s.io/sig-storage/csi-resizer:v2.0.0
+    # https://github.com/kubernetes-csi/external-resizer
+    image: registry.k8s.io/sig-storage/csi-resizer:v2.2.1
     restart: always
     network_mode: "service:base"
     command:
@@ -66,7 +68,8 @@ services:
         source: ./hack
         target: /etc/kubernetes
   csi-snapshotter:
-    image: registry.k8s.io/sig-storage/csi-snapshotter:v8.4.0
+    # https://github.com/kubernetes-csi/external-snapshotter
+    image: registry.k8s.io/sig-storage/csi-snapshotter:v8.6.0
     restart: always
     network_mode: "service:base"
     command:
@@ -83,7 +86,8 @@ services:
         source: ./hack
         target: /etc/kubernetes
   csi-provisioner:
-    image: registry.k8s.io/sig-storage/csi-provisioner:v6.0.0
+    # https://github.com/kubernetes-csi/external-provisioner
+    image: registry.k8s.io/sig-storage/csi-provisioner:v6.2.1
     restart: always
     network_mode: "service:base"
     command:
@@ -111,7 +115,7 @@ services:
         source: ./hack
         target: /etc/kubernetes
   # csi-node-driver-registrar:
-  #   image: registry.k8s.io/sig-storage/csi-node-driver-registrar:v2.14.0
+  #   image: registry.k8s.io/sig-storage/csi-node-driver-registrar:v2.17.0
   #   network_mode: "service:base"
   #   command:
   #     - "--v=5"

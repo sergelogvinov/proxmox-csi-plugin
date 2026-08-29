@@ -131,7 +131,7 @@ controller:
     image:
       repository: registry.k8s.io/sig-storage/csi-attacher
       pullPolicy: IfNotPresent
-      tag: v4.10.0
+      tag: v4.12.0
     # -- Attacher arguments.
     # example: --default-fstype=ext4
     args:
@@ -148,7 +148,7 @@ controller:
     image:
       repository: registry.k8s.io/sig-storage/csi-provisioner
       pullPolicy: IfNotPresent
-      tag: v5.3.0
+      tag: v6.3.0
     # -- Provisioner arguments.
     # example: --feature-gates=VolumeAttributesClass=true
     args:
@@ -165,7 +165,7 @@ controller:
     image:
       repository: registry.k8s.io/sig-storage/csi-resizer
       pullPolicy: IfNotPresent
-      tag: v1.14.0
+      tag: v2.2.1
     # -- Resizer arguments.
     # example: --feature-gates=VolumeAttributesClass=true
     args: []
@@ -182,7 +182,7 @@ controller:
     image:
       repository: registry.k8s.io/sig-storage/csi-snapshotter
       pullPolicy: IfNotPresent
-      tag: v8.3.0
+      tag: v8.6.0
     # -- Snapshotter arguments.
     # example: --feature-gates=CSIVolumeGroupSnapshot=true
     args: []
@@ -210,7 +210,7 @@ node:
     image:
       repository: registry.k8s.io/sig-storage/csi-node-driver-registrar
       pullPolicy: IfNotPresent
-      tag: v2.15.0
+      tag: v2.17.0
     # -- Driver registrar arguments.
     # example: --timeout=60s
     args: []
@@ -251,7 +251,7 @@ livenessprobe:
   image:
     repository: registry.k8s.io/sig-storage/livenessprobe
     pullPolicy: IfNotPresent
-    tag: v2.16.0
+    tag: v2.19.0
   # -- Failure threshold for livenessProbe
   failureThreshold: 5
   # -- Initial delay seconds for livenessProbe
