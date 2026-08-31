@@ -17,7 +17,7 @@ metadata:
   name: proxmox-csi-plugin-controller
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.5.11
+    helm.sh/chart: proxmox-csi-plugin-0.5.12
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
     app.kubernetes.io/version: "v0.20.0"
@@ -31,7 +31,7 @@ metadata:
   name: proxmox-csi-plugin-node
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.5.11
+    helm.sh/chart: proxmox-csi-plugin-0.5.12
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
     app.kubernetes.io/version: "v0.20.0"
@@ -74,7 +74,7 @@ metadata:
   name: proxmox-csi-plugin-controller
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.5.11
+    helm.sh/chart: proxmox-csi-plugin-0.5.12
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
     app.kubernetes.io/version: "v0.20.0"
@@ -115,7 +115,7 @@ rules:
 
   - apiGroups: ["snapshot.storage.k8s.io"]
     resources: ["volumesnapshots"]
-    verbs: ["get", "list"]
+    verbs: ["get", "list", "watch", "update"]
 
 ---
 # Source: proxmox-csi-plugin/templates/node-clusterrole.yaml
@@ -125,7 +125,7 @@ metadata:
   name: proxmox-csi-plugin-node
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.5.11
+    helm.sh/chart: proxmox-csi-plugin-0.5.12
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
     app.kubernetes.io/version: "v0.20.0"
@@ -145,7 +145,7 @@ kind: ClusterRoleBinding
 metadata:
   name: proxmox-csi-plugin-controller
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.5.11
+    helm.sh/chart: proxmox-csi-plugin-0.5.12
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
     app.kubernetes.io/version: "v0.20.0"
@@ -182,7 +182,7 @@ metadata:
   name: proxmox-csi-plugin-controller
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.5.11
+    helm.sh/chart: proxmox-csi-plugin-0.5.12
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
     app.kubernetes.io/version: "v0.20.0"
@@ -210,7 +210,7 @@ metadata:
   name: proxmox-csi-plugin-controller
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.5.11
+    helm.sh/chart: proxmox-csi-plugin-0.5.12
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
     app.kubernetes.io/version: "v0.20.0"
@@ -232,7 +232,7 @@ metadata:
   name: proxmox-csi-plugin-node
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.5.11
+    helm.sh/chart: proxmox-csi-plugin-0.5.12
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
     app.kubernetes.io/version: "v0.20.0"
@@ -379,7 +379,7 @@ metadata:
   name: proxmox-csi-plugin-controller
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.5.11
+    helm.sh/chart: proxmox-csi-plugin-0.5.12
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
     app.kubernetes.io/version: "v0.20.0"
