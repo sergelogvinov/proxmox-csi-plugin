@@ -1,0 +1,24 @@
+{
+    "$schema": "https://context7.com/schema/context7.json",
+    "projectTitle": "Proxmox CSI Plugin",
+    "description": "A CSI plugin for Proxmox that allows Kubernetes pods to access persistent volumes as block devices stored on the Proxmox side, supporting multi-cluster and topology features",
+    "excludeFolders": [
+        "cmd",
+        "hack",
+        "pkg",
+        "docs/cosign.md",
+        "docs/metrics.md",
+        "docs/release.md",
+        "docs/deploy"
+    ],
+    "excludeFiles": [
+        "AGENTS.md",
+        "CLAUDE.md",
+        "GEMINI.md",
+        "CONTRIBUTING.md",
+        "CODE_OF_CONDUCT.md",
+        "CHANGELOG.md",
+        "LICENSE",
+        "OWNERS"
+    ]
+}
