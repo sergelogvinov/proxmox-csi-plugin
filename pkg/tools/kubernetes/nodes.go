@@ -55,6 +55,10 @@ func CSINodes(ctx context.Context, kclient *clientkubernetes.Clientset, csiDrive
 }
 
 // CondonNodes condones the specified nodes.
+//
+// The list of nodes actually cordoned so far is returned even when an error
+// occurs part-way through, so callers can still uncordon exactly what was
+// changed instead of losing track of partial progress.
 func CondonNodes(ctx context.Context, kclient *clientkubernetes.Clientset, nodes []string) ([]string, error) {
 	cordonedNodes := []string{}
 	patch := []byte(`{"spec":{"unschedulable":true}}`)
@@ -62,13 +66,13 @@ func CondonNodes(ctx context.Context, kclient *clientkubernetes.Clientset, nodes
 	for _, node := range nodes {
 		nodeStatus, err := kclient.CoreV1().Nodes().Get(ctx, node, metav1.GetOptions{})
 		if err != nil {
-			return nil, fmt.Errorf("failed to get node status: %v", err)
+			return cordonedNodes, fmt.Errorf("failed to get node status: %v", err)
 		}
 
 		if !nodeStatus.Spec.Unschedulable {
 			_, err = kclient.CoreV1().Nodes().Patch(ctx, node, types.MergePatchType, patch, metav1.PatchOptions{})
 			if err != nil {
-				return nil, fmt.Errorf("failed to cordon node: %v", err)
+				return cordonedNodes, fmt.Errorf("failed to cordon node: %v", err)
 			}
 
 			cordonedNodes = append(cordonedNodes, node)

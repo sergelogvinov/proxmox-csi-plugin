@@ -20,12 +20,13 @@ package framework
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
 
-	goproxmox "github.com/sergelogvinov/go-proxmox"
+	proxmoxrest "github.com/sergelogvinov/go-proxmox-rest"
+	"github.com/sergelogvinov/go-proxmox-rest/cluster"
+	"github.com/sergelogvinov/go-proxmox-rest/cluster/replication"
 	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/config"
 	pxpool "github.com/sergelogvinov/proxmox-csi-plugin/pkg/proxmoxpool"
 	volume "github.com/sergelogvinov/proxmox-csi-plugin/pkg/utils/volume"
@@ -33,11 +34,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 )
-
-// scsiDeviceNamePrefix mirrors the unexported deviceNamePrefix in
-// pkg/csi/controller.go: every volume this driver attaches lands on a SCSI
-// bus slot, "scsiN".
-const scsiDeviceNamePrefix = "scsi"
 
 // NewProxmoxPool builds a ProxmoxPool from cfg.ProxmoxConfig (a
 // cloud-config.yaml path, the same format the driver's own controller
@@ -90,21 +86,45 @@ func VolumeDiskOptions(ctx context.Context, pool *pxpool.ProxmoxPool, node *core
 		return nil, fmt.Errorf("failed to get proxmox cluster client for region %s: %w", region, err)
 	}
 
-	vm, err := cl.GetVMConfig(ctx, vmID)
+	vmNode, err := findVMNode(ctx, cl, vmID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find proxmox node running vm %d (node %s): %w", vmID, node.Name, err)
+	}
+
+	vm, err := cl.Nodes(vmNode).Qemu().Config(ctx, vmID, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get config of vm %d (node %s): %w", vmID, node.Name, err)
 	}
 
-	for slot, raw := range vm.VirtualMachineConfig.MergeSCSIs() {
-		backingVolume, _, _ := strings.Cut(raw, ",")
-		if !strings.HasPrefix(slot, scsiDeviceNamePrefix) || backingVolume != vol.VolID() {
+	for _, drive := range vm.SCSI {
+		if drive.File != vol.VolID() {
 			continue
 		}
 
-		return parseDiskOptions(raw), nil
+		return parseDiskOptions(drive.String()), nil
 	}
 
 	return nil, fmt.Errorf("volume %s is not attached to vm %d (node %s)", vol.Disk(), vmID, node.Name)
+}
+
+// findVMNode resolves the Proxmox node a guest currently runs on from its
+// VMID, mirroring the unexported helper of the same name in
+// pkg/csi/utils.go.
+func findVMNode(ctx context.Context, cl *proxmoxrest.Client, vmid int) (string, error) {
+	resources, err := cl.Cluster().Resources().List(ctx, cluster.ListFilter{
+		Type:      cluster.ResourceTypeVM,
+		GuestType: "qemu",
+		VMID:      vmid,
+	})
+	if err != nil {
+		return "", err
+	}
+
+	if len(resources) == 0 {
+		return "", fmt.Errorf("virtual machine %d not found", vmid)
+	}
+
+	return resources[0].Node, nil
 }
 
 // parseDiskOptions parses a Proxmox disk config line, e.g.
@@ -122,13 +142,6 @@ func parseDiskOptions(raw string) map[string]string {
 	return opts
 }
 
-// ReplicationJob is the subset of a Proxmox cluster replication job config
-// (GET /cluster/replication) this suite inspects.
-type ReplicationJob struct {
-	ID     string `json:"id"`
-	Target string `json:"target"`
-}
-
 // WaitForReplicationJob polls Proxmox's /cluster/replication until a
 // replication job exists whose id has the "<vmID>-" prefix createReplication
 // (pkg/csi/utils.go) itself posts when wiring up a replicated disk, and
@@ -136,15 +149,14 @@ type ReplicationJob struct {
 // confirmation that zone replication (docs/options.md's replicate/
 // replicateZones StorageClass parameters) was actually configured, since
 // nothing about it is reflected on any Kubernetes object.
-func WaitForReplicationJob(ctx context.Context, cl *goproxmox.APIClient, vmID int, targetZone string, timeout time.Duration) (*ReplicationJob, error) {
-	var found *ReplicationJob
+func WaitForReplicationJob(ctx context.Context, cl *proxmoxrest.Client, vmID int, targetZone string, timeout time.Duration) (*replication.Job, error) {
+	var found *replication.Job
 
 	prefix := fmt.Sprintf("%d-", vmID)
 
 	err := wait.PollUntilContextTimeout(ctx, pollInterval, timeout, true, func(ctx context.Context) (bool, error) {
-		var jobs []ReplicationJob
-
-		if err := cl.Get(ctx, "/cluster/replication", &jobs); err != nil {
+		jobs, err := cl.Cluster().Replication().List(ctx)
+		if err != nil {
 			if isTransientError(err) {
 				return false, nil
 			}
@@ -173,11 +185,10 @@ func WaitForReplicationJob(ctx context.Context, cl *goproxmox.APIClient, vmID in
 // job with the given id remains - the real confirmation that
 // DeleteVolume's deleteReplication (pkg/csi/utils.go) actually tore down
 // the replication schedule, not just that the Kubernetes PV disappeared.
-func WaitForReplicationJobGone(ctx context.Context, cl *goproxmox.APIClient, jobID string, timeout time.Duration) error {
+func WaitForReplicationJobGone(ctx context.Context, cl *proxmoxrest.Client, jobID string, timeout time.Duration) error {
 	err := wait.PollUntilContextTimeout(ctx, pollInterval, timeout, true, func(ctx context.Context) (bool, error) {
-		var jobs []ReplicationJob
-
-		if err := cl.Get(ctx, "/cluster/replication", &jobs); err != nil {
+		jobs, err := cl.Cluster().Replication().List(ctx)
+		if err != nil {
 			if isTransientError(err) {
 				return false, nil
 			}
@@ -204,17 +215,21 @@ func WaitForReplicationJobGone(ctx context.Context, cl *goproxmox.APIClient, job
 // longer exists - the disk-owner "shadow" VM prepareReplication
 // (pkg/csi/utils.go) creates to hold a replicated disk, torn down by
 // deleteReplication alongside the replication job itself.
-func WaitForShadowVMGone(ctx context.Context, cl *goproxmox.APIClient, vmID int, timeout time.Duration) error {
+func WaitForShadowVMGone(ctx context.Context, cl *proxmoxrest.Client, vmID int, timeout time.Duration) error {
 	err := wait.PollUntilContextTimeout(ctx, pollInterval, timeout, true, func(ctx context.Context) (bool, error) {
-		_, err := cl.GetVMByID(ctx, uint64(vmID)) //nolint:gosec
+		resources, err := cl.Cluster().Resources().List(ctx, cluster.ListFilter{
+			Type:      cluster.ResourceTypeVM,
+			GuestType: "qemu",
+			VMID:      vmID,
+		})
 
 		switch {
-		case errors.Is(err, goproxmox.ErrVirtualMachineNotFound):
-			return true, nil
 		case isTransientError(err):
 			return false, nil
 		case err != nil:
 			return false, err
+		case len(resources) == 0:
+			return true, nil
 		}
 
 		return false, nil

@@ -8,7 +8,8 @@ before:
 
 dist: bin
 builds:
-  - dir: cmd/pvecsictl
+  - id: pvecsictl
+    dir: cmd/pvecsictl
     binary: pvecsictl-{{ .Os }}-{{ .Arch }}
     no_unique_dist_dir: true
     env:
@@ -42,31 +43,6 @@ signs:
 
 snapshot:
   version_template: edge
-
-# dockers:
-#   - use: buildx
-#     image_templates:
-#       - ghcr.io/sergelogvinov/pvecsictl:{{ .Version }}-amd64
-#     goos: linux
-#     goarch: amd64
-#     build_flag_templates:
-#       - "--label=org.opencontainers.image.version={{.Version}}"
-#       - "--target=pvecsictl-goreleaser"
-#       - "--platform=linux/amd64"
-#   - use: buildx
-#     image_templates:
-#       - ghcr.io/sergelogvinov/pvecsictl:{{ .Version }}-arm64
-#     goos: linux
-#     goarch: arm64
-#     build_flag_templates:
-#       - "--label=org.opencontainers.image.version={{.Version}}"
-#       - "--target=pvecsictl-goreleaser"
-#       - "--platform=linux/arm64"
-# docker_manifests:
-#   - name_template: ghcr.io/sergelogvinov/{{ .ProjectName }}:{{ .Version }}
-#     image_templates:
-#       - ghcr.io/sergelogvinov/{{ .ProjectName }}:{{ .Version }}-amd64
-#       - ghcr.io/sergelogvinov/{{ .ProjectName }}:{{ .Version }}-arm64
 
 homebrew_casks:
   - name: pvecsictl
