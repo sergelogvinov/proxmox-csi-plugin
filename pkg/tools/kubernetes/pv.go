@@ -46,6 +46,11 @@ func PVCResources(ctx context.Context, clientset *clientkubernetes.Clientset, na
 }
 
 // PVCPodUsage returns the list of pods and the node that are using the specified PersistentVolumeClaim.
+//
+// Only pods that are Pending and have not yet been assigned a node are excluded: they
+// cannot have mounted the volume yet. A Pending pod that is already scheduled to a node
+// (e.g. still running init containers or ContainerCreating) may already be using the
+// volume, so it must still be counted.
 func PVCPodUsage(ctx context.Context, clientset *clientkubernetes.Clientset, namespace, pvcName string) (pods []string, node string, err error) {
 	podList, err := clientset.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{})
 	if err != nil {
@@ -53,14 +58,16 @@ func PVCPodUsage(ctx context.Context, clientset *clientkubernetes.Clientset, nam
 	}
 
 	for _, pod := range podList.Items {
-		if pod.Status.Phase != corev1.PodPending {
-			for _, volume := range pod.Spec.Volumes {
-				if volume.PersistentVolumeClaim != nil && volume.PersistentVolumeClaim.ClaimName == pvcName {
-					pods = append(pods, pod.Name)
-					node = pod.Spec.NodeName
+		if pod.Status.Phase == corev1.PodPending && pod.Spec.NodeName == "" {
+			continue
+		}
 
-					break
-				}
+		for _, volume := range pod.Spec.Volumes {
+			if volume.PersistentVolumeClaim != nil && volume.PersistentVolumeClaim.ClaimName == pvcName {
+				pods = append(pods, pod.Name)
+				node = pod.Spec.NodeName
+
+				break
 			}
 		}
 	}
@@ -91,6 +98,75 @@ func PVCCreateOrUpdate(
 	}
 
 	return res, err
+}
+
+// PVReserveForClaim sets a PersistentVolume's claimRef so that it can only be bound by the
+// named PersistentVolumeClaim, instead of being left free for any matching Pending claim to
+// acquire. The claimRef is replaced wholesale (rather than merged) so that no stale uid or
+// resourceVersion from a previous, now-deleted claim survives to block the new claim's bind.
+func PVReserveForClaim(ctx context.Context, clientset *clientkubernetes.Clientset, pvName, namespace, claimName string) error {
+	// "add" is used rather than "replace": per RFC 6902 it replaces an existing member's
+	// value too, but unlike "replace" it does not fail if claimRef happens to be absent.
+	patch := fmt.Appendf(nil,
+		`[{"op":"add","path":"/spec/claimRef","value":{"kind":"PersistentVolumeClaim","apiVersion":"v1","namespace":%q,"name":%q}}]`,
+		namespace, claimName,
+	)
+
+	if _, err := clientset.CoreV1().PersistentVolumes().Patch(ctx, pvName, types.JSONPatchType, patch, metav1.PatchOptions{}); err != nil {
+		return fmt.Errorf("failed to reserve PersistentVolume %s for claim %s/%s: %v", pvName, namespace, claimName, err)
+	}
+
+	return nil
+}
+
+// PVCWaitDelete waits for the specified PersistentVolumeClaim to be deleted.
+// Callers that are about to create a new claim with a name that was just deleted (e.g. during
+// a swap) must wait for the old object to be fully gone first: a finalizer can keep it around
+// after the delete call returns, and creating a same-named claim while it still exists fails.
+func PVCWaitDelete(ctx context.Context, clientset *clientkubernetes.Clientset, namespace, pvcName string) error {
+	if _, err := clientset.CoreV1().PersistentVolumeClaims(namespace).Get(ctx, pvcName, metav1.GetOptions{}); err != nil {
+		if errors.IsNotFound(err) {
+			return nil
+		}
+
+		return err
+	}
+
+	watcher, err := clientset.CoreV1().PersistentVolumeClaims(namespace).Watch(ctx, metav1.ListOptions{
+		FieldSelector: "metadata.name=" + pvcName,
+	})
+	if err != nil {
+		return err
+	}
+	defer watcher.Stop()
+
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+
+	timeout := time.After(10 * time.Minute)
+
+	for {
+		select {
+		case event, ok := <-watcher.ResultChan():
+			if !ok {
+				return fmt.Errorf("watch channel closed unexpectedly")
+			}
+
+			if event.Type == watch.Deleted {
+				return nil
+			}
+
+		case <-ticker.C:
+			if _, err := clientset.CoreV1().PersistentVolumeClaims(namespace).Get(ctx, pvcName, metav1.GetOptions{}); err != nil {
+				if errors.IsNotFound(err) {
+					return nil
+				}
+			}
+
+		case <-timeout:
+			return fmt.Errorf("timeout waiting for PersistentVolumeClaim %s to be deleted", pvcName)
+		}
+	}
 }
 
 // PVWaitDelete waits for the specified PersistentVolume to be deleted.

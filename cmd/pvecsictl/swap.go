@@ -93,14 +93,23 @@ func (c *swapCmd) runSwap(cmd *cobra.Command, args []string) error {
 	}
 
 	cordonedNodes := []string{}
+	unsafeToUncordon := false
 
 	defer func() {
-		if len(cordonedNodes) > 0 {
-			logger.Infof("uncordoning nodes: %s", strings.Join(cordonedNodes, ","))
+		if len(cordonedNodes) == 0 {
+			return
+		}
 
-			if err = tools.UncondonNodes(ctx, c.kclient, cordonedNodes); err != nil {
-				logger.Errorf("failed to uncordon nodes: %v", err)
-			}
+		if unsafeToUncordon {
+			logger.Errorf("swap failed after storage changes started, leaving nodes cordoned for manual recovery: %s", strings.Join(cordonedNodes, ","))
+
+			return
+		}
+
+		logger.Infof("uncordoning nodes: %s", strings.Join(cordonedNodes, ","))
+
+		if err := tools.UncondonNodes(ctx, c.kclient, cordonedNodes); err != nil {
+			logger.Errorf("failed to uncordon nodes: %v", err)
 		}
 	}()
 
@@ -116,22 +125,22 @@ func (c *swapCmd) runSwap(cmd *cobra.Command, args []string) error {
 				logger.Infof("persistentvolumeclaims is using by pods: %s on node %s, trying to force swap\n", strings.Join(srcPods, ","), srcVMName)
 
 				csiNodes, err = cordoneNodeWithPVs(ctx, c.kclient, srcPV)
+				cordonedNodes = append(cordonedNodes, csiNodes...)
+
 				if err != nil {
 					return fmt.Errorf("failed to cordon nodes: %v", err)
 				}
-
-				cordonedNodes = append(cordonedNodes, csiNodes...)
 			}
 
 			if len(dstPods) > 0 {
 				logger.Infof("persistentvolumeclaims is using by pods: %s on node %s, trying to force swap\n", strings.Join(dstPods, ","), dstVMName)
 
 				csiNodes, err = cordoneNodeWithPVs(ctx, c.kclient, dstPV)
+				cordonedNodes = append(cordonedNodes, csiNodes...)
+
 				if err != nil {
 					return fmt.Errorf("failed to cordon nodes: %v", err)
 				}
-
-				cordonedNodes = append(cordonedNodes, csiNodes...)
 			}
 
 			logger.Infof("cordoned nodes: %s", strings.Join(cordonedNodes, ","))
@@ -186,12 +195,14 @@ func (c *swapCmd) runSwap(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	unsafeToUncordon = true
+
 	err = swapPVC(ctx, c.kclient, c.namespace, srcPVC, srcPV, dstPVC, dstPV)
 	if err != nil {
-		cordonedNodes = []string{}
-
 		return fmt.Errorf("failed to swap persistentvolumeclaims: %v", err)
 	}
+
+	unsafeToUncordon = false
 
 	logger.Infof("persistentvolumeclaims %s,%s has been swapped", args[0], args[1])
 

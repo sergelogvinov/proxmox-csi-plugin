@@ -18,17 +18,18 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	cobra "github.com/spf13/cobra"
 
-	goproxmox "github.com/sergelogvinov/go-proxmox"
+	"github.com/sergelogvinov/go-proxmox-rest/cluster"
 	csiconfig "github.com/sergelogvinov/proxmox-csi-plugin/pkg/config"
 	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/csi"
 	pxpool "github.com/sergelogvinov/proxmox-csi-plugin/pkg/proxmoxpool"
 	tools "github.com/sergelogvinov/proxmox-csi-plugin/pkg/tools/kubernetes"
+	toolsproxmox "github.com/sergelogvinov/proxmox-csi-plugin/pkg/tools/proxmox"
 	volume "github.com/sergelogvinov/proxmox-csi-plugin/pkg/utils/volume"
 
 	rbacv1 "k8s.io/api/authorization/v1"
@@ -64,90 +65,135 @@ func setCleanCmdFlags(cmd *cobra.Command) {
 	flags := cmd.Flags()
 
 	flags.BoolP("force", "f", false, "force delete volumes")
+	flags.StringP("region", "r", "", "Proxmox region/cluster to clean; required if the node name exists in more than one configured region")
 }
 
 // nolint: cyclop, gocyclo
 func (c *cleanCmd) runClean(cmd *cobra.Command, args []string) error {
 	flags := cmd.Flags()
-	force, _ := flags.GetBool("force") //nolint: errcheck
+	force, _ := flags.GetBool("force")     //nolint: errcheck
+	region, _ := flags.GetString("region") //nolint: errcheck
 
 	ctx := context.Background()
 	storageID := args[0]
 	node := args[1]
-	nodeFound := false
 
-	for _, region := range c.pclient.GetRegions() {
-		cl, err := c.pclient.GetProxmoxCluster(region)
+	candidateRegions := c.pclient.GetRegions()
+
+	if region != "" {
+		if !slices.Contains(candidateRegions, region) {
+			return fmt.Errorf("region %s not found", region)
+		}
+
+		candidateRegions = []string{region}
+	}
+
+	// Resolve the complete set of regions matching the node name before touching
+	// any storage. Identically named nodes can exist in more than one configured
+	// Proxmox cluster; ownership is only checked against this one Kubernetes
+	// cluster, so proceeding against more than one region risks deleting volumes
+	// that belong to a different Kubernetes cluster sharing that region's storage.
+	matchedRegions := []string{}
+
+	for _, r := range candidateRegions {
+		cl, err := c.pclient.GetProxmoxClusterRest(r)
 		if err != nil {
-			return fmt.Errorf("failed to get Proxmox cluster client for region %s: %v", region, err)
+			return fmt.Errorf("failed to get Proxmox cluster client for region %s: %v", r, err)
 		}
 
-		if _, err := cl.GetNodeByName(ctx, node); err != nil {
-			if errors.Is(err, goproxmox.ErrNodeNotFound) {
-				continue
-			}
-
-			return fmt.Errorf("failed to get node %s on region %s: %v", node, region, err)
-		}
-
-		nodeFound = true
-
-		_, err = cl.GetClusterStorage(ctx, storageID)
+		nodes, err := cl.Cluster().Resources().List(ctx, cluster.ListFilter{
+			Type: cluster.ResourceTypeNode,
+			Match: func(res *cluster.Resource) (bool, error) {
+				return res.Node == node, nil
+			},
+		})
 		if err != nil {
-			return fmt.Errorf("failed to get cluster storage %s on region %s: %v", storageID, region, err)
+			return fmt.Errorf("failed to get node %s on region %s: %v", node, r, err)
 		}
 
-		pvs, err := cl.GetStorageContent(ctx, node, storageID)
-		if err != nil {
-			return fmt.Errorf("failed to get storage content for storage %s on region %s: %v", storageID, region, err)
-		}
-
-		if len(pvs) == 0 {
-			return fmt.Errorf("no volumes found on storage %s on region %s", storageID, region)
-		}
-
-		k8sPVs, err := c.kclient.CoreV1().PersistentVolumes().List(ctx, metav1.ListOptions{})
-		if err != nil {
-			return fmt.Errorf("failed to list Kubernetes PersistentVolumes: %v", err)
-		}
-
-		for _, proxmoxPV := range pvs {
-			volName, ok := strings.CutPrefix(proxmoxPV.Volid, storageID+":")
-			if !ok {
-				continue
-			}
-
-			vol := volume.NewVolume(region, node, storageID, volName)
-			if vol.VMID() != "9999" {
-				continue
-			}
-
-			found := false
-
-			for _, k8sPV := range k8sPVs.Items {
-				if k8sPV.Spec.CSI != nil && k8sPV.Spec.CSI.Driver == csi.DriverName && k8sPV.Spec.CSI.VolumeHandle == vol.VolumeID() {
-					found = true
-
-					break
-				}
-			}
-
-			if !found {
-				if force {
-					fmt.Printf("Delete volume %s with size %dGi on storage %s on region %s\n", vol.Disk(), proxmoxPV.Size/1024/1024/1024, storageID, region)
-
-					if err := cl.DeleteVMDisk(ctx, node, storageID, vol.Disk()); err != nil {
-						return fmt.Errorf("failed to delete volume %s on storage %s on region %s: %v", volName, storageID, region, err)
-					}
-				} else {
-					fmt.Printf("Found unused volume %s with size %dGi on storage %s on region %s\n", vol.Disk(), proxmoxPV.Size/1024/1024/1024, storageID, region)
-				}
-			}
+		if len(nodes) > 0 {
+			matchedRegions = append(matchedRegions, r)
 		}
 	}
 
-	if !nodeFound {
+	if len(matchedRegions) == 0 {
 		return fmt.Errorf("node %s not found", node)
+	}
+
+	if len(matchedRegions) > 1 {
+		return fmt.Errorf("node %s exists in multiple regions (%s); pass --region to disambiguate", node, strings.Join(matchedRegions, ", "))
+	}
+
+	region = matchedRegions[0]
+
+	cl, err := c.pclient.GetProxmoxClusterRest(region)
+	if err != nil {
+		return fmt.Errorf("failed to get Proxmox cluster client for region %s: %v", region, err)
+	}
+
+	storages, err := cl.Cluster().Resources().List(ctx, cluster.ListFilter{
+		Type:      cluster.ResourceTypeStorage,
+		StorageID: storageID,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to get cluster storage %s on region %s: %v", storageID, region, err)
+	}
+
+	if len(storages) == 0 {
+		return fmt.Errorf("failed to get cluster storage %s on region %s: not found", storageID, region)
+	}
+
+	pvs, err := cl.Nodes(node).Storage().Content(storageID).List(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to get storage content for storage %s on region %s: %v", storageID, region, err)
+	}
+
+	if len(pvs) == 0 {
+		return fmt.Errorf("no volumes found on storage %s on region %s", storageID, region)
+	}
+
+	k8sPVs, err := c.kclient.CoreV1().PersistentVolumes().List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to list Kubernetes PersistentVolumes: %v", err)
+	}
+
+	for _, proxmoxPV := range pvs {
+		volName, ok := strings.CutPrefix(proxmoxPV.VolID, storageID+":")
+		if !ok {
+			continue
+		}
+
+		vol := volume.NewVolume(region, node, storageID, volName)
+		if vol.VMID() != "9999" {
+			continue
+		}
+
+		found := false
+
+		// Shared and replicated volumes are provisioned with a nodeless volume
+		// handle (region//storage/disk); match both forms, or such a volume is
+		// wrongly classified as unused and, with --force, deleted while still
+		// referenced by a PV.
+		for _, k8sPV := range k8sPVs.Items {
+			if k8sPV.Spec.CSI != nil && k8sPV.Spec.CSI.Driver == csi.DriverName &&
+				(k8sPV.Spec.CSI.VolumeHandle == vol.VolumeID() || k8sPV.Spec.CSI.VolumeHandle == vol.VolumeSharedID()) {
+				found = true
+
+				break
+			}
+		}
+
+		if !found {
+			if force {
+				fmt.Printf("Delete volume %s with size %dGi on storage %s on region %s\n", vol.Disk(), proxmoxPV.Size/1024/1024/1024, storageID, region)
+
+				if err := toolsproxmox.DeleteStorageVolume(ctx, cl, node, storageID, vol.Disk()); err != nil {
+					return fmt.Errorf("failed to delete volume %s on storage %s on region %s: %v", volName, storageID, region, err)
+				}
+			} else {
+				fmt.Printf("Found unused volume %s with size %dGi on storage %s on region %s\n", vol.Disk(), proxmoxPV.Size/1024/1024/1024, storageID, region)
+			}
+		}
 	}
 
 	return nil

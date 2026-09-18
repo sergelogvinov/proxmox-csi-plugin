@@ -29,6 +29,7 @@ import (
 	proxmox "github.com/luthermonson/go-proxmox"
 
 	goproxmox "github.com/sergelogvinov/go-proxmox"
+	proxmoxrest "github.com/sergelogvinov/go-proxmox-rest"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/klog/v2"
@@ -49,7 +50,18 @@ type ProxmoxCluster struct {
 
 // ProxmoxPool is a Proxmox client pool of proxmox clusters.
 type ProxmoxPool struct {
+	// clients are the luthermonson/go-proxmox-backed clients (via the
+	// sergelogvinov/go-proxmox wrapper). Not-yet-migrated call sites use
+	// these through GetProxmoxCluster.
 	clients map[string]*goproxmox.APIClient
+
+	// clientsRest are the same clusters' clients on
+	// github.com/sergelogvinov/go-proxmox-rest, built alongside clients
+	// during the luthermonson -> go-proxmox-rest migration (see
+	// docs/migration.md §5/§6). Call sites switch from GetProxmoxCluster
+	// to GetProxmoxClusterRest as they are migrated; clients and
+	// GetProxmoxCluster are removed once none remain.
+	clientsRest map[string]*proxmoxrest.Client
 }
 
 // NewProxmoxPool creates a new Proxmox cluster client.
@@ -57,10 +69,17 @@ func NewProxmoxPool(config []*ProxmoxCluster, options ...proxmox.Option) (*Proxm
 	clusters := len(config)
 	if clusters > 0 {
 		clients := make(map[string]*goproxmox.APIClient, clusters)
+		clientsRest := make(map[string]*proxmoxrest.Client, clusters)
 
 		for _, cfg := range config {
 			opts := []proxmox.Option{proxmox.WithUserAgent("ProxmoxCSIPlugin/1.0")}
 			opts = append(opts, options...)
+
+			restOpts := []proxmoxrest.Option{
+				proxmoxrest.WithURL(cfg.URL),
+				proxmoxrest.WithInsecure(cfg.Insecure),
+				proxmoxrest.WithUserAgent("ProxmoxCSIPlugin/1.0"),
+			}
 
 			if cfg.Insecure {
 				httpTr := &http.Transport{
@@ -96,8 +115,10 @@ func NewProxmoxPool(config []*ProxmoxCluster, options ...proxmox.Option) (*Proxm
 					Username: cfg.Username,
 					Password: cfg.Password,
 				}))
+				restOpts = append(restOpts, proxmoxrest.WithPasswordAuth(cfg.Username, cfg.Password))
 			} else if cfg.TokenID != "" && cfg.TokenSecret != "" {
 				opts = append(opts, proxmox.WithAPIToken(cfg.TokenID, cfg.TokenSecret))
+				restOpts = append(restOpts, proxmoxrest.WithTokenAuth(cfg.TokenID, cfg.TokenSecret))
 			}
 
 			pxClient, err := goproxmox.NewAPIClient(cfg.URL, opts...)
@@ -105,11 +126,18 @@ func NewProxmoxPool(config []*ProxmoxCluster, options ...proxmox.Option) (*Proxm
 				return nil, err
 			}
 
+			pxClientRest, err := proxmoxrest.New(proxmoxrest.ClientConfig{}, restOpts...)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create Proxmox REST client for region %s: %w", cfg.Region, err)
+			}
+
 			clients[cfg.Region] = pxClient
+			clientsRest[cfg.Region] = pxClientRest
 		}
 
 		return &ProxmoxPool{
-			clients: clients,
+			clients:     clients,
+			clientsRest: clientsRest,
 		}, nil
 	}
 
@@ -160,6 +188,18 @@ func (c *ProxmoxPool) CheckClusters(ctx context.Context) error {
 func (c *ProxmoxPool) GetProxmoxCluster(region string) (*goproxmox.APIClient, error) {
 	if c.clients[region] != nil {
 		return c.clients[region], nil
+	}
+
+	return nil, ErrRegionNotFound
+}
+
+// GetProxmoxClusterRest returns a Proxmox REST API client
+// (github.com/sergelogvinov/go-proxmox-rest) in a given region. See
+// docs/migration.md: call sites use this instead of GetProxmoxCluster
+// once migrated off luthermonson/go-proxmox.
+func (c *ProxmoxPool) GetProxmoxClusterRest(region string) (*proxmoxrest.Client, error) {
+	if c.clientsRest[region] != nil {
+		return c.clientsRest[region], nil
 	}
 
 	return nil, ErrRegionNotFound
