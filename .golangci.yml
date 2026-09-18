@@ -61,6 +61,7 @@ linters:
     - noinlineerr
     - noctx
     - modernize
+    - exhaustruct_v5
   settings:
     wsl_v5:
       allow-first-in-block: true
@@ -123,6 +124,7 @@ linters:
         linters:
           - dupl
           - goconst
+          - exhaustruct_v5
       - path: test/cluster/
         linters:
           - dupl

@@ -23,16 +23,17 @@ import (
 	"strings"
 	"time"
 
-	"github.com/luthermonson/go-proxmox"
-
-	goproxmox "github.com/sergelogvinov/go-proxmox"
+	proxmoxrest "github.com/sergelogvinov/go-proxmox-rest"
+	"github.com/sergelogvinov/go-proxmox-rest/cluster"
+	"github.com/sergelogvinov/go-proxmox-rest/nodes/storage"
+	"github.com/sergelogvinov/go-proxmox-rest/nodes/tasks"
 	volume "github.com/sergelogvinov/proxmox-csi-plugin/pkg/utils/volume"
 )
 
 // WaitForVolumeDetach waits for the volume to be detached from the VM.
 // vmID is the Proxmox VM ID of the Kubernetes node that was using the volume.
 // If vmID is 0, the check is skipped (volume was not in use).
-func WaitForVolumeDetach(ctx context.Context, client *goproxmox.APIClient, vmID int, pvc string) error {
+func WaitForVolumeDetach(ctx context.Context, client *proxmoxrest.Client, vmID int, pvc string) error {
 	if vmID == 0 {
 		return nil
 	}
@@ -41,9 +42,22 @@ func WaitForVolumeDetach(ctx context.Context, client *goproxmox.APIClient, vmID 
 	defer ticker.Stop()
 
 	for {
-		vmConfig, err := client.GetVMConfig(ctx, vmID)
+		resources, err := client.Cluster().Resources().List(ctx, cluster.ListFilter{
+			Type:      cluster.ResourceTypeVM,
+			GuestType: "qemu",
+			VMID:      vmID,
+		})
 		if err != nil {
-			if errors.Is(err, goproxmox.ErrVirtualMachineNotFound) {
+			return fmt.Errorf("failed to find vm %d: %v", vmID, err)
+		}
+
+		if len(resources) == 0 {
+			return nil
+		}
+
+		cfg, err := client.Nodes(resources[0].Node).Qemu().Config(ctx, vmID, nil)
+		if err != nil {
+			if proxmoxrest.IsNotFound(err) {
 				return nil
 			}
 
@@ -52,9 +66,8 @@ func WaitForVolumeDetach(ctx context.Context, client *goproxmox.APIClient, vmID 
 
 		found := false
 
-		disks := vmConfig.VirtualMachineConfig.MergeSCSIs()
-		for _, disk := range disks {
-			if strings.Contains(disk, pvc) {
+		for _, disk := range cfg.SCSI {
+			if strings.Contains(disk.File, pvc) {
 				found = true
 
 				break
@@ -73,34 +86,55 @@ func WaitForVolumeDetach(ctx context.Context, client *goproxmox.APIClient, vmID 
 	}
 }
 
+// DeleteStorageVolume deletes a volume from a storage on a node, waiting
+// for the deletion task to complete if Proxmox runs it as a background
+// task instead of completing it synchronously.
+func DeleteStorageVolume(ctx context.Context, client *proxmoxrest.Client, node, storageID, disk string) error {
+	upid, err := client.Nodes(node).Storage().Content(storageID).Delete(ctx, disk, 0)
+	if err != nil {
+		return err
+	}
+
+	if upid == "" {
+		return nil
+	}
+
+	if err := client.Nodes(node).Tasks().Wait(ctx, upid, nil); err != nil {
+		var failed *tasks.FailedError
+		if errors.As(err, &failed) {
+			return fmt.Errorf("exit status: %s", failed.ExitStatus)
+		}
+
+		return err
+	}
+
+	return nil
+}
+
 // MoveQemuDisk moves the volume from one node to another.
-func MoveQemuDisk(ctx context.Context, cluster *goproxmox.APIClient, vol *volume.Volume, node string, taskTimeout int) error {
-	params := map[string]interface{}{
-		"node":        vol.Node(),
-		"target":      vol.Disk(),
-		"target_node": node,
-		"volume":      vol.Disk(),
+func MoveQemuDisk(ctx context.Context, client *proxmoxrest.Client, vol *volume.Volume, node string, taskTimeout int) error {
+	upid, err := client.Nodes(vol.Node()).Storage().Content(vol.Storage()).Copy(ctx, vol.Disk(), &storage.CopyOptions{
+		Target:     vol.Disk(),
+		TargetNode: node,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to copy pvc: %v", err)
 	}
 
-	// POST https://pve.proxmox.com/pve-docs/api-viewer/index.html#/nodes/{node}/storage/{storage}/content/{volume}
-	// Copy a volume. This is experimental code - do not use.
-	var upid proxmox.UPID
-	if err := cluster.Client.Post(ctx, fmt.Sprintf("/nodes/%s/storage/%s/content/%s", vol.Node(), vol.Storage(), vol.Disk()), params, &upid); err != nil {
-		return fmt.Errorf("failed to copy pvc: %v, params=%+v", err, params)
+	if upid == "" {
+		return nil
 	}
 
-	task := proxmox.NewTask(upid, cluster.Client)
-	if task != nil {
-		_, completed, err := task.WaitForCompleteStatus(ctx, taskTimeout/15, 15)
-		if err != nil {
-			return fmt.Errorf("unable to delete virtual machine disk: %w", err)
+	if err := client.Nodes(vol.Node()).Tasks().Wait(ctx, upid, &tasks.WaitOptions{
+		PollInterval: 15 * time.Second,
+		Timeout:      time.Duration(taskTimeout) * time.Second,
+	}); err != nil {
+		var failed *tasks.FailedError
+		if errors.As(err, &failed) {
+			return fmt.Errorf("failed to copy disk, exit status: %s", failed.ExitStatus)
 		}
 
-		if completed {
-			return nil
-		}
-
-		return fmt.Errorf("failed to copy disk, exit status: %s", task.ExitStatus)
+		return fmt.Errorf("unable to move virtual machine disk: %w", err)
 	}
 
 	return nil
