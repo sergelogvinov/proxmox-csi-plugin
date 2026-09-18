@@ -14,5 +14,5 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package cluster implements the http mock server for testing purposes.
+// Package cluster builds an in-memory fake Proxmox cluster (github.com/sergelogvinov/go-proxmox-rest/fakeapi)
 package cluster

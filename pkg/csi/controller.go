@@ -18,6 +18,7 @@ package csi
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"slices"
@@ -33,16 +34,18 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	goproxmox "github.com/sergelogvinov/go-proxmox"
+	proxmoxrest "github.com/sergelogvinov/go-proxmox-rest"
+	"github.com/sergelogvinov/go-proxmox-rest/cluster"
 	csiconfig "github.com/sergelogvinov/proxmox-csi-plugin/pkg/config"
 	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/helpers/ptr"
 	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/metrics"
 	pxpool "github.com/sergelogvinov/proxmox-csi-plugin/pkg/proxmoxpool"
+	toolsproxmox "github.com/sergelogvinov/proxmox-csi-plugin/pkg/tools/proxmox"
 	utilsnode "github.com/sergelogvinov/proxmox-csi-plugin/pkg/utils/node"
 	volume "github.com/sergelogvinov/proxmox-csi-plugin/pkg/utils/volume"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog/v2"
@@ -102,6 +105,13 @@ func NewControllerService(kclient kubernetes.Interface, cloudConfig string) (*Co
 	d.Init()
 
 	return d, nil
+}
+
+// ProxmoxPool returns the controller's Proxmox client pool. Intended for tests
+// that need to point a region's client at an in-memory fake server after the
+// service has already been constructed from static configuration.
+func (d *ControllerService) ProxmoxPool() *pxpool.ProxmoxPool {
+	return d.pxpool
 }
 
 // Init initializes the controller service
@@ -210,7 +220,7 @@ func (d *ControllerService) CreateVolume(ctx context.Context, request *csi.Creat
 	}
 
 	if zone == "" {
-		zones, err := cl.GetNodesForStorage(ctx, params.StorageID)
+		zones, err := storageNodes(ctx, cl, params.StorageID)
 		if err != nil {
 			klog.ErrorS(err, "CreateVolume: failed to get zones with storage", "cluster", region, "storage", params.StorageID)
 
@@ -226,7 +236,7 @@ func (d *ControllerService) CreateVolume(ctx context.Context, request *csi.Creat
 		zone = zones[0]
 	}
 
-	storageConfig, err := cl.GetClusterStorage(ctx, params.StorageID)
+	storageConfig, err := storageResource(ctx, cl, params.StorageID)
 	if err != nil {
 		klog.ErrorS(err, "CreateVolume: failed to get proxmox storage config", "cluster", region, "storage", params.StorageID)
 
@@ -251,7 +261,7 @@ func (d *ControllerService) CreateVolume(ctx context.Context, request *csi.Creat
 			return nil, status.Error(codes.Internal, "error: shared storage type cifs, pbs are not supported")
 		}
 
-		config, err := cl.Client.ClusterStorage(ctx, params.StorageID)
+		config, err := cl.Storage().Get(ctx, params.StorageID)
 		if err != nil {
 			klog.ErrorS(err, "CreateVolume: failed to get proxmox storage config", "cluster", region, "storageID", params.StorageID)
 
@@ -477,7 +487,7 @@ func (d *ControllerService) DeleteVolume(ctx context.Context, request *csi.Delet
 	}
 
 	mc := metrics.NewMetricContext("deleteVolume")
-	if err := cl.DeleteVMDisk(ctx, node, vol.Storage(), vol.Disk()); mc.ObserveRequest(err) != nil {
+	if err := toolsproxmox.DeleteStorageVolume(ctx, cl, node, vol.Storage(), vol.Disk()); mc.ObserveRequest(err) != nil {
 		klog.ErrorS(err, "DeleteVolume: failed to delete volume", "cluster", vol.Cluster(), "volumeID", vol.VolumeID())
 
 		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to delete volume: %s, %v", vol.VolumeID(), err))
@@ -593,7 +603,7 @@ func (d *ControllerService) ControllerPublishVolume(ctx context.Context, request
 		mc := metrics.NewMetricContext("expandVolume")
 
 		device := deviceNamePrefix + pvInfo["lun"]
-		if err = cl.ResizeVMDisk(ctx, id, vol.Node(), device, fmt.Sprintf("%dM", params.ResizeSizeBytes/MiB)); mc.ObserveRequest(err) != nil {
+		if err = resizeVMDisk(ctx, cl, vol.Node(), id, device, fmt.Sprintf("%dM", params.ResizeSizeBytes/MiB)); mc.ObserveRequest(err) != nil {
 			klog.ErrorS(err, "ControllerPublishVolume: failed to resize vm disk", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "vmID", id)
 
 			return nil, status.Error(codes.Internal, err.Error())
@@ -647,7 +657,7 @@ func (d *ControllerService) ControllerUnpublishVolume(ctx context.Context, reque
 
 		id, _, err = d.getVMIDbyNode(ctx, n.GetNodeName())
 		if err != nil {
-			if errors.IsNotFound(err) {
+			if k8serrors.IsNotFound(err) {
 				klog.V(3).InfoS("ControllerUnpublishVolume: VM not found for node, assuming volume is already unpublished", "nodeID", n.String())
 
 				return &csi.ControllerUnpublishVolumeResponse{}, nil
@@ -712,7 +722,7 @@ func (d *ControllerService) GetCapacity(ctx context.Context, request *csi.GetCap
 			return nil, status.Error(codes.Internal, err.Error())
 		}
 
-		storageConfig, err := cl.GetClusterStorage(ctx, storageID)
+		storageConfig, err := storageResource(ctx, cl, storageID)
 		if err != nil {
 			klog.ErrorS(err, "GetCapacity: failed to get proxmox storage config", "cluster", region, "storageID", storageID)
 
@@ -724,7 +734,7 @@ func (d *ControllerService) GetCapacity(ctx context.Context, request *csi.GetCap
 				return nil, status.Error(codes.InvalidArgument, "zone must be provided")
 			}
 
-			zones, err := cl.GetNodesForStorage(ctx, storageID)
+			zones, err := storageNodes(ctx, cl, storageID)
 			if err != nil {
 				klog.ErrorS(err, "GetCapacity: failed to get zones with storage", "cluster", region, "storage", storageID)
 
@@ -752,15 +762,15 @@ func (d *ControllerService) GetCapacity(ctx context.Context, request *csi.GetCap
 		if availableCapacity == 0 {
 			mc := metrics.NewMetricContext("storageStatus")
 
-			storage, err := cl.GetStorageStatus(ctx, zone, storageID)
+			storageStatus, err := cl.Nodes(zone).Storage().Status(ctx, storageID)
 			if mc.ObserveRequest(err) != nil {
 				klog.ErrorS(err, "GetCapacity: failed to get storage status", "cluster", region, "storageID", storageID, "storageConfig", storageConfig)
 
-				if !strings.Contains(err.Error(), "Parameter verification failed") {
+				if !proxmoxrest.IsNotFound(err) {
 					return nil, status.Error(codes.Internal, err.Error())
 				}
 			} else {
-				availableCapacity = int64(storage.Avail)
+				availableCapacity = storageStatus.AvailableSpace
 				d.storageCapacity.SetDefault(key, availableCapacity)
 			}
 		}
@@ -801,7 +811,7 @@ func (d *ControllerService) CreateSnapshot(ctx context.Context, request *csi.Cre
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
-	storageConfig, err := cl.Client.ClusterStorage(ctx, vol.Storage())
+	storageConfig, err := cl.Storage().Get(ctx, vol.Storage())
 	if err != nil {
 		klog.ErrorS(err, "CreateSnapshot: failed to get proxmox storage config", "cluster", vol.Cluster(), "storageID", vol.Storage())
 
@@ -940,7 +950,7 @@ func (d *ControllerService) DeleteSnapshot(ctx context.Context, request *csi.Del
 	}
 
 	mc := metrics.NewMetricContext("deleteVolume")
-	if err := cl.DeleteVMDisk(ctx, node, vol.Storage(), vol.Disk()); mc.ObserveRequest(err) != nil {
+	if err := toolsproxmox.DeleteStorageVolume(ctx, cl, node, vol.Storage(), vol.Disk()); mc.ObserveRequest(err) != nil {
 		klog.ErrorS(err, "DeleteSnapshot: failed to delete volume", "cluster", vol.Cluster(), "volumeName", vol.Disk())
 
 		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to delete volume: %s", vol.Disk()))
@@ -997,7 +1007,7 @@ func (d *ControllerService) ControllerExpandVolume(ctx context.Context, request 
 
 	id, lun, err := getVMByAttachedVolume(ctx, cl, vol)
 	if err != nil || id == 0 {
-		if err == goproxmox.ErrVirtualMachineNotFound {
+		if errors.Is(err, errVirtualMachineNotFound) {
 			klog.V(3).InfoS("ControllerExpandVolume: volume is not published, cannot resize unpublished volumeID", "cluster", vol.Cluster(), "volumeID", vol.VolumeID())
 
 			return nil, status.Error(codes.Internal, "cannot resize unpublished")
@@ -1011,7 +1021,7 @@ func (d *ControllerService) ControllerExpandVolume(ctx context.Context, request 
 	mc := metrics.NewMetricContext("expandVolume")
 
 	device := deviceNamePrefix + strconv.Itoa(lun)
-	if err = cl.ResizeVMDisk(ctx, id, vol.Node(), device, fmt.Sprintf("%dM", volSizeBytes/MiB)); mc.ObserveRequest(err) != nil {
+	if err = resizeVMDisk(ctx, cl, vol.Node(), id, device, fmt.Sprintf("%dM", volSizeBytes/MiB)); mc.ObserveRequest(err) != nil {
 		klog.ErrorS(err, "ControllerExpandVolume: failed to resize vm disk", "cluster", vol.Cluster(), "volumeID", vol.VolumeID(), "vmID", id)
 
 		return nil, status.Error(codes.Internal, err.Error())
@@ -1067,7 +1077,7 @@ func (d *ControllerService) ControllerModifyVolume(ctx context.Context, request 
 
 	id, _, err := getVMByAttachedVolume(ctx, cl, vol)
 	if err != nil || id == 0 {
-		if err == goproxmox.ErrVirtualMachineNotFound {
+		if errors.Is(err, errVirtualMachineNotFound) {
 			klog.V(3).InfoS("ControllerModifyVolume: volume is not published, cannot modify unpublished volumeID", "cluster", vol.Cluster(), "volumeID", vol.VolumeID())
 
 			return nil, status.Error(codes.NotFound, "volume is not published")
@@ -1131,12 +1141,12 @@ func (d *ControllerService) checkVolume(ctx context.Context, vol *volume.Volume)
 	}
 
 	if vol.Zone() != "" {
-		nodes, err := cl.GetNodeList(ctx)
+		nodes, err := cl.Cluster().Resources().List(ctx, cluster.ListFilter{Type: cluster.ResourceTypeNode})
 		if err != nil {
 			return 0, status.Error(codes.Internal, err.Error())
 		}
 
-		if !slices.Contains(nodes, vol.Zone()) {
+		if !slices.ContainsFunc(nodes, func(rs cluster.Resource) bool { return rs.Node == vol.Zone() }) {
 			return 0, status.Errorf(codes.NotFound, "zone %s not found in cluster %s", vol.Zone(), vol.Cluster())
 		}
 	}
@@ -1148,7 +1158,7 @@ func (d *ControllerService) checkVolume(ctx context.Context, vol *volume.Volume)
 			return 0, status.Error(codes.Internal, err.Error())
 		}
 
-		nodes, err := cl.GetNodesForStorage(ctx, probeVol.Storage())
+		nodes, err := storageNodes(ctx, cl, probeVol.Storage())
 		if err != nil {
 			return 0, status.Error(codes.Internal, err.Error())
 		}

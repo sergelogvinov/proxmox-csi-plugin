@@ -20,8 +20,10 @@ import (
 	"fmt"
 	"testing"
 
-	proxmox "github.com/luthermonson/go-proxmox"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/sergelogvinov/go-proxmox-rest/nodes/qemu"
+	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/helpers/ptr"
 )
 
 func TestIsVolumeAttached(t *testing.T) {
@@ -29,24 +31,25 @@ func TestIsVolumeAttached(t *testing.T) {
 
 	tests := []struct {
 		msg           string
-		vmConfig      *proxmox.VirtualMachineConfig
+		vmConfig      *qemu.Config
 		pvc           string
 		expectedLun   int
 		expectedExist bool
 	}{
 		{
 			msg:           "Empty VM config",
-			vmConfig:      &proxmox.VirtualMachineConfig{},
+			vmConfig:      &qemu.Config{},
 			pvc:           "",
 			expectedLun:   0,
 			expectedExist: false,
 		},
 		{
 			msg: "Empty PVC",
-			vmConfig: &proxmox.VirtualMachineConfig{
-				IDE2:  "local:iso/ubuntu-20.04.1-live-server-amd64.iso,media=cdrom",
-				SCSI0: "local-lvm:vm-100-disk-0,size=8G",
-				SCSI5: "local-lvm:vm-100-pvc-123,size=8G",
+			vmConfig: &qemu.Config{
+				SCSI: map[int]qemu.Drive{
+					0: {File: "local-lvm:vm-100-disk-0", Size: "8G"},
+					5: {File: "local-lvm:vm-100-pvc-123", Size: "8G"},
+				},
 			},
 			pvc:           "",
 			expectedLun:   0,
@@ -54,10 +57,11 @@ func TestIsVolumeAttached(t *testing.T) {
 		},
 		{
 			msg: "LUN 5",
-			vmConfig: &proxmox.VirtualMachineConfig{
-				IDE2:  "local:iso/ubuntu-20.04.1-live-server-amd64.iso,media=cdrom",
-				SCSI0: "local-lvm:vm-100-disk-0,size=8G",
-				SCSI5: "local-lvm:vm-100-pvc-123,size=8G",
+			vmConfig: &qemu.Config{
+				SCSI: map[int]qemu.Drive{
+					0: {File: "local-lvm:vm-100-disk-0", Size: "8G"},
+					5: {File: "local-lvm:vm-100-pvc-123", Size: "8G"},
+				},
 			},
 			pvc:           "pvc-123",
 			expectedLun:   5,
@@ -80,4 +84,20 @@ func TestIsVolumeAttached(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestDriveOptions(t *testing.T) {
+	t.Parallel()
+
+	drive := driveOptions(qemu.Drive{Size: "8G", File: "local-lvm:vm-100-disk-0"}, map[string]string{
+		"backup":   "0",
+		"iothread": "1",
+		"iops_rd":  "100",
+	})
+
+	assert.Equal(t, "8G", drive.Size)
+	assert.Equal(t, "local-lvm:vm-100-disk-0", drive.File)
+	assert.Equal(t, ptr.Ptr(false), drive.Backup)
+	assert.Equal(t, ptr.Ptr(true), drive.IOThread)
+	assert.Equal(t, ptr.Ptr(100), drive.IOPSRD)
 }

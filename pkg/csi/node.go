@@ -210,7 +210,7 @@ func (n *NodeService) NodeStageVolume(_ context.Context, request *csi.NodeStageV
 		klog.V(5).InfoS("NodeStageVolume: resizing volume created from a snapshot/volume", "volumeID", volumeID)
 
 		r := mountutil.NewResizeFs(n.Mount.Mounter().Exec)
-		if _, err := r.Resize(devicePath, stagingTarget); err != nil { //nolint:staticcheck
+		if _, err := r.Resize(devicePath, stagingTarget); err != nil { // nolint:staticcheck
 			return nil, status.Errorf(codes.Internal, "Could not resize volume %q:  %v", volumeID, err)
 		}
 	}
@@ -510,7 +510,7 @@ func (n *NodeService) NodeExpandVolume(_ context.Context, request *csi.NodeExpan
 	}
 
 	r := mountutil.NewResizeFs(n.Mount.Mounter().Exec)
-	if _, err := r.Resize(devicePath, volumePath); err != nil { //nolint:staticcheck
+	if _, err := r.Resize(devicePath, volumePath); err != nil { // nolint:staticcheck
 		return nil, status.Errorf(codes.Internal, "Could not resize volume %q:  %v", volumeID, err)
 	}
 

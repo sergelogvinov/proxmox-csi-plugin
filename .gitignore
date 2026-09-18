@@ -10,6 +10,7 @@
 bin/
 dist/
 vendor/
+.devcontainer/
 
 # Test binary, built with `go test -c`
 *.test

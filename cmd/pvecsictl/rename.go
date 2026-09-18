@@ -27,7 +27,9 @@ import (
 	tools "github.com/sergelogvinov/proxmox-csi-plugin/pkg/tools/kubernetes"
 
 	rbacv1 "k8s.io/api/authorization/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/validation"
 	clientkubernetes "k8s.io/client-go/kubernetes"
 )
 
@@ -72,6 +74,20 @@ func (c *renameCmd) runRename(cmd *cobra.Command, args []string) error {
 
 	ctx := context.Background()
 
+	if args[0] == args[1] {
+		return fmt.Errorf("source and destination persistentvolumeclaims names must be different")
+	}
+
+	if errs := validation.IsDNS1123Subdomain(args[1]); len(errs) > 0 {
+		return fmt.Errorf("invalid destination persistentvolumeclaims name %q: %s", args[1], strings.Join(errs, ", "))
+	}
+
+	if _, err := c.kclient.CoreV1().PersistentVolumeClaims(c.namespace).Get(ctx, args[1], metav1.GetOptions{}); err == nil {
+		return fmt.Errorf("destination persistentvolumeclaims %s already exists", args[1])
+	} else if !apierrors.IsNotFound(err) {
+		return fmt.Errorf("failed to check destination persistentvolumeclaims %s: %v", args[1], err)
+	}
+
 	srcPVC, srcPV, err := tools.PVCResources(ctx, c.kclient, c.namespace, args[0])
 	if err != nil {
 		return fmt.Errorf("failed to get resources: %v", err)
@@ -83,14 +99,23 @@ func (c *renameCmd) runRename(cmd *cobra.Command, args []string) error {
 	}
 
 	cordonedNodes := []string{}
+	unsafeToUncordon := false
 
 	defer func() {
-		if len(cordonedNodes) > 0 {
-			logger.Infof("uncordoning nodes: %s", strings.Join(cordonedNodes, ","))
+		if len(cordonedNodes) == 0 {
+			return
+		}
 
-			if err = tools.UncondonNodes(ctx, c.kclient, cordonedNodes); err != nil {
-				logger.Errorf("failed to uncordon nodes: %v", err)
-			}
+		if unsafeToUncordon {
+			logger.Errorf("rename failed after storage changes started, leaving nodes cordoned for manual recovery: %s", strings.Join(cordonedNodes, ","))
+
+			return
+		}
+
+		logger.Infof("uncordoning nodes: %s", strings.Join(cordonedNodes, ","))
+
+		if err := tools.UncondonNodes(ctx, c.kclient, cordonedNodes); err != nil {
+			logger.Errorf("failed to uncordon nodes: %v", err)
 		}
 	}()
 
@@ -137,12 +162,14 @@ func (c *renameCmd) runRename(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	unsafeToUncordon = true
+
 	err = renamePVC(ctx, c.kclient, c.namespace, srcPVC, srcPV, args[1])
 	if err != nil {
-		cordonedNodes = []string{}
-
 		return fmt.Errorf("failed to rename persistentvolumeclaims: %v", err)
 	}
+
+	unsafeToUncordon = false
 
 	logger.Infof("persistentvolumeclaims %s has been renamed", args[0])
 

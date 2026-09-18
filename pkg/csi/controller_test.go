@@ -23,12 +23,12 @@ import (
 	"testing"
 
 	proto "github.com/container-storage-interface/spec/lib/go/csi"
-	"github.com/jarcoal/httpmock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"github.com/sergelogvinov/go-proxmox-rest/fakeapi"
 	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/csi"
 	testcluster "github.com/sergelogvinov/proxmox-csi-plugin/test/cluster"
 
@@ -43,7 +43,8 @@ var _ proto.ControllerServer = (*csi.ControllerService)(nil)
 type baseCSITestSuite struct {
 	suite.Suite
 
-	s *csi.ControllerService
+	s    *csi.ControllerService
+	fake *fakeapi.Cluster
 }
 
 type configTestCase struct {
@@ -173,12 +174,12 @@ type configuredTestSuite struct {
 }
 
 func (ts *configuredTestSuite) SetupTest() {
-	testcluster.SetupMockResponders()
-
 	err := ts.setupTestSuite(ts.configCase.config)
 	if err != nil {
 		ts.T().Fatalf("Failed to setup test suite: %v", err)
 	}
+
+	ts.fake = testcluster.SetupFakeCluster(ts.T(), ts.s.ProxmoxPool())
 }
 
 func TestNewControllerService(t *testing.T) {
@@ -194,9 +195,6 @@ func TestNewControllerService(t *testing.T) {
 
 //nolint:dupl
 func (ts *configuredTestSuite) TestCreateVolume() {
-	httpmock.Activate()
-	defer httpmock.DeactivateAndReset() //nolint: wsl_v5
-
 	volcap := &proto.VolumeCapability{
 		AccessMode: &proto.VolumeCapability_AccessMode{
 			Mode: proto.VolumeCapability_AccessMode_SINGLE_NODE_WRITER,
@@ -326,7 +324,7 @@ func (ts *configuredTestSuite) TestCreateVolume() {
 					},
 				},
 			},
-			expectedError: status.Error(codes.Internal, "failed to get zones with storage fake-storage: not found"),
+			expectedError: status.Error(codes.Internal, "failed to find best zone: no nodes with the storage fake-storage"),
 		},
 		{
 			msg: "EmptyRegion",
@@ -421,6 +419,13 @@ func (ts *configuredTestSuite) TestCreateVolume() {
 						{
 							Segments: map[string]string{
 								corev1.LabelTopologyRegion: "cluster-1",
+								corev1.LabelTopologyZone:   "pve-1",
+							},
+						},
+						{
+							Segments: map[string]string{
+								corev1.LabelTopologyRegion: "cluster-1",
+								corev1.LabelTopologyZone:   "pve-2",
 							},
 						},
 					},
@@ -513,9 +518,6 @@ func (ts *configuredTestSuite) TestCreateVolume() {
 
 //nolint:dupl
 func (ts *configuredTestSuite) TestDeleteVolume() {
-	httpmock.Activate()
-	defer httpmock.DeactivateAndReset() //nolint: wsl_v5
-
 	tests := []struct {
 		msg           string
 		request       *proto.DeleteVolumeRequest
@@ -565,16 +567,21 @@ func (ts *configuredTestSuite) TestDeleteVolume() {
 			expected: &proto.DeleteVolumeResponse{},
 		},
 		{
-			msg: "DeleteVolumeError",
+			msg: "DeleteVolumeNodeUnreachable",
 			request: &proto.DeleteVolumeRequest{
 				VolumeId: "cluster-1/pve-1/local-lvm/vm-9999-pvc-error",
 			},
-			expectedError: status.Error(codes.Internal, "failed to delete volume: cluster-1/pve-1/local-lvm/vm-9999-pvc-error, unable to delete virtual machine disk: ERROR"),
+			expectedError: status.Error(codes.Internal, "proxmox API error 596: 596 status code 596"),
 		},
 	}
 
 	for _, testCase := range tests {
 		ts.Run(fmt.Sprint(testCase.msg), func() {
+			if testCase.msg == "DeleteVolumeNodeUnreachable" {
+				ts.fake.FailNode("pve-1", fakeapi.FailureUnreachable)
+				defer ts.fake.RecoverNode("pve-1")
+			}
+
 			resp, err := ts.s.DeleteVolume(context.Background(), testCase.request)
 			if testCase.expectedError == nil {
 				ts.Require().NoError(err)
@@ -599,9 +606,6 @@ func (ts *configuredTestSuite) TestControllerServiceControllerGetCapabilities() 
 
 //nolint:dupl
 func (ts *configuredTestSuite) TestControllerPublishVolumeError() {
-	httpmock.Activate()
-	defer httpmock.DeactivateAndReset() //nolint: wsl_v5
-
 	volCap := &proto.VolumeCapability{
 		AccessMode: &proto.VolumeCapability_AccessMode{
 			Mode: proto.VolumeCapability_AccessMode_SINGLE_NODE_WRITER,
@@ -714,9 +718,6 @@ func (ts *configuredTestSuite) TestControllerPublishVolumeError() {
 
 //nolint:dupl
 func (ts *configuredTestSuite) TestControllerUnpublishVolumeError() {
-	httpmock.Activate()
-	defer httpmock.DeactivateAndReset() //nolint: wsl_v5
-
 	tests := []struct {
 		msg           string
 		request       *proto.ControllerUnpublishVolumeRequest
@@ -787,9 +788,6 @@ func (ts *configuredTestSuite) TestListVolumes() {
 }
 
 func (ts *configuredTestSuite) TestGetCapacity() {
-	httpmock.Activate()
-	defer httpmock.DeactivateAndReset() //nolint: wsl_v5
-
 	tests := []struct {
 		msg           string
 		request       *proto.GetCapacityRequest
@@ -912,9 +910,6 @@ func (ts *configuredTestSuite) TestGetCapacity() {
 }
 
 func (ts *configuredTestSuite) TestCreateSnapshot() {
-	httpmock.Activate()
-	defer httpmock.DeactivateAndReset() //nolint: wsl_v5
-
 	tests := []struct {
 		msg           string
 		request       *proto.CreateSnapshotRequest
@@ -954,9 +949,6 @@ func (ts *configuredTestSuite) TestCreateSnapshot() {
 }
 
 func (ts *configuredTestSuite) TestDeleteSnapshot() {
-	httpmock.Activate()
-	defer httpmock.DeactivateAndReset() //nolint: wsl_v5
-
 	tests := []struct {
 		msg           string
 		request       *proto.DeleteSnapshotRequest
@@ -1005,9 +997,6 @@ func (ts *configuredTestSuite) TestListSnapshots() {
 }
 
 func (ts *configuredTestSuite) TestControllerExpandVolumeError() {
-	httpmock.Activate()
-	defer httpmock.DeactivateAndReset() //nolint: wsl_v5
-
 	capRange := &proto.CapacityRange{
 		RequiredBytes: 100 * csi.GiB,
 		LimitBytes:    150 * csi.GiB,

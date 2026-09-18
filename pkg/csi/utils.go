@@ -26,10 +26,15 @@ import (
 	"strings"
 	"time"
 
-	proxmox "github.com/luthermonson/go-proxmox"
 	"github.com/siderolabs/go-retry/retry"
 
-	goproxmox "github.com/sergelogvinov/go-proxmox"
+	proxmoxrest "github.com/sergelogvinov/go-proxmox-rest"
+	"github.com/sergelogvinov/go-proxmox-rest/cluster"
+	"github.com/sergelogvinov/go-proxmox-rest/cluster/replication"
+	"github.com/sergelogvinov/go-proxmox-rest/nodes/qemu"
+	"github.com/sergelogvinov/go-proxmox-rest/nodes/storage"
+	"github.com/sergelogvinov/go-proxmox-rest/nodes/tasks"
+	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/helpers/ptr"
 	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/metrics"
 	volume "github.com/sergelogvinov/proxmox-csi-plugin/pkg/utils/volume"
 )
@@ -42,40 +47,105 @@ const (
 
 	// ErrorNotFound not found error message
 	ErrorNotFound string = "not found"
+
+	// guestTypeQemu restricts a cluster.ListFilter to QEMU guests, excluding LXC containers.
+	guestTypeQemu = "qemu"
 )
 
-// nolint:unused
-func getNodeForVolume(ctx context.Context, cl *goproxmox.APIClient, vol *volume.Volume) (node string, err error) {
-	node = vol.Node()
-	if node == "" {
-		nodes, err := cl.GetNodesForStorage(ctx, vol.Storage())
-		if err != nil {
-			return "", fmt.Errorf("failed to find zones for storage %s: %v", vol.Storage(), err)
-		}
+// errVirtualMachineNotFound indicates that no matching VM was found in the Proxmox
+// cluster. go-proxmox-rest has no sentinel of its own for this (see IsNotFound);
+// this package keeps one so call sites can distinguish "not published"/"already
+// gone" from a real API error, the same way they could against the legacy client.
+var errVirtualMachineNotFound = errors.New("virtual machine not found")
 
-		if len(nodes) == 0 {
-			return "", fmt.Errorf("failed to find best zone for storage %s", vol.Storage())
-		}
-
-		node = nodes[0]
+// findVMNode resolves the Proxmox node a guest currently runs on from its VMID.
+func findVMNode(ctx context.Context, cl *proxmoxrest.Client, vmid int) (string, error) {
+	resources, err := cl.Cluster().Resources().List(ctx, cluster.ListFilter{
+		Type:      cluster.ResourceTypeVM,
+		GuestType: guestTypeQemu,
+		VMID:      vmid,
+	})
+	if err != nil {
+		return "", err
 	}
 
-	return
+	if len(resources) == 0 {
+		return "", errVirtualMachineNotFound
+	}
+
+	return resources[0].Node, nil
 }
 
-func getVMByAttachedVolume(ctx context.Context, cl *goproxmox.APIClient, vol *volume.Volume) (int, int, error) {
-	var err error
+// storageResource returns the /cluster/resources entry for storageID.
+func storageResource(ctx context.Context, cl *proxmoxrest.Client, storageID string) (*cluster.Resource, error) {
+	resources, err := cl.Cluster().Resources().List(ctx, cluster.ListFilter{
+		Type:      cluster.ResourceTypeStorage,
+		StorageID: storageID,
+	})
+	if err != nil {
+		return nil, err
+	}
 
-	nodes := []string{}
+	if len(resources) == 0 {
+		return nil, errors.New(ErrorNotFound)
+	}
+
+	return &resources[0], nil
+}
+
+// storageNodes returns the nodes storageID is currently available on.
+func storageNodes(ctx context.Context, cl *proxmoxrest.Client, storageID string) ([]string, error) {
+	resources, err := cl.Cluster().Resources().List(ctx, cluster.ListFilter{
+		Type:      cluster.ResourceTypeStorage,
+		StorageID: storageID,
+		Match: func(rs *cluster.Resource) (bool, error) {
+			return rs.Status == "available", nil
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	nodes := make([]string, 0, len(resources))
+	for _, rs := range resources {
+		nodes = append(nodes, rs.Node)
+	}
+
+	return nodes, nil
+}
+
+// volumeNodes returns the candidate nodes for vol: its own node if set, otherwise
+// every node the volume's storage is currently available on.
+func volumeNodes(ctx context.Context, cl *proxmoxrest.Client, vol *volume.Volume) ([]string, error) {
 	if vol.Node() != "" {
-		nodes = append(nodes, vol.Node())
+		return []string{vol.Node()}, nil
+	}
+
+	nodes, err := storageNodes(ctx, cl, vol.Storage())
+	if err != nil {
+		return nil, fmt.Errorf("failed to find zones for storage %s: %v", vol.Storage(), err)
+	}
+
+	return nodes, nil
+}
+
+func getNodeForVolume(ctx context.Context, cl *proxmoxrest.Client, vol *volume.Volume) (string, error) {
+	nodes, err := volumeNodes(ctx, cl, vol)
+	if err != nil {
+		return "", err
 	}
 
 	if len(nodes) == 0 {
-		nodes, err = cl.GetNodesForStorage(ctx, vol.Storage())
-		if err != nil {
-			return 0, 0, fmt.Errorf("failed to find zones for storage %s: %v", vol.Storage(), err)
-		}
+		return "", fmt.Errorf("failed to find best zone for storage %s", vol.Storage())
+	}
+
+	return nodes[0], nil
+}
+
+func getVMByAttachedVolume(ctx context.Context, cl *proxmoxrest.Client, vol *volume.Volume) (int, int, error) {
+	nodes, err := volumeNodes(ctx, cl, vol)
+	if err != nil {
+		return 0, 0, err
 	}
 
 	if len(nodes) == 0 {
@@ -84,78 +154,77 @@ func getVMByAttachedVolume(ctx context.Context, cl *goproxmox.APIClient, vol *vo
 
 	lun := 0
 
-	vm, err := cl.GetVMByFilter(ctx, func(rs *proxmox.ClusterResource) (bool, error) {
-		if rs.Type != "qemu" {
-			return false, nil
-		}
+	resources, err := cl.Cluster().Resources().List(ctx, cluster.ListFilter{
+		Type:      cluster.ResourceTypeVM,
+		GuestType: guestTypeQemu,
+		Match: func(rs *cluster.Resource) (bool, error) {
+			// Skip the storage owner VM (e.g., 9999), as the VM uses for the replications
+			if vol.VMID() == strconv.Itoa(rs.VMID) {
+				return false, nil
+			}
 
-		// Skip the storage owner VM (e.g., 9999), as the VM uses for the replications
-		if vol.VMID() == fmt.Sprintf("%d", rs.VMID) {
-			return false, nil
-		}
+			if !slices.Contains(nodes, rs.Node) {
+				return false, nil
+			}
 
-		if !slices.Contains(nodes, rs.Node) {
-			return false, nil
-		}
+			cfg, err := cl.Nodes(rs.Node).Qemu().Config(ctx, rs.VMID, nil)
+			if err != nil {
+				return false, err
+			}
 
-		vm, err := cl.GetVMConfig(ctx, int(rs.VMID))
-		if err != nil {
-			return false, err
-		}
+			l, exist := isVolumeAttached(cfg, vol.Disk())
+			if exist {
+				lun = l
+			}
 
-		if l, exist := isVolumeAttached(vm.VirtualMachineConfig, vol.Disk()); exist {
-			lun = l
-
-			return true, nil
-		}
-
-		return false, nil
+			return exist, nil
+		},
 	})
 	if err != nil {
 		return 0, lun, err
 	}
 
-	if vm.VMID != 0 {
-		if vol.Node() == "" {
-			vol.SetNode(vm.Node)
-		}
-
-		return int(vm.VMID), lun, nil
+	if len(resources) == 0 {
+		return 0, 0, errVirtualMachineNotFound
 	}
 
-	return 0, 0, goproxmox.ErrVirtualMachineNotFound
+	if vol.Node() == "" {
+		vol.SetNode(resources[0].Node)
+	}
+
+	return resources[0].VMID, lun, nil
 }
 
-func getStorageContent(ctx context.Context, cl *goproxmox.APIClient, vol *volume.Volume) (*proxmox.StorageContent, error) {
+func getStorageContent(ctx context.Context, cl *proxmoxrest.Client, vol *volume.Volume) (*storage.Volume, error) {
 	if vol.Node() == "" {
 		return nil, errors.New("node is required")
 	}
 
-	if _, err := cl.GetStorageStatus(ctx, vol.Node(), vol.Storage()); err != nil {
-		if strings.Contains(err.Error(), "No such storage") {
+	if _, err := cl.Nodes(vol.Node()).Storage().Status(ctx, vol.Storage()); err != nil {
+		if proxmoxrest.IsNotFound(err) {
 			return nil, errors.New(ErrorNotFound)
 		}
 
 		return nil, err
 	}
 
-	contents, err := cl.GetStorageContent(ctx, vol.Node(), vol.Storage())
+	contents, err := cl.Nodes(vol.Node()).Storage().Content(vol.Storage()).List(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	for _, content := range contents {
-		if content.Volid == vol.VolID() {
-			return content, nil
+	for i := range contents {
+		if contents[i].VolID == vol.VolID() {
+			return &contents[i], nil
 		}
 	}
 
 	return nil, nil
 }
 
-func getStorageLevel(storage *proxmox.ClusterResource) string {
+func getStorageLevel(res *cluster.Resource) string {
 	// see https://pve.proxmox.com/wiki/Storage
-	switch storage.PluginType {
+	switch res.PluginType {
 	case "dir", "nfs", "cifs", "cephfs", "btrfs": // nolint: goconst
 		return "file"
 	default:
@@ -163,7 +232,7 @@ func getStorageLevel(storage *proxmox.ClusterResource) string {
 	}
 }
 
-func getVolumeSize(ctx context.Context, cl *goproxmox.APIClient, vol *volume.Volume) (int64, error) {
+func getVolumeSize(ctx context.Context, cl *proxmoxrest.Client, vol *volume.Volume) (int64, error) {
 	st, err := getStorageContent(ctx, cl, vol)
 	if err != nil {
 		return 0, err
@@ -173,55 +242,131 @@ func getVolumeSize(ctx context.Context, cl *goproxmox.APIClient, vol *volume.Vol
 		return 0, errors.New(ErrorNotFound)
 	}
 
-	return int64(st.Size), nil
+	return st.Size, nil
 }
 
-func isVolumeAttached(vm *proxmox.VirtualMachineConfig, pvc string) (int, bool) {
+// isVolumeAttached reports whether pvc is attached to a guest with the given
+// configuration, returning the SCSI lun it's attached at.
+func isVolumeAttached(cfg *qemu.Config, pvc string) (int, bool) {
 	if pvc == "" {
 		return 0, false
 	}
 
-	disks := vm.MergeSCSIs()
-	for lun, disk := range disks {
-		if strings.Contains(disk, pvc) {
-			i, err := strconv.Atoi(strings.TrimPrefix(strings.Split(lun, ":")[0], deviceNamePrefix))
-			if err != nil {
-				return 0, false
-			}
-
-			return i, true
+	for lun, disk := range cfg.SCSI {
+		if strings.Contains(disk.File, pvc) {
+			return lun, true
 		}
 	}
 
 	return 0, false
 }
 
-func prepareReplication(ctx context.Context, cl *goproxmox.APIClient, node string, name string, vmID int) (int, error) {
-	vmr, err := cl.GetVMByFilter(ctx, func(r *proxmox.ClusterResource) (bool, error) {
-		return r.Name == name, nil
-	})
-	if err != nil || vmr.VMID == 0 {
-		id, err := cl.GetNextID(ctx, vmID+1)
-		if err != nil {
-			return 0, err
-		}
-
-		vm := defaultVMConfig()
-		vm["name"] = name
-		vm["vmid"] = id
-
-		mc := metrics.NewMetricContext("createVm")
-		if err = cl.CreateVM(ctx, node, vm); mc.ObserveRequest(err) != nil {
-			return 0, err
-		}
-
-		return id, nil
+// driveOptions applies the property overrides in options (as built by
+// StorageParameters.ToCFG/ModifyVolumeParameters.ToCFG) onto drive, leaving every
+// other field untouched.
+func driveOptions(drive qemu.Drive, options map[string]string) qemu.Drive {
+	if v, ok := options["aio"]; ok {
+		drive.AIO = v
 	}
 
-	return int(vmr.VMID), nil
+	if v, ok := options["cache"]; ok {
+		drive.Cache = v
+	}
+
+	if v, ok := options["discard"]; ok {
+		drive.Discard = v
+	}
+
+	if v, ok := options["backup"]; ok {
+		drive.Backup = ptr.Ptr(v == "1")
+	}
+
+	if v, ok := options["iothread"]; ok {
+		drive.IOThread = ptr.Ptr(v == "1")
+	}
+
+	if v, ok := options["ssd"]; ok {
+		drive.SSD = ptr.Ptr(v == "1")
+	}
+
+	if v, ok := options["ro"]; ok {
+		drive.RO = ptr.Ptr(v == "1")
+	}
+
+	if v, ok := options["replicate"]; ok {
+		drive.Replicate = ptr.Ptr(v == "1")
+	}
+
+	if v, ok := options["iops_rd"]; ok {
+		if n, err := strconv.Atoi(v); err == nil {
+			drive.IOPSRD = ptr.Ptr(n)
+		}
+	}
+
+	if v, ok := options["iops_wr"]; ok {
+		if n, err := strconv.Atoi(v); err == nil {
+			drive.IOPSWR = ptr.Ptr(n)
+		}
+	}
+
+	if v, ok := options["mbps_rd"]; ok {
+		if n, err := strconv.Atoi(v); err == nil {
+			drive.MBPSRD = ptr.Ptr(n)
+		}
+	}
+
+	if v, ok := options["mbps_wr"]; ok {
+		if n, err := strconv.Atoi(v); err == nil {
+			drive.MBPSWR = ptr.Ptr(n)
+		}
+	}
+
+	return drive
 }
 
-func createReplication(ctx context.Context, cl *goproxmox.APIClient, id int, vol *volume.Volume, params StorageParameters) error {
+func prepareReplication(ctx context.Context, cl *proxmoxrest.Client, node string, name string, vmID int) (int, error) {
+	resources, err := cl.Cluster().Resources().List(ctx, cluster.ListFilter{
+		Type: cluster.ResourceTypeVM,
+		Match: func(rs *cluster.Resource) (bool, error) {
+			return rs.Name == name, nil
+		},
+	})
+	if err != nil {
+		return 0, err
+	}
+
+	if len(resources) > 0 {
+		return resources[0].VMID, nil
+	}
+
+	id, err := cl.Cluster().NextID(ctx, vmID+1)
+	if err != nil {
+		return 0, err
+	}
+
+	cfg := defaultVMConfig()
+	cfg.Name = name
+
+	mc := metrics.NewMetricContext("createVm")
+
+	upid, err := cl.Nodes(node).Qemu().Create(ctx, &qemu.CreateOptions{
+		Config: *cfg,
+		VMID:   id,
+	})
+	if mc.ObserveRequest(err) != nil {
+		return 0, err
+	}
+
+	if upid != "" {
+		if err := cl.Nodes(node).Tasks().Wait(ctx, upid, &tasks.WaitOptions{Timeout: 5 * time.Minute}); err != nil {
+			return 0, err
+		}
+	}
+
+	return id, nil
+}
+
+func createReplication(ctx context.Context, cl *proxmoxrest.Client, id int, vol *volume.Volume, params StorageParameters) error {
 	cfg := map[string]string{
 		"replicate": "1",
 		"backup":    "1",
@@ -240,24 +385,24 @@ func createReplication(ctx context.Context, cl *goproxmox.APIClient, id int, vol
 			continue
 		}
 
-		repParams := map[string]interface{}{
-			"id":       fmt.Sprintf("%d-%d", id, i),
-			"type":     "local",
-			"disable":  "0",
-			"target":   z,
-			"schedule": schedule,
-			"comment":  "CSI Replication for Persistent Volume",
+		opts := &replication.JobOptions{
+			ID:       fmt.Sprintf("%d-%d", id, i),
+			Type:     replication.TypeLocal,
+			Target:   z,
+			Schedule: ptr.Ptr(schedule),
+			Disable:  ptr.Ptr(false),
+			Comment:  ptr.Ptr("CSI Replication for Persistent Volume"),
 		}
 
-		if err := cl.Client.Post(ctx, "/cluster/replication", repParams, nil); err != nil {
-			return fmt.Errorf("failed to create replication: %v, repParams=%+v", err, repParams)
+		if err := cl.Cluster().Replication().Create(ctx, opts); err != nil {
+			return fmt.Errorf("failed to create replication: %v, opts=%+v", err, opts)
 		}
 	}
 
 	return nil
 }
 
-func migrateReplication(ctx context.Context, cl *goproxmox.APIClient, target int, vol *volume.Volume, vmID int) error {
+func migrateReplication(ctx context.Context, cl *proxmoxrest.Client, target int, vol *volume.Volume, vmID int) error {
 	volid, err := strconv.Atoi(vol.VMID())
 	if err != nil {
 		return fmt.Errorf("failed to parse volumeID %s: %v", vol.VolumeID(), err)
@@ -267,96 +412,120 @@ func migrateReplication(ctx context.Context, cl *goproxmox.APIClient, target int
 		return nil
 	}
 
-	sourceVM, err := cl.GetVMByID(ctx, uint64(volid))
+	sourceNode, err := findVMNode(ctx, cl, volid)
 	if err != nil {
 		return fmt.Errorf("failed to find vm by id %d: %v", volid, err)
 	}
 
-	targetVM, err := cl.GetVMByID(ctx, uint64(target))
+	targetNode, err := findVMNode(ctx, cl, target)
 	if err != nil {
 		return fmt.Errorf("failed to find vm by id %d: %v", target, err)
 	}
 
-	if sourceVM.Node == targetVM.Node {
+	if sourceNode == targetNode {
 		return nil
 	}
 
-	n, err := cl.Node(ctx, sourceVM.Node)
-	if err != nil {
-		return fmt.Errorf("unable to find node with name %s: %w", sourceVM.Node, err)
-	}
-
-	vm, err := n.VirtualMachine(ctx, volid)
-	if err != nil {
-		return fmt.Errorf("unable to find vm with id %d: %w", volid, err)
-	}
-
-	params := &proxmox.VirtualMachineMigrateOptions{
-		Target: targetVM.Node,
+	upid, err := cl.Nodes(sourceNode).Qemu().Migrate(ctx, volid, &qemu.MigrateOptions{
+		Target: targetNode,
 		Online: false,
-	}
-
-	task, err := vm.Migrate(ctx, params)
+	})
 	if err != nil {
 		return fmt.Errorf("failed to migrate vm config: %v", err)
 	}
 
-	if task != nil {
-		if err = task.WaitFor(ctx, 5*60); err != nil {
+	if upid != "" {
+		if err := cl.Nodes(sourceNode).Tasks().Wait(ctx, upid, &tasks.WaitOptions{Timeout: 5 * time.Minute}); err != nil {
 			return fmt.Errorf("unable to migrate virtual machine: %w", err)
-		}
-
-		if task.IsFailed {
-			return fmt.Errorf("unable to migrate virtual machine: %s", task.ExitStatus)
 		}
 	}
 
 	return nil
 }
 
-func deleteReplication(ctx context.Context, cl *goproxmox.APIClient, vol *volume.Volume, vmID int) error {
+// deleteVM stops (if running) and destroys the guest, waiting for both tasks.
+func deleteVM(ctx context.Context, cl *proxmoxrest.Client, node string, vmid int) error {
+	status, err := cl.Nodes(node).Qemu().Status(ctx, vmid)
+	if err != nil {
+		return fmt.Errorf("unable to find vm with id %d: %w", vmid, err)
+	}
+
+	if status.Status == qemu.VMStatusRunning {
+		upid, err := cl.Nodes(node).Qemu().Stop(ctx, vmid, nil)
+		if err != nil {
+			return fmt.Errorf("failed to stop vm %d: %v", vmid, err)
+		}
+
+		if upid != "" {
+			if err := cl.Nodes(node).Tasks().Wait(ctx, upid, &tasks.WaitOptions{Timeout: time.Minute}); err != nil {
+				return fmt.Errorf("unable to stop vm %d: %w", vmid, err)
+			}
+		}
+	}
+
+	upid, err := cl.Nodes(node).Qemu().Delete(ctx, vmid, nil)
+	if err != nil {
+		return fmt.Errorf("cannot delete vm with id %d: %w", vmid, err)
+	}
+
+	if upid != "" {
+		if err := cl.Nodes(node).Tasks().Wait(ctx, upid, &tasks.WaitOptions{Timeout: time.Minute}); err != nil {
+			return fmt.Errorf("unable to delete vm %d: %w", vmid, err)
+		}
+	}
+
+	return nil
+}
+
+func deleteReplication(ctx context.Context, cl *proxmoxrest.Client, vol *volume.Volume, vmID int) error {
 	id, err := strconv.Atoi(vol.VMID())
 	if err != nil {
 		return fmt.Errorf("failed to parse volumeID %s: %v", vol.VolumeID(), err)
 	}
 
-	if id != vmID {
-		vmr, err := cl.GetVMByFilter(ctx, func(r *proxmox.ClusterResource) (bool, error) {
-			return r.VMID == uint64(id) && r.Name == vol.PV(), nil
-		})
-		if err != nil {
-			return err
-		}
+	if id == vmID {
+		return nil
+	}
 
-		type VirtualMachineReplicationJobs struct {
-			ID    string `json:"id"`
-			Guest int    `json:"guest"`
-		}
+	resources, err := cl.Cluster().Resources().List(ctx, cluster.ListFilter{
+		Type:      cluster.ResourceTypeVM,
+		GuestType: guestTypeQemu,
+		VMID:      id,
+		Match: func(rs *cluster.Resource) (bool, error) {
+			return rs.Name == vol.PV(), nil
+		},
+	})
+	if err != nil {
+		return err
+	}
 
-		jobs := []VirtualMachineReplicationJobs{}
+	if len(resources) == 0 {
+		return nil
+	}
 
-		if err := cl.Get(ctx, fmt.Sprintf("/nodes/%s/replication?guest=%d", vmr.Node, vmr.VMID), &jobs); err != nil {
-			return fmt.Errorf("could not get replication list: %w", err)
-		}
+	vmr := resources[0]
 
-		for _, job := range jobs {
-			if err := cl.Client.Delete(ctx, fmt.Sprintf("/cluster/replication/%s", job.ID), nil); err != nil {
-				if !strings.Contains(err.Error(), "no such job") {
-					return fmt.Errorf("failed to delete replication schedule: %v", err)
-				}
+	jobs, err := cl.Nodes(vmr.Node).Replication().List(ctx, vmr.VMID)
+	if err != nil {
+		return fmt.Errorf("could not get replication list: %w", err)
+	}
+
+	for _, job := range jobs {
+		if err := cl.Cluster().Replication().Delete(ctx, job.ID, false, false); err != nil {
+			if !proxmoxrest.IsNotFound(err) {
+				return fmt.Errorf("failed to delete replication schedule: %v", err)
 			}
 		}
+	}
 
-		err = cl.DeleteVMByID(ctx, vmr.Node, int(vmr.VMID))
-		if err != nil {
-			return fmt.Errorf("failed to delete replication vm: %v", err)
-		}
+	if err := deleteVM(ctx, cl, vmr.Node, vmr.VMID); err != nil {
+		return fmt.Errorf("failed to delete replication vm: %v", err)
 	}
 
 	return nil
 }
 
-func createVolume(ctx context.Context, cl *goproxmox.APIClient, vol *volume.Volume, sizeBytes int64) error {
+func createVolume(ctx context.Context, cl *proxmoxrest.Client, vol *volume.Volume, sizeBytes int64) error {
 	if vol.Node() == "" {
 		return errors.New("node is required")
 	}
@@ -368,7 +537,11 @@ func createVolume(ctx context.Context, cl *goproxmox.APIClient, vol *volume.Volu
 		return fmt.Errorf("failed to parse volume vm id: %v", err)
 	}
 
-	disk, err := cl.CreateVMDisk(ctx, id, vol.Node(), vol.Storage(), filename[len(filename)-1], sizeBytes)
+	disk, err := cl.Nodes(vol.Node()).Storage().Content(vol.Storage()).Create(ctx, &storage.CreateVolumeOptions{
+		Filename: filename[len(filename)-1],
+		VMID:     id,
+		Size:     strconv.FormatInt(sizeBytes/1024, 10),
+	})
 	if err != nil {
 		return fmt.Errorf("failed to create vm disk: %v", err)
 	}
@@ -381,59 +554,53 @@ func createVolume(ctx context.Context, cl *goproxmox.APIClient, vol *volume.Volu
 	return nil
 }
 
-func attachVolume(ctx context.Context, cl *goproxmox.APIClient, id int, vol *volume.Volume, options map[string]string) (map[string]string, error) {
-	vm, err := cl.GetVMConfig(ctx, id)
+func attachVolume(ctx context.Context, cl *proxmoxrest.Client, id int, vol *volume.Volume, options map[string]string) (map[string]string, error) {
+	node, err := findVMNode(ctx, cl, id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get vm config: %v", err)
+	}
+
+	cfg, err := cl.Nodes(node).Qemu().Config(ctx, id, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get vm config: %v", err)
 	}
 
 	wwm := ""
 
-	lun, exist := isVolumeAttached(vm.VirtualMachineConfig, vol.Disk())
+	lun, exist := isVolumeAttached(cfg, vol.Disk())
 	if exist {
-		wwm = hex.EncodeToString([]byte(fmt.Sprintf("PVC-ID%02d", lun)))
+		wwm = hex.EncodeToString(fmt.Appendf(nil, "PVC-ID%02d", lun))
 	} else {
-		disks := vm.VirtualMachineConfig.MergeSCSIs()
-
 		for lun = 1; lun < 30; lun++ {
-			device := deviceNamePrefix + strconv.Itoa(lun)
-
-			if disks[device] == "" {
-				wwm = hex.EncodeToString([]byte(fmt.Sprintf("PVC-ID%02d", lun)))
-
-				options["wwn"] = "0x" + wwm
-
-				opt := make([]string, 0, len(options))
-				for k := range options {
-					opt = append(opt, fmt.Sprintf("%s=%s", k, options[k]))
-				}
-
-				vmOptions := proxmox.VirtualMachineOption{
-					Name:  device,
-					Value: fmt.Sprintf("%s:%s,%s", vol.Storage(), vol.Disk(), strings.Join(opt, ",")),
-				}
-
-				task, err := vm.Config(ctx, vmOptions)
-				if err != nil {
-					return nil, fmt.Errorf("unable to attach disk: %v, options=%+v", err, vmOptions)
-				}
-
-				if task != nil {
-					if err := task.WaitFor(ctx, 5*60); err != nil {
-						return nil, fmt.Errorf("unable to attach virtual machine disk: %w", err)
-					}
-
-					if task.IsFailed {
-						return nil, fmt.Errorf("unable to attach virtual machine disk: %s", task.ExitStatus)
-					}
-				}
-
-				if err := waitAttachVolume(ctx, cl, id, vol); err != nil {
-					return nil, err
-				}
-
-				break
+			if _, used := cfg.SCSI[lun]; used {
+				continue
 			}
+
+			wwm = hex.EncodeToString(fmt.Appendf(nil, "PVC-ID%02d", lun))
+
+			drive := driveOptions(qemu.Drive{}, options)
+			drive.File = vol.Storage() + ":" + vol.Disk()
+			drive.WWN = "0x" + wwm
+
+			upid, err := cl.Nodes(node).Qemu().AttachDrive(ctx, id, &qemu.AttachDriveOptions{
+				Drive:   deviceNamePrefix + strconv.Itoa(lun),
+				Options: drive,
+			})
+			if err != nil {
+				return nil, fmt.Errorf("unable to attach disk: %v, drive=%+v", err, drive)
+			}
+
+			if upid != "" {
+				if err := cl.Nodes(node).Tasks().Wait(ctx, upid, &tasks.WaitOptions{Timeout: 5 * time.Minute}); err != nil {
+					return nil, fmt.Errorf("unable to attach virtual machine disk: %w", err)
+				}
+			}
+
+			if err := waitAttachVolume(ctx, cl, id, vol); err != nil {
+				return nil, err
+			}
+
+			break
 		}
 	}
 
@@ -447,80 +614,68 @@ func attachVolume(ctx context.Context, cl *goproxmox.APIClient, id int, vol *vol
 	return nil, fmt.Errorf("no free lun found")
 }
 
-func detachVolume(ctx context.Context, cl *goproxmox.APIClient, id int, vol *volume.Volume) error {
-	vm, err := cl.GetVMConfig(ctx, id)
+func detachVolume(ctx context.Context, cl *proxmoxrest.Client, id int, vol *volume.Volume) error {
+	node, err := findVMNode(ctx, cl, id)
 	if err != nil {
-		if errors.Is(err, goproxmox.ErrVirtualMachineNotFound) {
+		if errors.Is(err, errVirtualMachineNotFound) {
 			return nil
 		}
 
 		return fmt.Errorf("failed to get vm config: %v", err)
 	}
 
-	if lun, ok := isVolumeAttached(vm.VirtualMachineConfig, vol.Disk()); ok {
-		task, err := vm.UnlinkDisk(ctx, fmt.Sprintf("%s%d", deviceNamePrefix, lun), false)
-		if err != nil {
+	cfg, err := cl.Nodes(node).Qemu().Config(ctx, id, nil)
+	if err != nil {
+		return fmt.Errorf("failed to get vm config: %v", err)
+	}
+
+	if lun, ok := isVolumeAttached(cfg, vol.Disk()); ok {
+		device := deviceNamePrefix + strconv.Itoa(lun)
+
+		if err := cl.Nodes(node).Qemu().Unlink(ctx, id, &qemu.UnlinkOptions{IDList: []string{device}}); err != nil {
 			return fmt.Errorf("failed to unlink disk: %v", err)
-		}
-
-		if task != nil {
-			if err := task.WaitFor(ctx, 5*60); err != nil {
-				return fmt.Errorf("unable to detach virtual machine disk: %w", err)
-			}
-
-			if task.IsFailed {
-				return fmt.Errorf("unable to detach virtual machine disk: %s", task.ExitStatus)
-			}
 		}
 	}
 
 	return nil
 }
 
-func updateVolume(ctx context.Context, cl *goproxmox.APIClient, id int, vol *volume.Volume, options map[string]string) error {
-	vm, err := cl.GetVMConfig(ctx, id)
+func updateVolume(ctx context.Context, cl *proxmoxrest.Client, id int, vol *volume.Volume, options map[string]string) error {
+	node, err := findVMNode(ctx, cl, id)
 	if err != nil {
 		return fmt.Errorf("failed to get vm config: %v", err)
 	}
 
-	if lun, ok := isVolumeAttached(vm.VirtualMachineConfig, vol.Disk()); ok {
-		disks := vm.VirtualMachineConfig.MergeSCSIs()
-		if disk := disks[deviceNamePrefix+strconv.Itoa(lun)]; disk != "" {
-			params := strings.Split(disk, ",")
-			for _, param := range params {
-				kv := strings.Split(param, "=")
-				if len(kv) == 2 && options[kv[0]] == "" {
-					options[kv[0]] = kv[1]
-				}
-			}
-		}
-
-		opt := make([]string, 0, len(options))
-		for k := range options {
-			opt = append(opt, fmt.Sprintf("%s=%s", k, options[k]))
-		}
-
-		vmOptions := proxmox.VirtualMachineOption{
-			Name:  deviceNamePrefix + strconv.Itoa(lun),
-			Value: fmt.Sprintf("%s:%s,%s", vol.Storage(), vol.Disk(), strings.Join(opt, ",")),
-		}
-
-		task, err := vm.Config(ctx, vmOptions)
-		if err != nil {
-			return fmt.Errorf("unable to update disk: %v, options=%+v", err, vmOptions)
-		}
-
-		if err := task.WaitFor(ctx, 5*60); err != nil {
-			return fmt.Errorf("unable to update virtual machine disk: %w", err)
-		}
-
-		return nil
+	cfg, err := cl.Nodes(node).Qemu().Config(ctx, id, nil)
+	if err != nil {
+		return fmt.Errorf("failed to get vm config: %v", err)
 	}
 
-	return fmt.Errorf("volume is not attached to VM %d", id)
+	lun, ok := isVolumeAttached(cfg, vol.Disk())
+	if !ok {
+		return fmt.Errorf("volume is not attached to VM %d", id)
+	}
+
+	drive := driveOptions(cfg.SCSI[lun], options)
+
+	upid, err := cl.Nodes(node).Qemu().AttachDrive(ctx, id, &qemu.AttachDriveOptions{
+		Drive:   deviceNamePrefix + strconv.Itoa(lun),
+		Options: drive,
+	})
+	if err != nil {
+		return fmt.Errorf("unable to update disk: %v, drive=%+v", err, drive)
+	}
+
+	if upid != "" {
+		if err := cl.Nodes(node).Tasks().Wait(ctx, upid, &tasks.WaitOptions{Timeout: 5 * time.Minute}); err != nil {
+			return fmt.Errorf("unable to update virtual machine disk: %w", err)
+		}
+	}
+
+	return nil
 }
 
-func copyVolume(ctx context.Context, cl *goproxmox.APIClient, srcVol *volume.Volume, destVol *volume.Volume) error {
+func copyVolume(ctx context.Context, cl *proxmoxrest.Client, srcVol *volume.Volume, destVol *volume.Volume) error {
 	if srcVol.Node() == "" {
 		return errors.New("node is required")
 	}
@@ -529,46 +684,48 @@ func copyVolume(ctx context.Context, cl *goproxmox.APIClient, srcVol *volume.Vol
 		return errors.New("volume disk must not be qcow2 format")
 	}
 
-	params := map[string]interface{}{
-		"target": destVol.Disk(),
+	opts := &storage.CopyOptions{
+		Target: destVol.Disk(),
 	}
 
 	if srcVol.Node() != destVol.Node() && destVol.Node() != "" {
-		params["target_node"] = destVol.Node()
+		opts.TargetNode = destVol.Node()
 	}
 
-	// POST https://pve.proxmox.com/pve-docs/api-viewer/index.html#/nodes/{node}/storage/{storage}/content/{volume}
-	// Copy a volume. This is experimental code - do not use.
-	var upid proxmox.UPID
-	if err := cl.Client.Post(ctx, fmt.Sprintf("/nodes/%s/storage/%s/content/%s", srcVol.Node(), srcVol.Storage(), srcVol.Disk()), params, &upid); err != nil {
-		return fmt.Errorf("failed to copy pvc: %v, params=%+v", err, params)
+	upid, err := cl.Nodes(srcVol.Node()).Storage().Content(srcVol.Storage()).Copy(ctx, srcVol.Disk(), opts)
+	if err != nil {
+		return fmt.Errorf("failed to copy pvc: %v, opts=%+v", err, opts)
 	}
 
-	task := proxmox.NewTask(upid, cl.Client)
-	if task != nil {
-		_, completed, err := task.WaitForCompleteStatus(ctx, 4*60, 15)
-		if err != nil {
-			return fmt.Errorf("unable to delete virtual machine disk: %w", err)
+	if upid == "" {
+		return nil
+	}
+
+	if err := cl.Nodes(srcVol.Node()).Tasks().Wait(ctx, upid, &tasks.WaitOptions{PollInterval: 15 * time.Second, Timeout: 4 * time.Minute}); err != nil {
+		var failed *tasks.FailedError
+		if errors.As(err, &failed) {
+			return fmt.Errorf("failed to copy disk, exit status: %s", failed.ExitStatus)
 		}
 
-		if completed {
-			return nil
-		}
-
-		return fmt.Errorf("failed to copy disk, exit status: %s", task.ExitStatus)
+		return fmt.Errorf("unable to copy virtual machine disk: %w", err)
 	}
 
 	return nil
 }
 
-func waitAttachVolume(ctx context.Context, cl *goproxmox.APIClient, id int, vol *volume.Volume) error {
+func waitAttachVolume(ctx context.Context, cl *proxmoxrest.Client, id int, vol *volume.Volume) error {
 	err := retry.Constant(TaskTimeout*time.Second, retry.WithUnits(TaskStatusCheckInterval*time.Second)).Retry(func() error {
-		vm, err := cl.GetVMConfig(ctx, id)
+		node, err := findVMNode(ctx, cl, id)
 		if err != nil {
 			return fmt.Errorf("failed to get vm config: %v", err)
 		}
 
-		if _, ok := isVolumeAttached(vm.VirtualMachineConfig, vol.Disk()); ok {
+		cfg, err := cl.Nodes(node).Qemu().Config(ctx, id, nil)
+		if err != nil {
+			return fmt.Errorf("failed to get vm config: %v", err)
+		}
+
+		if _, ok := isVolumeAttached(cfg, vol.Disk()); ok {
 			return nil
 		}
 
@@ -585,18 +742,23 @@ func waitAttachVolume(ctx context.Context, cl *goproxmox.APIClient, id int, vol 
 	return nil
 }
 
-func waitDetachVolume(ctx context.Context, cl *goproxmox.APIClient, id int, vol *volume.Volume) error {
+func waitDetachVolume(ctx context.Context, cl *proxmoxrest.Client, id int, vol *volume.Volume) error {
 	err := retry.Constant(TaskTimeout*time.Second, retry.WithUnits(TaskStatusCheckInterval*time.Second)).Retry(func() error {
-		vm, err := cl.GetVMConfig(ctx, id)
+		node, err := findVMNode(ctx, cl, id)
 		if err != nil {
-			if errors.Is(err, goproxmox.ErrVirtualMachineNotFound) {
+			if errors.Is(err, errVirtualMachineNotFound) {
 				return nil
 			}
 
 			return fmt.Errorf("failed to get vm config: %v", err)
 		}
 
-		if _, ok := isVolumeAttached(vm.VirtualMachineConfig, vol.Disk()); ok {
+		cfg, err := cl.Nodes(node).Qemu().Config(ctx, id, nil)
+		if err != nil {
+			return fmt.Errorf("failed to get vm config: %v", err)
+		}
+
+		if _, ok := isVolumeAttached(cfg, vol.Disk()); ok {
 			return retry.ExpectedError(fmt.Errorf("volume %s still attached to VM %d", vol.VolumeID(), id))
 		}
 
@@ -613,13 +775,31 @@ func waitDetachVolume(ctx context.Context, cl *goproxmox.APIClient, id int, vol 
 	return nil
 }
 
-func defaultVMConfig() map[string]interface{} {
-	return map[string]interface{}{
-		"boot":    "order=scsi0",
-		"agent":   "0",
-		"machine": "pc",
-		"cores":   "1",
-		"memory":  "512",
-		"scsihw":  "virtio-scsi-single",
+// resizeVMDisk grows a guest's disk, waiting for the resize task to complete.
+func resizeVMDisk(ctx context.Context, cl *proxmoxrest.Client, node string, vmid int, disk, size string) error {
+	upid, err := cl.Nodes(node).Qemu().Resize(ctx, vmid, &qemu.ResizeOptions{Disk: disk, Size: size})
+	if err != nil {
+		return fmt.Errorf("unable to resize virtual machine disk: %w", err)
+	}
+
+	if upid == "" {
+		return nil
+	}
+
+	if err := cl.Nodes(node).Tasks().Wait(ctx, upid, &tasks.WaitOptions{Timeout: 5 * time.Minute}); err != nil {
+		return fmt.Errorf("unable to resize virtual machine disk: %w", err)
+	}
+
+	return nil
+}
+
+func defaultVMConfig() *qemu.Config {
+	return &qemu.Config{
+		Boot:    ptr.Ptr("order=scsi0"),
+		Agent:   &qemu.Agent{Enabled: ptr.Ptr(false)},
+		Machine: &qemu.Machine{Type: "pc"},
+		Cores:   ptr.Ptr(1),
+		Memory:  &qemu.Memory{Current: ptr.Ptr(512)},
+		SCSIHW:  "virtio-scsi-single",
 	}
 }

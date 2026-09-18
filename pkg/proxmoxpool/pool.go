@@ -14,21 +14,18 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package proxmoxpool provides a pool of Telmate/proxmox-api-go/proxmox clients
+// Package proxmoxpool provides a pool of github.com/sergelogvinov/go-proxmox-rest
+// clients, one per configured Proxmox cluster.
 package proxmoxpool
 
 import (
 	"context"
-	"crypto/tls"
-	"errors"
 	"fmt"
-	"net/http"
 	"os"
 	"strings"
 
-	proxmox "github.com/luthermonson/go-proxmox"
-
-	goproxmox "github.com/sergelogvinov/go-proxmox"
+	proxmoxrest "github.com/sergelogvinov/go-proxmox-rest"
+	"github.com/sergelogvinov/go-proxmox-rest/cluster"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/klog/v2"
@@ -49,29 +46,23 @@ type ProxmoxCluster struct {
 
 // ProxmoxPool is a Proxmox client pool of proxmox clusters.
 type ProxmoxPool struct {
-	clients map[string]*goproxmox.APIClient
+	// clientsRest are the go-proxmox-rest clients, one per configured cluster.
+	clientsRest map[string]*proxmoxrest.Client
 }
 
 // NewProxmoxPool creates a new Proxmox cluster client.
-func NewProxmoxPool(config []*ProxmoxCluster, options ...proxmox.Option) (*ProxmoxPool, error) {
+func NewProxmoxPool(config []*ProxmoxCluster, options ...proxmoxrest.Option) (*ProxmoxPool, error) {
 	clusters := len(config)
 	if clusters > 0 {
-		clients := make(map[string]*goproxmox.APIClient, clusters)
+		clientsRest := make(map[string]*proxmoxrest.Client, clusters)
 
 		for _, cfg := range config {
-			opts := []proxmox.Option{proxmox.WithUserAgent("ProxmoxCSIPlugin/1.0")}
-			opts = append(opts, options...)
-
-			if cfg.Insecure {
-				httpTr := &http.Transport{
-					TLSClientConfig: &tls.Config{
-						InsecureSkipVerify: true,
-						MinVersion:         tls.VersionTLS12,
-					},
-				}
-
-				opts = append(opts, proxmox.WithHTTPClient(&http.Client{Transport: httpTr}))
+			restOpts := []proxmoxrest.Option{
+				proxmoxrest.WithURL(cfg.URL),
+				proxmoxrest.WithInsecure(cfg.Insecure),
+				proxmoxrest.WithUserAgent("ProxmoxCSIPlugin/1.0"),
 			}
+			restOpts = append(restOpts, options...)
 
 			if cfg.TokenID == "" && cfg.TokenIDFile != "" {
 				var err error
@@ -92,24 +83,21 @@ func NewProxmoxPool(config []*ProxmoxCluster, options ...proxmox.Option) (*Proxm
 			}
 
 			if cfg.Username != "" && cfg.Password != "" {
-				opts = append(opts, proxmox.WithCredentials(&proxmox.Credentials{
-					Username: cfg.Username,
-					Password: cfg.Password,
-				}))
+				restOpts = append(restOpts, proxmoxrest.WithPasswordAuth(cfg.Username, cfg.Password))
 			} else if cfg.TokenID != "" && cfg.TokenSecret != "" {
-				opts = append(opts, proxmox.WithAPIToken(cfg.TokenID, cfg.TokenSecret))
+				restOpts = append(restOpts, proxmoxrest.WithTokenAuth(cfg.TokenID, cfg.TokenSecret))
 			}
 
-			pxClient, err := goproxmox.NewAPIClient(cfg.URL, opts...)
+			pxClientRest, err := proxmoxrest.New(proxmoxrest.ClientConfig{}, restOpts...)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("failed to create Proxmox REST client for region %s: %w", cfg.Region, err)
 			}
 
-			clients[cfg.Region] = pxClient
+			clientsRest[cfg.Region] = pxClientRest
 		}
 
 		return &ProxmoxPool{
-			clients: clients,
+			clientsRest: clientsRest,
 		}, nil
 	}
 
@@ -118,9 +106,9 @@ func NewProxmoxPool(config []*ProxmoxCluster, options ...proxmox.Option) (*Proxm
 
 // GetRegions returns supported regions.
 func (c *ProxmoxPool) GetRegions() []string {
-	regions := make([]string, 0, len(c.clients))
+	regions := make([]string, 0, len(c.clientsRest))
 
-	for region := range c.clients {
+	for region := range c.clientsRest {
 		regions = append(regions, region)
 	}
 
@@ -129,19 +117,14 @@ func (c *ProxmoxPool) GetRegions() []string {
 
 // CheckClusters checks if the Proxmox connection is working.
 func (c *ProxmoxPool) CheckClusters(ctx context.Context) error {
-	for region, pxClient := range c.clients {
+	for region, pxClient := range c.clientsRest {
 		info, err := pxClient.Version(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to initialized proxmox client in region %s, error: %v", region, err)
 		}
 
-		pxCluster, err := pxClient.Cluster(ctx)
-		if err != nil {
-			return fmt.Errorf("failed to get cluster info in region %s, error: %v", region, err)
-		}
-
 		// Check if we can have permission to list VMs
-		vms, err := pxCluster.Resources(ctx, "vm")
+		vms, err := pxClient.Cluster().Resources().List(ctx, cluster.ListFilter{Type: cluster.ResourceTypeVM})
 		if err != nil {
 			return fmt.Errorf("failed to get list of VMs in region %s, error: %v", region, err)
 		}
@@ -156,13 +139,21 @@ func (c *ProxmoxPool) CheckClusters(ctx context.Context) error {
 	return nil
 }
 
-// GetProxmoxCluster returns a Proxmox cluster client in a given region.
-func (c *ProxmoxPool) GetProxmoxCluster(region string) (*goproxmox.APIClient, error) {
-	if c.clients[region] != nil {
-		return c.clients[region], nil
+// GetProxmoxCluster returns a Proxmox REST API client
+// (github.com/sergelogvinov/go-proxmox-rest) in a given region.
+func (c *ProxmoxPool) GetProxmoxCluster(region string) (*proxmoxrest.Client, error) {
+	if c.clientsRest[region] != nil {
+		return c.clientsRest[region], nil
 	}
 
 	return nil, ErrRegionNotFound
+}
+
+// SetProxmoxCluster overrides the REST client for a region. Intended for tests
+// that need to point a region at an in-memory fake server after the pool has
+// already been built from static configuration (e.g. a YAML file with a fixed URL).
+func (c *ProxmoxPool) SetProxmoxCluster(region string, client *proxmoxrest.Client) {
+	c.clientsRest[region] = client
 }
 
 // GetNodeGroup returns a Proxmox node ha-group in a given region.
@@ -172,7 +163,7 @@ func (c *ProxmoxPool) GetNodeGroup(ctx context.Context, region string, node stri
 		return "", err
 	}
 
-	haGroups, err := px.GetHAGroupList(ctx)
+	haGroups, err := px.Cluster().HA().Groups().List(ctx)
 	if err != nil {
 		return "", fmt.Errorf("error get ha-groups %v", err)
 	}
@@ -194,40 +185,32 @@ func (c *ProxmoxPool) GetNodeGroup(ctx context.Context, region string, node stri
 
 // FindVMByNode find a VM by kubernetes node resource in all Proxmox clusters.
 func (c *ProxmoxPool) FindVMByNode(ctx context.Context, node *v1.Node) (vmID int, region string, err error) {
-	for region, px := range c.clients {
-		vm, err := px.GetVMByFilter(ctx, func(rs *proxmox.ClusterResource) (bool, error) {
-			if rs.Type != "qemu" {
-				return false, nil
-			}
+	for region, px := range c.clientsRest {
+		resources, err := px.Cluster().Resources().List(ctx, cluster.ListFilter{
+			Type:      cluster.ResourceTypeVM,
+			GuestType: "qemu",
+			Match: func(rs *cluster.Resource) (bool, error) {
+				if !strings.HasPrefix(rs.Name, node.Name) {
+					return false, nil
+				}
 
-			if !strings.HasPrefix(rs.Name, node.Name) {
-				return false, nil
-			}
+				cfg, err := px.Nodes(rs.Node).Qemu().Config(ctx, rs.VMID, nil)
+				if err != nil {
+					return false, err
+				}
 
-			vm, err := px.GetVMConfig(ctx, int(rs.VMID))
-			if err != nil {
-				return false, err
-			}
-
-			if goproxmox.GetVMUUID(vm) == node.Status.NodeInfo.SystemUUID {
-				return true, nil
-			}
-
-			return false, nil
+				return cfg.SMBios1 != nil && cfg.SMBios1.UUID == node.Status.NodeInfo.SystemUUID, nil
+			},
 		})
 		if err != nil {
-			if err == goproxmox.ErrVirtualMachineNotFound {
-				continue
-			}
-
 			return 0, "", err
 		}
 
-		if vm.VMID == 0 {
+		if len(resources) == 0 {
 			continue
 		}
 
-		return int(vm.VMID), region, nil
+		return resources[0].VMID, region, nil
 	}
 
 	return 0, "", ErrInstanceNotFound
@@ -235,32 +218,28 @@ func (c *ProxmoxPool) FindVMByNode(ctx context.Context, node *v1.Node) (vmID int
 
 // FindVMByUUID find a VM by uuid in all Proxmox clusters.
 func (c *ProxmoxPool) FindVMByUUID(ctx context.Context, uuid string) (vmID int, region string, err error) {
-	for region, px := range c.clients {
-		vm, err := px.GetVMByFilter(ctx, func(rs *proxmox.ClusterResource) (bool, error) {
-			if rs.Type != "qemu" {
-				return false, nil
-			}
+	for region, px := range c.clientsRest {
+		resources, err := px.Cluster().Resources().List(ctx, cluster.ListFilter{
+			Type:      cluster.ResourceTypeVM,
+			GuestType: "qemu",
+			Match: func(rs *cluster.Resource) (bool, error) {
+				cfg, err := px.Nodes(rs.Node).Qemu().Config(ctx, rs.VMID, nil)
+				if err != nil {
+					return false, err
+				}
 
-			vm, err := px.GetVMConfig(ctx, int(rs.VMID))
-			if err != nil {
-				return false, err
-			}
-
-			if goproxmox.GetVMUUID(vm) == uuid {
-				return true, nil
-			}
-
-			return false, nil
+				return cfg.SMBios1 != nil && cfg.SMBios1.UUID == uuid, nil
+			},
 		})
 		if err != nil {
-			if errors.Is(err, goproxmox.ErrVirtualMachineNotFound) {
-				continue
-			}
-
-			return 0, "", ErrInstanceNotFound
+			return 0, "", err
 		}
 
-		return int(vm.VMID), region, nil
+		if len(resources) == 0 {
+			continue
+		}
+
+		return resources[0].VMID, region, nil
 	}
 
 	return 0, "", ErrInstanceNotFound

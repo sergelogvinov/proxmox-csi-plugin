@@ -77,7 +77,14 @@ func (c *migrateCmd) runMigration(cmd *cobra.Command, args []string) error {
 
 	var err error
 
-	ctx := context.Background()
+	taskTimeout, _ := flags.GetInt("timeout") //nolint: errcheck
+
+	// Bound the whole command, not just the disk-copy task: pod eviction and
+	// volume-detach waits below could otherwise block forever on a background
+	// context with no deadline.
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(taskTimeout)*time.Second)
+	defer cancel()
+
 	pvc := args[0]
 	node := args[1]
 
@@ -129,6 +136,25 @@ func (c *migrateCmd) runMigration(cmd *cobra.Command, args []string) error {
 	}
 
 	cordonedNodes := []string{}
+	unsafeToUncordon := false
+
+	defer func() {
+		if len(cordonedNodes) == 0 {
+			return
+		}
+
+		if unsafeToUncordon {
+			logger.Errorf("migration failed after storage changes started, leaving nodes cordoned for manual recovery: %s", strings.Join(cordonedNodes, ","))
+
+			return
+		}
+
+		logger.Infof("uncordoning nodes: %s", strings.Join(cordonedNodes, ","))
+
+		if err := tools.UncondonNodes(context.WithoutCancel(ctx), c.kclient, cordonedNodes); err != nil {
+			logger.Errorf("failed to uncordon nodes: %v", err)
+		}
+	}()
 
 	if len(pods) > 0 {
 		if force {
@@ -184,7 +210,8 @@ func (c *migrateCmd) runMigration(cmd *cobra.Command, args []string) error {
 
 	logger.Infof("moving disk %s to proxmox node %s", vol.Disk(), node)
 
-	taskTimeout, _ := flags.GetInt("timeout") //nolint: errcheck
+	unsafeToUncordon = true
+
 	if err = toolsproxmox.MoveQemuDisk(ctx, cluster, vol, node, taskTimeout); err != nil {
 		return fmt.Errorf("failed to move disk: %v", err)
 	}
@@ -195,13 +222,7 @@ func (c *migrateCmd) runMigration(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to replace PV topology: %v", err)
 	}
 
-	if force {
-		logger.Infof("uncordoning nodes: %s", strings.Join(cordonedNodes, ","))
-
-		if err = tools.UncondonNodes(ctx, c.kclient, cordonedNodes); err != nil {
-			return fmt.Errorf("failed to uncordon nodes: %v", err)
-		}
-	}
+	unsafeToUncordon = false
 
 	logger.Infof("persistentvolumeclaims %s has been migrated to proxmox node %s", pvc, node)
 

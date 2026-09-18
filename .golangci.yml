@@ -83,7 +83,6 @@ linters:
       min-complexity: 30
     gomoddirectives:
       replace-local: true
-      replace-allow-list: [github.com/luthermonson/go-proxmox]
       retract-allow-no-explanation: false
       exclude-forbidden: true
     lll:
