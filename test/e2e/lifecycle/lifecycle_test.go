@@ -21,6 +21,7 @@ package lifecycle
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -28,6 +29,7 @@ import (
 	"github.com/sergelogvinov/proxmox-csi-plugin/test/e2e/framework"
 
 	corev1 "k8s.io/api/core/v1"
+	storagev1 "k8s.io/api/storage/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -110,6 +112,31 @@ func TestStatefulSetLifecycle(t *testing.T) {
 	require.NoError(err, "failed to scale statefulset to %d replicas", replicas)
 
 	pod1Name := stsName + "-1"
+	pvc1Name := framework.StatefulSetPVCName(stsName, 1)
+
+	// Topology / WaitForFirstConsumer: the StorageClass must defer binding
+	// until a pod that actually needs the volume exists, so pvc-1 must
+	// still be unbound right after it's created - before pod-1 has even
+	// been scheduled to a node, let alone become ready.
+	ctx, cancel = f.Context()
+	sc, err := f.Client.Clientset.StorageV1().StorageClasses().Get(ctx, f.Config.StorageClass, metav1.GetOptions{})
+
+	cancel()
+	require.NoError(err, "failed to get storageclass %s", f.Config.StorageClass)
+	require.NotNil(sc.VolumeBindingMode, "storageclass %s has no volumeBindingMode set", f.Config.StorageClass)
+	require.Equal(storagev1.VolumeBindingWaitForFirstConsumer, *sc.VolumeBindingMode,
+		"storageclass %s must use WaitForFirstConsumer for this check to be meaningful", f.Config.StorageClass)
+
+	done = f.Step("waiting for pvc %s to be created", pvc1Name)
+	ctx, cancel = f.Context()
+	pvc1AtCreation, err := framework.WaitForPVCExists(ctx, f.Client.Clientset, f.Namespace, pvc1Name, f.Config.Timeout)
+
+	cancel()
+	done()
+	require.NoError(err, "pvc %s was never created", pvc1Name)
+	require.Empty(pvc1AtCreation.Spec.VolumeName,
+		"pvc %s was already bound before pod %s was scheduled - WaitForFirstConsumer should defer binding until a consumer exists", pvc1Name, pod1Name)
+	f.Logf("pvc %s correctly still unbound (phase=%s) before pod %s is scheduled", pvc1Name, pvc1AtCreation.Status.Phase, pod1Name)
 
 	done = f.Step("waiting for pod %s to be ready", pod1Name)
 	ctx, cancel = f.Context()
@@ -118,8 +145,6 @@ func TestStatefulSetLifecycle(t *testing.T) {
 	cancel()
 	done()
 	require.NoError(err, "pod %s never became ready", pod1Name)
-
-	pvc1Name := framework.StatefulSetPVCName(stsName, 1)
 
 	done = f.Step("waiting for pvc %s to bind", pvc1Name)
 	ctx, cancel = f.Context()
@@ -147,7 +172,120 @@ func TestStatefulSetLifecycle(t *testing.T) {
 	require.NotEqual(pod0.Spec.NodeName, pod1.Spec.NodeName, "pod anti-affinity did not spread replicas across nodes")
 	f.Logf("%s is on node %s, %s is on node %s", pod0Name, pod0.Spec.NodeName, pod1Name, pod1.Spec.NodeName)
 
-	// 4. Resize pod -0's volume upward while its pod is running (online
+	// Topology, continued: now that pod-1 landed somewhere, pv1's
+	// nodeAffinity (set by the driver at provision time) must actually
+	// match the node the scheduler put pod-1 on - not just exist.
+	ctx, cancel = f.Context()
+	node1, err := f.Client.Clientset.CoreV1().Nodes().Get(ctx, pod1.Spec.NodeName, metav1.GetOptions{})
+
+	cancel()
+	require.NoError(err, "failed to get node %s", pod1.Spec.NodeName)
+	require.True(framework.NodeMatchesVolumeNodeAffinity(pv1.Spec.NodeAffinity, node1),
+		"pv %s nodeAffinity does not match the labels of node %s it was actually scheduled to", pv1.Name, node1.Name)
+	f.Logf("pv %s nodeAffinity matches node %s", pv1.Name, node1.Name)
+
+	// 4. Scale down to 1 replica then back up to 2: pod-1's PVC must
+	// survive the scale down (StatefulSets don't cascade-delete PVCs for
+	// removed ordinals by default), and the recreated pod-1 must reuse the
+	// same PV and see the same data - not get a fresh volume.
+	const scaleMarker = "e2e-scale-marker"
+
+	f.Logf("writing a marker file into %s's volume before scaling down", pod1Name)
+
+	ctx, cancel = f.Context()
+	_, _, err = framework.ExecInPod(ctx, f.Client.RESTConfig, f.Client.Clientset, f.Namespace, pod1Name, "alpine",
+		[]string{"sh", "-c", "echo " + scaleMarker + " > /mnt/scale-marker.txt"}, nil)
+
+	cancel()
+	require.NoError(err, "failed to write marker file in pod %s", pod1Name)
+
+	ctx, cancel = f.Context()
+	sts, err = stsClient.Get(ctx, stsName, metav1.GetOptions{})
+
+	cancel()
+	require.NoError(err)
+
+	replicas = 1
+	sts.Spec.Replicas = &replicas
+
+	f.Logf("scaling statefulset %s down to %d replica", stsName, replicas)
+
+	ctx, cancel = f.Context()
+	_, err = stsClient.Update(ctx, sts, metav1.UpdateOptions{})
+
+	cancel()
+	require.NoError(err, "failed to scale statefulset down to %d replica", replicas)
+
+	done = f.Step("waiting for pod %s to be deleted", pod1Name)
+	ctx, cancel = f.Context()
+	err = framework.WaitForPodGone(ctx, f.Client.Clientset, f.Namespace, pod1Name, f.Config.Timeout)
+
+	cancel()
+	done()
+	require.NoError(err, "pod %s was not deleted after scaling down", pod1Name)
+
+	ctx, cancel = f.Context()
+	pvc1AfterScaleDown, err := pvcClient.Get(ctx, pvc1Name, metav1.GetOptions{})
+
+	cancel()
+	require.NoError(err, "pvc %s was deleted when it should have survived the scale down", pvc1Name)
+	require.Equal(pv1.Name, pvc1AfterScaleDown.Spec.VolumeName, "pvc %s is no longer bound to the same pv after scaling down", pvc1Name)
+	f.Logf("pvc %s survived the scale down, still bound to pv %s", pvc1Name, pv1.Name)
+
+	// The pod is gone and the VolumeAttachment is cleaned up on the
+	// Kubernetes side almost immediately, but detaching the disk from the
+	// Proxmox VM itself happens asynchronously on the hypervisor. Give it
+	// a moment before scaling back up, so the recreated pod's attach
+	// doesn't race an in-flight detach of the same disk.
+	const detachSettleDelay = 10 * time.Second
+
+	f.Logf("waiting %s for the disk to finish detaching from the Proxmox VM", detachSettleDelay)
+	time.Sleep(detachSettleDelay)
+
+	ctx, cancel = f.Context()
+	sts, err = stsClient.Get(ctx, stsName, metav1.GetOptions{})
+
+	cancel()
+	require.NoError(err)
+
+	replicas = 2
+	sts.Spec.Replicas = &replicas
+
+	f.Logf("scaling statefulset %s back up to %d replicas", stsName, replicas)
+
+	ctx, cancel = f.Context()
+	_, err = stsClient.Update(ctx, sts, metav1.UpdateOptions{})
+
+	cancel()
+	require.NoError(err, "failed to scale statefulset back up to %d replicas", replicas)
+
+	done = f.Step("waiting for pod %s to be ready again", pod1Name)
+	ctx, cancel = f.Context()
+	_, err = framework.WaitForPodReady(ctx, f.Client.Clientset, f.Namespace, pod1Name, f.Config.Timeout)
+
+	cancel()
+	done()
+	require.NoError(err, "pod %s never became ready again after scaling back up", pod1Name)
+
+	ctx, cancel = f.Context()
+	pvc1AfterScaleUp, err := pvcClient.Get(ctx, pvc1Name, metav1.GetOptions{})
+
+	cancel()
+	require.NoError(err)
+	require.Equal(pv1.Name, pvc1AfterScaleUp.Spec.VolumeName, "pod %s was provisioned a different pv instead of reusing %s after scale down/up", pod1Name, pv1.Name)
+	f.Logf("pod %s reused the same pv %s after scale down/up", pod1Name, pv1.Name)
+
+	f.Logf("verifying the marker file written before scale down survived")
+
+	ctx, cancel = f.Context()
+	scaleMarkerOut, _, err := framework.ExecInPod(ctx, f.Client.RESTConfig, f.Client.Clientset, f.Namespace, pod1Name, "alpine",
+		[]string{"cat", "/mnt/scale-marker.txt"}, nil)
+
+	cancel()
+	require.NoError(err, "failed to read marker file from pod %s after scale down/up", pod1Name)
+	require.Equal(scaleMarker, strings.TrimSpace(scaleMarkerOut), "data written before scale down did not survive scale down/up")
+
+	// 5. Resize pod -0's volume upward while its pod is running (online
 	// resize) and confirm the filesystem inside the pod actually grew.
 	wantSize := resource.MustParse(resizedSize)
 
@@ -184,7 +322,7 @@ func TestStatefulSetLifecycle(t *testing.T) {
 	require.NoError(err, "failed to exec df in pod %s", pod0Name)
 	require.True(dfShowsAtLeast(t, stdout, resizedSize), "pod %s filesystem did not reflect the resize:\n%s", pod0Name, stdout)
 
-	// 5. Delete the StatefulSet, then explicitly delete both PVCs
+	// 6. Delete the StatefulSet, then explicitly delete both PVCs
 	// (StatefulSets don't cascade-delete their PVCs by default) and assert
 	// every PV it provisioned is actually gone - the real thing under test.
 	f.Logf("deleting statefulset %s", stsName)

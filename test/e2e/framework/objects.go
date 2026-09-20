@@ -101,6 +101,11 @@ func NewTestStatefulSet(opts StatefulSetOptions) *appsv1.StatefulSet {
 							},
 						},
 					},
+					SecurityContext: &corev1.PodSecurityContext{
+						FSGroup:    ptr.To(int64(1000)),
+						RunAsUser:  ptr.To(int64(1000)),
+						RunAsGroup: ptr.To(int64(1000)),
+					},
 					Containers: []corev1.Container{
 						{
 							Name:    alpineImage,
