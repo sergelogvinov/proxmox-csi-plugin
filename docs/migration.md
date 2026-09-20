@@ -1,10 +1,29 @@
 # Migration: `luthermonson/go-proxmox` → `sergelogvinov/go-proxmox-rest`
 
-Status: **in progress** — §4 (the `go-proxmox-rest` gaps) is done; §5/§6 (the plugin-side
-`pkg/proxmoxrest` adapter and call-site migration) has not started.
+Status: **in progress** — §4 (the `go-proxmox-rest` gaps) is done; §5 (both-clients design) is
+done; §6 step 3 (call-site migration) has not started.
 Owner: platform
 Related repos: `sergelogvinov/go-proxmox` (thin wrapper, to be retired), `sergelogvinov/go-proxmox-rest`
 (target — pushed to `origin/main` on GitHub, no tagged release yet)
+
+**2026-09-20 refresh:** `go-proxmox-rest` has moved a great deal since §4 was last written (30
+commits on `main`, this document's `replace` pin included). None of it changes §3's call-site
+mapping in a way that blocks step 3, but four things below are worth knowing before starting it:
+
+- The module grew well past the plugin's needs — LXC guest support, Ceph, backup/vzdump, firewall,
+  SDN mapping, storage upload/download-url/OCI-pull, HA status/rules, resource pools, an e2e test
+  suite (`tests/e2e`), and `+proxmox:rbac` doc annotations on every method. None of this is used by
+  the plugin (confirmed: no `Pools()`/LXC call sites exist in this repo) and none of it needs
+  tracking here — it's mentioned only so a future reader isn't surprised by the package list.
+- One real ergonomics win for step 3: `nodes/qemu/drive.go` now ships `AttachDrive`/`DetachDrive`
+  convenience methods (see §3's updated row below) — the attach/detach path no longer needs to be
+  hand-built via raw `qemu.Config{SCSI: ...}` maps as originally sketched.
+- Release automation landed (`feat: gh release please`), but no tag has been cut yet — `go list -m`
+  still resolves through this repo's local `replace ... => ../go-proxmox-rest` directive, same as
+  when §4 closed. Nothing to do here until a release ships; see §6 step 1's remaining checkbox.
+- The `fakeapi` package (relevant to §6 step 4) grew from a one-line mention into a full seeding/
+  mutation API with its own doc comment (`fakeapi/fakeapi.go`) — §8 below replaces the old one-line
+  reference with the detail needed to actually write the fixture rewrite.
 
 ## 1. Why
 
@@ -78,7 +97,7 @@ rather than carrying it forward.
 | `cl.CreateVM(ctx, node, options)` | `c.Nodes(node).Qemu().Create(ctx, &qemu.CreateOptions{VMID: ..., Config: qemu.Config{...}})` — **shipped, §4.1** | Only call site: `prepareReplication` (`pkg/csi/utils.go`), creates the placeholder VM used as the replication anchor. |
 | `cl.DeleteVMByID(ctx, node, vmID)` | `c.Nodes(node).Qemu().Status(ctx, vmid)` (check running) → `Stop` if needed → `c.Nodes(node).Qemu().Delete(ctx, vmid, nil)`, each polled to completion | |
 | `cl.Node(ctx, name)` + `node.VirtualMachine(ctx, vmid)` + `vm.Migrate(...)` | `c.Nodes(node).Qemu().Migrate(ctx, vmid, &qemu.MigrateOptions{Target: ..., Online: ...})` | `Online` is a plain `bool` now, no `proxmox.IntOrBool`. |
-| `vm.Config(ctx, proxmox.VirtualMachineOption{...})` (attach/update/detach disk options) | `c.Nodes(node).Qemu().UpdateConfig(ctx, vmid, &qemu.Config{SCSI: map[int]qemu.Drive{lun: {...}}})` or `UpdateConfigAsync` for the hotplug/storage-allocating path (Proxmox's own recommendation, matches today's `vm.Config` + `task.WaitFor`) | The `wwn=`/comma-joined option string building in `attachVolume`/`updateVolume` is replaced by populating `qemu.Drive` struct fields directly. |
+| `vm.Config(ctx, proxmox.VirtualMachineOption{...})` (attach/update/detach disk options) | `c.Nodes(node).Qemu().AttachDrive(ctx, vmid, &qemu.AttachDriveOptions{Drive: "scsi1", Options: qemu.Drive{File: ...}})` / `DetachDrive(ctx, vmid, &qemu.DetachDriveOptions{Drive: "scsi1"})` — **new since this table was first written**, `nodes/qemu/drive.go` | Both are thin wrappers around `UpdateConfigAsync` (still available directly for anything `AttachDrive`/`DetachDrive` don't cover) so the `wwn=`/comma-joined option string building in `attachVolume`/`updateVolume` is replaced by populating `qemu.Drive` struct fields directly, same net effect as the original sketch, less boilerplate at the call site. `DetachDrive` converts the slot to `unusedN` (keeps the volume) exactly like today's Proxmox behavior — still needs a follow-up `Unlink` to actually free it, same as now. |
 | `vm.UnlinkDisk(ctx, device, force)` | `c.Nodes(node).Qemu().Unlink(ctx, vmid, &qemu.UnlinkOptions{IDList: []string{device}, Force: force})` | |
 | `cl.ResizeVMDisk(ctx, vmID, node, disk, size)` | `c.Nodes(node).Qemu().Resize(ctx, vmid, &qemu.ResizeOptions{Disk: disk, Size: size})` | |
 | `px.GetHAGroupList(ctx)` | `c.Cluster().HA().Groups().List(ctx)` | Type is `ha.Group`, not the wrapper's own `HAGroup`. |
@@ -292,9 +311,12 @@ independently small, reviewable, and revertable.
    error need their checks updated in the same commit — see §5's note on this.
 4. **Migrate the test fixtures.** Replace `test/cluster/cluster.go` (httpmock + raw
    `luthermonson` types) with `go-proxmox-rest`'s `fakeapi.NewCluster(...)` builder, updating
-   `pkg/csi/utils_test.go` accordingly. This can happen incrementally alongside step 3 (both
+   `pkg/csi/controller_test.go` (its only consumer — see §8) accordingly. This can happen
+   incrementally alongside step 3 (both
    fixture styles coexist in the test suite until every call site is migrated) rather than as one
-   big-bang swap.
+   big-bang swap. See §8 for the concrete fixture-by-fixture mapping and the behavioral gap
+   (`Content.Delete` is unconditional/synchronous in `fakeapi` — no per-volume-name failure
+   injection like today's `vm-9999-pvc-error` responder) a straight port hits.
 5. **Burn-in.** Once a meaningful slice of step 3 has landed, run it in a dev/staging cluster for
    at least one full reconcile cycle covering create/attach/detach/resize/snapshot/replicate/
    delete — exercising both clients concurrently, since some functions will be on `go-proxmox-rest`
@@ -318,3 +340,120 @@ independently small, reviewable, and revertable.
 - `go-proxmox-rest`'s retry policy (`retryCondition`: 5xx + `SlowDown` + connectivity errors,
   exponential backoff) differs from `luthermonson`'s; watch task-creation-under-load behavior
   (`GetNextID`'s conflict retry today, `cluster.NextID` tomorrow) during burn-in.
+
+## 8. `fakeapi` fixture plan (for §6 step 4)
+
+`go-proxmox-rest/fakeapi` (package doc: `fakeapi/fakeapi.go`) is an in-memory Proxmox stand-in
+built on `httptest.Server`: `fakeapi.NewCluster(t, opts...)` starts it, `Cluster.Client(t)` returns
+an ordinary `*proxmox.Client` wired to it, so every real client package (`cluster`, `nodes/qemu`,
+`nodes/storage`, `nodes/tasks`, ...) runs against it completely unmodified. This replaces
+`test/cluster/cluster.go`'s `httpmock.RegisterResponder(...)` calls one for one, seeded
+programmatically instead of via regex-matched URL responders.
+
+### 8.1 What today's fixture seeds, and its `fakeapi` equivalent
+
+`test/cluster/cluster.go`'s `SetupMockResponders` (its only caller is `pkg/csi/controller_test.go`)
+seeds, in order:
+
+| Today (`httpmock` + `luthermonson` types) | `fakeapi` equivalent |
+|---|---|
+| `GET /version` → `proxmox.Version{Version: "8.4"}` | Not needed — `fakeapi` doesn't model `/version` yet; the plugin's version check call site isn't exercised by these tests. If it is, add a responder or (if genuinely needed generally) request it upstream. |
+| `GET /cluster/status` → 3 `NodeStatuses` (`pve-1/2/3`) | `fakeapi.NewCluster(t, fakeapi.WithNodes("pve-1", "pve-2", "pve-3"))` — quorate reporting for len > 1 nodes is automatic (`WithNodes`'s doc comment). |
+| `GET /cluster/resources` → 2 VMs + 8 storage rows (`smb`/`rbd`×2/`zfs`×2/`local-lvm`×2) | Built automatically from `Node.AddVM`/`Node.AddStorage` seeding below — no separate resources fixture to maintain; `Cluster().Resources().List` reads the same seeded state `nodes/qemu` and `nodes/storage` calls do. |
+| `GET /nodes/pve-{1,2,3}/status` → empty `proxmox.Node{}` | `cl.Node(name).SetResources(cores, memoryBytes)` if a test needs specific totals; defaults (4 cores/8 GiB) apply otherwise. |
+| `GET /nodes` → 3 online `NodeStatus` | Covered by `WithNodes` (see above). |
+| `GET /storage/rbd` → `proxmox.ClusterStorage{...}` (root storage-config endpoint, hit by `controller.go:254`'s raw `cl.Client.ClusterStorage` passthrough, exercised via `TestCreateVolume` in `controller_test.go`) | `c.Storage().Get(ctx, "rbd")` — **not yet seedable by `fakeapi`**: there is no `WithNodes`/`Cluster`-level seeding for the root `/storage` config tree (only per-node `/nodes/{node}/storage` via `Node.AddStorage`). Since this call site is actually exercised (unlike a first guess might suggest), this is a real gap to raise upstream before step 6.4 can fully replace `controller_test.go`'s fixture — either add `Cluster`-level storage-config seeding to `fakeapi`, or keep this one endpoint on the old `httpmock` responder until it's addressed there. |
+| `GET /nodes/{node}/storage/{rbd,zfs,local-lvm}/status` → `proxmox.Storage{...}` totals | `node.AddStorage(id, storageType, fakeapi.WithCapacity(total, used, avail))`, one call per node/storage pair (`rbd` shared on pve-1+pve-2 needs `AddStorage` called on both). |
+| `GET /nodes/{node}/storage/\S+/status` catch-all → 400 "No such storage" | Automatic: `Node.AddStorage` only seeds requested ids; requesting an unseeded id 404s (`proxmoxrest.IsNotFound`), not the old 400/string-matched shape — this is the `errors.Is`→`IsNotFound` swap §3/§5 already call out, just showing up in the fixture too. |
+| `GET /nodes/{node}/storage/{smb,rbd,local-lvm}/content` → canned `[]proxmox.StorageContent` (incl. the `pvc-123`/`pvc-exist`/`pvc-exist-same-size`/`pvc-error`/`pvc-unpublished` volumes on `local-lvm`) | `fakeapi.WithVolume(storage.Volume{VolID: "local-lvm:vm-9999-pvc-123", Format: "raw", Size: csi.MinChunkSizeBytes, VMID: 9999})` etc., passed to the corresponding `AddStorage` call. Note the field is `VolID` (full `storage:name` id), not the old `Volid`/bare-name split — build the full id when seeding. |
+| `GET /nodes/{node}/storage/\S+/content` catch-all → 500 "storage does not exist" | Same automatic 404-on-unseeded-storage behavior as the status catch-all above — a semantic improvement (a genuinely missing storage should never have been a 500) that `proxmoxrest.IsNotFound(err)` call sites need to rely on instead of the old message-sniffing. |
+| `GET /nodes/{pve-1,pve-2}/qemu` → one `VirtualMachine` each (100, 101) | `node.AddVM(100, &qemu.Config{...})` / `node.AddVM(101, &qemu.Config{...})` — see 8.2 for the config payload. |
+| `GET /nodes/\S+/qemu/{100,101}/status/current` → `running` | `fakeapi.WithStatus(qemu.VMStatusRunning)` passed to `AddVM` (also seeds `startedAt`, per the option's doc comment). |
+| `GET /nodes/\S+/qemu/{100,101}/config` → hand-built `map[string]interface{}` with `scsiN=...` property strings + `smbios1=uuid=...` | A real `*qemu.Config{SCSI: map[int]qemu.Drive{...}, SMBios1: &qemu.SMBios1{UUID: "..."}}` passed to `AddVM` — `fakeapi` flattens it back to the same wire property-string shape internally (`flattenQemuConfig`, `fakeapi/config.go`), so the config GET response is byte-for-byte what real Proxmox would send. This is a genuine improvement: no more hand-typing `"scsi1": "local-lvm:vm-9999-pvc-123,backup=0,iothread=1,wwn=0x5056432d49443031"` — set `qemu.Drive{File: ..., Backup: ptr(false), IOThread: ptr(true), WWN: "0x5056432d49443031"}` and let the client's own (un)marshaling round-trip it. |
+| Special-case responder for `pve-3`'s `qemu/100/config` at a literal `https://127.0.0.2:8006/...` URL (multi-region test) | Build a second `fakeapi.Cluster` (a second `NewCluster` call) for the second region rather than a second node on the same cluster — `fakeapi` has no concept of "same guest id visible from two different client base URLs" built in, and doesn't need one: the plugin's multi-region tests already key clusters by region name, so give each region its own fake cluster and point that region's client at it. |
+| `PUT .../qemu/{100,101}/resize` → empty success | `c.Nodes(node).Qemu().Resize(ctx, vmid, &qemu.ResizeOptions{...})` needs no seeding — `fakeapi` handles it generically against the seeded guest's config. |
+| Canned `task`/`taskErr` `proxmox.Task` fixtures + `GET .../tasks/{upid}/status` responders keyed to their fixed UPID strings | **Doesn't port as-is** — `fakeapi` mints its own realistic UPIDs per operation (`newUPID`, `fakeapi/tasks.go`) rather than accepting caller-supplied ones, and completes tasks instantly by default. Use `fakeapi.WithManualTasks()` at cluster construction plus `cl.Tasks().Complete(upid)` / `cl.Tasks().Fail(upid, "ERROR")` (capture `upid` from the triggering call's return value, not a fixture) wherever a test needs to control timing or force a failed exit status — see 8.3 for the one operation this doesn't cover. |
+| `DELETE .../storage/local-lvm/content/vm-9999-pvc-123` → success (`Times(1)`) / `.../vm-9999-pvc-error` → `taskErr` UPID (`Times(1)`) | `Content(storageID).Delete` always succeeds synchronously against a seeded volume and 404s against an unseeded one in `fakeapi` — see 8.3, this is the one case `WithManualTasks` can't help with. |
+
+### 8.2 Worked seeding example
+
+Replacing the bulk of `SetupMockResponders` (nodes, storages, the two VMs) looks like:
+
+```go
+cl := fakeapi.NewCluster(t, fakeapi.WithNodes("pve-1", "pve-2", "pve-3"))
+
+pve1, pve2 := cl.Node("pve-1"), cl.Node("pve-2")
+
+pve1.AddStorage("smb", "cifs",
+    fakeapi.WithVolume(storage.Volume{VolID: "smb:9999/vm-9999-volume-smb.raw", Format: "raw", Size: 1 << 30, VMID: 9999}))
+
+for _, n := range []*fakeapi.Node{pve1, pve2} {
+    n.AddStorage("rbd", "dir",
+        fakeapi.WithVolume(storage.Volume{VolID: "rbd:9999/vm-9999-volume-rbd.raw", Format: "raw", Size: 1 << 30, VMID: 9999}))
+    n.AddStorage("zfs", "zfspool",
+        fakeapi.WithCapacity(100<<30, 50<<30, 50<<30))
+}
+
+pve1.AddStorage("local-lvm", "lvm",
+    fakeapi.WithCapacity(100<<30, 50<<30, 50<<30),
+    fakeapi.WithVolume(storage.Volume{VolID: "local-lvm:vm-9999-pvc-123", Format: "raw", Size: csi.MinChunkSizeBytes}),
+    fakeapi.WithVolume(storage.Volume{VolID: "local-lvm:vm-9999-pvc-exist", Format: "raw", Size: 5 << 30}),
+    fakeapi.WithVolume(storage.Volume{VolID: "local-lvm:vm-9999-pvc-exist-same-size", Format: "raw", Size: csi.MinChunkSizeBytes}),
+    fakeapi.WithVolume(storage.Volume{VolID: "local-lvm:vm-9999-pvc-error", Format: "raw", Size: 1 << 30}),
+    fakeapi.WithVolume(storage.Volume{VolID: "local-lvm:vm-9999-pvc-unpublished", Format: "raw", Size: 1 << 30}),
+)
+
+pve1.AddVM(100, &qemu.Config{
+    Name: "cluster-1-node-1",
+    SCSI: map[int]qemu.Drive{
+        0: {File: "local-lvm:vm-100-disk-0", Size: "10G"},
+        1: {File: "local-lvm:vm-9999-pvc-123", Backup: ptr(false), IOThread: ptr(true), WWN: "0x5056432d49443031"},
+    },
+    SMBios1: &qemu.SMBios1{UUID: "11833f4c-341f-4bd3-aad7-f7abed000000"},
+}, fakeapi.WithStatus(qemu.VMStatusRunning))
+
+pve2.AddVM(101, &qemu.Config{
+    Name: "cluster-1-node-2",
+    SCSI: map[int]qemu.Drive{
+        0: {File: "local-lvm:vm-101-disk-0", Size: "10G"},
+        1: {File: "local-lvm:vm-101-disk-1", Size: "1G"},
+        2: {File: "rbd:9999/vm-9999-volume-rbd.raw", Backup: ptr(false), IOThread: ptr(true)},
+        3: {File: "local-lvm:vm-101-disk-2", Size: "1G"},
+    },
+    SMBios1: &qemu.SMBios1{UUID: "11833f4c-341f-4bd3-aad7-f7abed000001"},
+}, fakeapi.WithStatus(qemu.VMStatusRunning))
+
+c := cl.Client(t)
+```
+
+(`ptr` is a small `func ptr[T any](v T) *T { return &v }` helper — `qemu.Drive`'s boolean fields
+are pointers so Proxmox's "omit vs. explicit false" distinction round-trips.)
+
+### 8.3 The one thing that doesn't port: per-volume delete failure
+
+Today's fixture makes `DELETE .../content/vm-9999-pvc-error` return a UPID whose task fixture
+carries `Status: "stopped", ExitStatus: "ERROR"`, so `controller_test.go` can exercise the
+"delete task failed" branch of `DeleteVMDisk`. In `fakeapi`,
+`Content(storageID).Delete` (`fakeapi/handlers_storage.go`, `handleStorageContentItem`'s
+`DELETE` case) is unconditional and synchronous against any volume that exists in the seeded
+`content` list — it always succeeds and always returns an empty UPID, with no per-volume-id hook
+to fail it and no task wrapping at all (unlike `Copy`/`Create`/config updates, which do run through
+`startTask` and so *are* controllable via `WithManualTasks` + `Tasks().Fail`).
+
+Two options for the "delete task failed" test case once step 6.4 gets here, in order of
+preference:
+
+1. Use `Cluster.FailNode(node, fakeapi.FailureUnreachable)` for that one sub-test instead — coarser
+   (the whole node goes down, not just one volume's delete) but exercises the same
+   `proxmoxrest.IsUnexpected`/task-wait-error code path in `DeleteVMDisk` without needing anything
+   fakeapi doesn't have. Call `RecoverNode` afterward if the test reuses the cluster.
+2. If the coarser failure mode doesn't exercise what the test actually needs (specifically a task
+   that *starts running* and then fails, as opposed to the request never landing), this is a real
+   gap worth raising upstream in `go-proxmox-rest` — wrapping `Content.Delete` in the same
+   `startTask` mechanism `Copy` already uses (with an empty-UPID fast path preserved when
+   `!manual`, to avoid changing default-mode behavior for every other caller) would close it
+   without touching any other package's tests.
+
+Confirm which of these the actual ported test needs once `controller_test.go`'s delete-failure
+case is looked at directly — this section only establishes that the gap exists, not which fix it
+needs.
