@@ -33,6 +33,7 @@ policies:
       skipPaths:
         - .git/
         - pkg/helpers/ptr/
+        - test/e2e/
       includeSuffixes:
         - .go
       excludeSuffixes:
