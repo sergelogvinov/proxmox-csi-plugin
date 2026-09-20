@@ -129,6 +129,37 @@ func WaitForPVCBound(ctx context.Context, clientset *kubernetes.Clientset, names
 	return pvc, pv, nil
 }
 
+// WaitForPVCExists polls until the named PersistentVolumeClaim exists and
+// returns it as-is - unlike WaitForPVCBound, it does not wait for the PVC
+// to be Bound. Used to observe a PVC's state (e.g. still unbound) right
+// after creation, before whatever binds it (a scheduled consumer pod, for
+// a WaitForFirstConsumer StorageClass) has had a chance to run.
+func WaitForPVCExists(ctx context.Context, clientset *kubernetes.Clientset, namespace, name string, timeout time.Duration) (*corev1.PersistentVolumeClaim, error) {
+	var pvc *corev1.PersistentVolumeClaim
+
+	err := wait.PollUntilContextTimeout(ctx, pollInterval, timeout, true, func(ctx context.Context) (bool, error) {
+		p, err := clientset.CoreV1().PersistentVolumeClaims(namespace).Get(ctx, name, metav1.GetOptions{})
+
+		switch {
+		case apierrors.IsNotFound(err):
+			return false, nil
+		case isTransientError(err):
+			return false, nil
+		case err != nil:
+			return false, err
+		}
+
+		pvc = p
+
+		return true, nil
+	})
+	if err != nil {
+		return pvc, fmt.Errorf("pvc %s/%s was never created: %w", namespace, name, err)
+	}
+
+	return pvc, nil
+}
+
 // WaitForPVCResized polls until the PVC's status capacity reaches wantSize
 // and it carries no pending resize conditions.
 func WaitForPVCResized(ctx context.Context, clientset *kubernetes.Clientset, namespace, name string, wantSize resource.Quantity, timeout time.Duration) (*corev1.PersistentVolumeClaim, error) {
@@ -187,6 +218,23 @@ func waitForGone(ctx context.Context, timeout time.Duration, getErr func(context
 
 		return false, nil
 	})
+}
+
+// WaitForPodGone polls until the named Pod no longer exists. Used to
+// confirm a StatefulSet scale-down actually removed a replica's pod, as
+// opposed to WaitForPVCGone/WaitForPVGone: scaling down does *not* delete
+// the ordinal's PVC/PV by default, so those must stay around.
+func WaitForPodGone(ctx context.Context, clientset *kubernetes.Clientset, namespace, name string, timeout time.Duration) error {
+	err := waitForGone(ctx, timeout, func(ctx context.Context) error {
+		_, err := clientset.CoreV1().Pods(namespace).Get(ctx, name, metav1.GetOptions{})
+
+		return err
+	})
+	if err != nil {
+		return fmt.Errorf("pod %s/%s was not deleted: %w", namespace, name, err)
+	}
+
+	return nil
 }
 
 // WaitForPVGone polls until the named PersistentVolume no longer exists.
