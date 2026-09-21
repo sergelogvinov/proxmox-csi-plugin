@@ -469,6 +469,27 @@ func (ts *configuredTestSuite) TestCreateVolume() {
 			},
 		},
 		{
+			msg: "EmptyZoneSharedStorageRestrictedToNodes",
+			request: &proto.CreateVolumeRequest{
+				Name: "volume-rbd-restricted",
+				Parameters: map[string]string{
+					"storage": "rbd-restricted",
+				},
+				VolumeCapabilities: []*proto.VolumeCapability{volcap},
+				CapacityRange:      volsize,
+				AccessibilityRequirements: &proto.TopologyRequirement{
+					Preferred: []*proto.Topology{
+						{
+							Segments: map[string]string{
+								corev1.LabelTopologyRegion: "cluster-1",
+							},
+						},
+					},
+				},
+			},
+			expectedError: status.Error(codes.InvalidArgument, "zone must be provided: shared storage rbd-restricted is restricted to proxmox nodes pve-1,pve-2"),
+		},
+		{
 			msg: "PVCAlreadyExistSameSize",
 			request: &proto.CreateVolumeRequest{
 				Name:               "pvc-exist-same-size",

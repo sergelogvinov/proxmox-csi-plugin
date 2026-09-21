@@ -218,13 +218,45 @@ func (d *ControllerService) CreateVolume(ctx context.Context, request *csi.Creat
 
 	klog.V(5).InfoS("CreateVolume: storage config", "storage", storageConfig)
 
+	// Proxmox nodes the shared storage is restricted to (the "nodes" storage option), empty means every node.
+	var sharedStorageNodes []string
+
+	if storageConfig.Shared == 1 {
+		// https://pve.proxmox.com/wiki/Storage only block/local storage are supported
+		switch storageConfig.PluginType {
+		case "cifs", "pbs": // nolint: goconst
+			return nil, status.Error(codes.Internal, "error: shared storage type cifs, pbs are not supported")
+		}
+
+		config, err := cl.Client.ClusterStorage(ctx, params.StorageID)
+		if err != nil {
+			klog.ErrorS(err, "CreateVolume: failed to get proxmox storage config", "cluster", region, "storageID", params.StorageID)
+
+			return nil, status.Errorf(codes.Internal, "failed to get proxmox storage config: %v", err)
+		}
+
+		for node := range strings.SplitSeq(config.Nodes, ",") {
+			if node != "" {
+				sharedStorageNodes = append(sharedStorageNodes, node)
+			}
+		}
+	}
+
 	if zone == "" {
-		// Only shared storage can be provisioned without a zone:
-		// The volume is reachable from every Proxmox node, so any node with the storage can create it.
-		// Local storage would pin the volume to an arbitrary node, which a node without a zone label could never match.
+		// Only shared storage reachable from every Proxmox node can be provisioned without a zone.
+		// Local storage pins the volume to an arbitrary node, and shared storage restricted to a subset of nodes gets zone-scoped topology below.
+		// A node without a zone label could never match either of them.
 		if storageConfig.Shared == 0 {
 			err := status.Error(codes.InvalidArgument, "zone must be provided")
 			klog.ErrorS(err, "CreateVolume: zone is required for non-shared storage", "cluster", region, "storage", params.StorageID, "accessibleTopology", accessibleTopology)
+
+			return nil, err
+		}
+
+		if len(sharedStorageNodes) > 0 {
+			err := status.Errorf(codes.InvalidArgument, "zone must be provided: shared storage %s is restricted to proxmox nodes %s", params.StorageID, strings.Join(sharedStorageNodes, ","))
+			klog.ErrorS(err, "CreateVolume: zone is required for shared storage restricted to nodes",
+				"cluster", region, "storage", params.StorageID, "nodes", sharedStorageNodes, "accessibleTopology", accessibleTopology)
 
 			return nil, err
 		}
@@ -255,26 +287,9 @@ func (d *ControllerService) CreateVolume(ctx context.Context, request *csi.Creat
 	}
 
 	if storageConfig.Shared == 1 {
-		// https://pve.proxmox.com/wiki/Storage only block/local storage are supported
-		switch storageConfig.PluginType {
-		case "cifs", "pbs": // nolint: goconst
-			return nil, status.Error(codes.Internal, "error: shared storage type cifs, pbs are not supported")
-		}
+		topology = make([]*csi.Topology, 0, len(sharedStorageNodes))
 
-		config, err := cl.Client.ClusterStorage(ctx, params.StorageID)
-		if err != nil {
-			klog.ErrorS(err, "CreateVolume: failed to get proxmox storage config", "cluster", region, "storageID", params.StorageID)
-
-			return nil, status.Errorf(codes.Internal, "failed to get proxmox storage config: %v", err)
-		}
-
-		topology = []*csi.Topology{}
-
-		for node := range strings.SplitSeq(config.Nodes, ",") {
-			if node == "" {
-				continue
-			}
-
+		for _, node := range sharedStorageNodes {
 			topology = append(topology, &csi.Topology{
 				Segments: map[string]string{
 					corev1.LabelTopologyRegion: region,

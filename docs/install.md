@@ -88,6 +88,7 @@ kubectl label nodes region1-node-1 topology.kubernetes.io/zone=pve-1
 
 The zone label can be omitted on nodes that only use shared storage (storage marked `shared` in Proxmox, for example Ceph RBD, NFS or iSCSI).
 Volumes on shared storage are reachable from every Proxmox node, so the plugin provisions them with region-only topology.
+Shared storage that is limited to specific Proxmox nodes (the `Nodes` option of the storage) is the exception: its volumes are pinned to those nodes, so the zone label is still required.
 Storage that is not shared (typically `lvm`, `lvmthin`, `zfspool` or a local `dir`) still requires the zone label.
 The plugin rejects volume creation for such storage when the zone is unknown.
 
