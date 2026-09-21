@@ -122,8 +122,12 @@ func main() {
 	}
 
 	region, zone := csi.GetNodeTopology(node.Labels)
-	if region == "" || zone == "" {
-		klog.Fatalf("Failed to get region or zone for node: %s, region: %s, zone: %s, see documentation about topology labels", nodeName, region, zone)
+	if region == "" {
+		klog.Fatalf("Failed to get region for node: %s, see documentation about topology labels", nodeName)
+	}
+
+	if zone == "" {
+		klog.Infof("Node %s has no zone label, only volumes on shared storage can be used on this node", nodeName)
 	}
 
 	klog.Infof("Node topology: node=%s, region=%s, zone=%s", nodeName, region, zone)

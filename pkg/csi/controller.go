@@ -218,7 +218,24 @@ func (d *ControllerService) CreateVolume(ctx context.Context, request *csi.Creat
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
+	storageConfig, err := cl.Storage().Get(ctx, params.StorageID)
+	if err != nil {
+		if proxmoxrest.IsNotFound(err) {
+			return nil, status.Error(codes.NotFound, fmt.Sprintf("proxmox storage config %s not found", params.StorageID))
+		}
+
+		klog.ErrorS(err, "CreateVolume: failed to get proxmox storage config", "cluster", region, "storage", params.StorageID)
+
+		return nil, status.Errorf(codes.Internal, "failed to get proxmox storage config: %v", err)
+	}
+
+	klog.V(5).InfoS("CreateVolume: storage config", "storage", storageConfig)
+
 	if zone == "" {
+		if !storageConfig.Shared {
+			return nil, status.Error(codes.InvalidArgument, "zone must be provided")
+		}
+
 		zones, err := storageNodes(ctx, cl, params.StorageID)
 		if err != nil {
 			klog.ErrorS(err, "CreateVolume: failed to get zones with storage", "cluster", region, "storage", params.StorageID)
@@ -227,22 +244,14 @@ func (d *ControllerService) CreateVolume(ctx context.Context, request *csi.Creat
 		}
 
 		if len(zones) == 0 {
+			err := fmt.Errorf("failed to find best zone: no nodes with the storage %s", params.StorageID)
 			klog.ErrorS(err, "CreateVolume: failed to find best zone: no nodes with the storage", "cluster", region, "storage", params.StorageID)
 
-			return nil, status.Errorf(codes.Internal, "failed to find best zone: no nodes with the storage %s", params.StorageID)
+			return nil, status.Error(codes.Internal, err.Error())
 		}
 
 		zone = zones[0]
 	}
-
-	storageConfig, err := cl.Storage().Get(ctx, params.StorageID)
-	if err != nil {
-		klog.ErrorS(err, "CreateVolume: failed to get proxmox storage config", "cluster", region, "storage", params.StorageID)
-
-		return nil, status.Errorf(codes.Internal, "failed to get proxmox storage config: %v", err)
-	}
-
-	klog.V(5).InfoS("CreateVolume: storage config", "storage", storageConfig)
 
 	topology := []*csi.Topology{
 		{
@@ -297,6 +306,28 @@ func (d *ControllerService) CreateVolume(ctx context.Context, request *csi.Creat
 			return nil, status.Error(codes.Internal, "error: storage type is not zfs in replication mode")
 		}
 
+		if params.ReplicateZones == "" {
+			return nil, status.Error(codes.InvalidArgument, "parameter replicateZones must be provided in replication mode")
+		}
+
+		nodes, err := cl.Cluster().Resources().List(ctx, cluster.ListFilter{Type: cluster.ResourceTypeNode})
+		if err != nil {
+			klog.ErrorS(err, "CreateVolume: failed to list cluster nodes", "cluster", region)
+
+			return nil, status.Error(codes.Internal, err.Error())
+		}
+
+		for z := range strings.SplitSeq(params.ReplicateZones, ",") {
+			z = strings.TrimSpace(z)
+
+			if !slices.ContainsFunc(nodes, func(rs cluster.Resource) bool { return rs.Node == z }) {
+				err := status.Errorf(codes.NotFound, "replicate zone %s not found in cluster %s", z, region)
+				klog.ErrorS(err, "CreateVolume: replicate zone not found", "cluster", region, "zone", z)
+
+				return nil, err
+			}
+		}
+
 		id, err = prepareReplication(ctx, cl, zone, pvc, d.vmID)
 		if err != nil {
 			klog.ErrorS(err, "CreateVolume: failed to prepare replication", "cluster", region, "zone", zone)
@@ -310,7 +341,7 @@ func (d *ControllerService) CreateVolume(ctx context.Context, request *csi.Creat
 			topology = append(topology, &csi.Topology{
 				Segments: map[string]string{
 					corev1.LabelTopologyRegion: region,
-					corev1.LabelTopologyZone:   z,
+					corev1.LabelTopologyZone:   strings.TrimSpace(z),
 				},
 			})
 		}
@@ -747,7 +778,7 @@ func (d *ControllerService) GetCapacity(ctx context.Context, request *csi.GetCap
 			if len(zones) == 0 {
 				klog.ErrorS(err, "GetCapacity: failed to find best zone: no nodes with the storage", "cluster", region, "storage", storageID)
 
-				return nil, status.Errorf(codes.Internal, "failed to find best zone: no nodes with the storage %s", storageID)
+				return nil, status.Errorf(codes.NotFound, "failed to find best zone: no nodes with the storage %s", storageID)
 			}
 
 			zone = zones[0]
