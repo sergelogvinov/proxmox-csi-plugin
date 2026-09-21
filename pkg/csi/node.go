@@ -272,7 +272,7 @@ func (n *NodeService) NodeUnstageVolume(_ context.Context, request *csi.NodeUnst
 	} else {
 		deviceName := filepath.Base(devicePath)
 
-		if err = os.WriteFile(fmt.Sprintf("/sys/block/%s/device/state", deviceName), []byte("offline"), 0644); err != nil { //nolint:gofumpt
+		if err = os.WriteFile(fmt.Sprintf("/sys/block/%s/device/state", deviceName), []byte("offline"), 0o644); err != nil { //nolint:gofumpt
 			klog.InfoS("NodeUnstageVolume: failed to offline device, ignored", "device", devicePath)
 		}
 	}
@@ -563,18 +563,27 @@ func (n *NodeService) NodeGetInfo(ctx context.Context, _ *csi.NodeGetInfoRequest
 	}
 
 	region, zone := GetNodeTopology(node.Labels)
-	if region == "" || zone == "" {
-		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to get region or zone for node %s", n.nodeID))
+	if region == "" {
+		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to get region for node %s", n.nodeID))
+	}
+
+	if zone == "" {
+		klog.InfoS("NodeGetInfo: node does not have the topology zone label, which could affect workloads that use local storage")
+	}
+
+	segments := map[string]string{
+		corev1.LabelTopologyRegion: region,
+	}
+
+	if zone != "" {
+		segments[corev1.LabelTopologyZone] = zone
 	}
 
 	return &csi.NodeGetInfoResponse{
 		NodeId:            nodeID.String(),
 		MaxVolumesPerNode: maxVolumes(node),
 		AccessibleTopology: &csi.Topology{
-			Segments: map[string]string{
-				corev1.LabelTopologyRegion: region,
-				corev1.LabelTopologyZone:   zone,
-			},
+			Segments: segments,
 		},
 	}, nil
 }

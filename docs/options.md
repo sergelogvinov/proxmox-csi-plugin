@@ -59,7 +59,7 @@ allowedTopologies:
   - key: topology.kubernetes.io/region
     values:
     - Region-1
-  # Better to set zone, otherwise it will be used random node in the region
+  # Zone is required for local (non-shared) storages
   - key: topology.kubernetes.io/zone
     values:
     - pve-1

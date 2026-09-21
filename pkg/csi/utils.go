@@ -415,6 +415,8 @@ func createReplication(ctx context.Context, cl *proxmoxrest.Client, id int, vol 
 	}
 
 	for i, z := range strings.Split(params.ReplicateZones, ",") {
+		z = strings.TrimSpace(z)
+
 		if z == vol.Node() {
 			continue
 		}

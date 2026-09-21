@@ -221,17 +221,7 @@ func (ts *configuredTestSuite) TestCreateVolume() {
 			expectedError: status.Error(codes.InvalidArgument, "parameters inodeSize must be a number"),
 		},
 		{
-			msg: "RegionZone",
-			request: &proto.CreateVolumeRequest{
-				Name:               "volume-id",
-				Parameters:         volParam,
-				VolumeCapabilities: []*proto.VolumeCapability{volcap},
-				CapacityRange:      volsize,
-			},
-			expectedError: status.Error(codes.Internal, "cannot find best region"),
-		},
-		{
-			msg: "EmptyZone",
+			msg: "StorageNotFound",
 			request: &proto.CreateVolumeRequest{
 				Name: "volume-id",
 				Parameters: map[string]string{
@@ -249,7 +239,36 @@ func (ts *configuredTestSuite) TestCreateVolume() {
 					},
 				},
 			},
-			expectedError: status.Error(codes.Internal, "failed to find best zone: no nodes with the storage fake-storage"),
+			expectedError: status.Error(codes.NotFound, "proxmox storage config fake-storage not found"),
+		},
+		{
+			msg: "RegionZone",
+			request: &proto.CreateVolumeRequest{
+				Name:               "volume-id",
+				Parameters:         volParam,
+				VolumeCapabilities: []*proto.VolumeCapability{volcap},
+				CapacityRange:      volsize,
+			},
+			expectedError: status.Error(codes.Internal, "cannot find best region"),
+		},
+		{
+			msg: "EmptyZoneLocalStorage",
+			request: &proto.CreateVolumeRequest{
+				Name:               "volume-id",
+				Parameters:         volParam,
+				VolumeCapabilities: []*proto.VolumeCapability{volcap},
+				CapacityRange:      volsize,
+				AccessibilityRequirements: &proto.TopologyRequirement{
+					Preferred: []*proto.Topology{
+						{
+							Segments: map[string]string{
+								corev1.LabelTopologyRegion: "cluster-1",
+							},
+						},
+					},
+				},
+			},
+			expectedError: status.Error(codes.InvalidArgument, "zone must be provided"),
 		},
 		{
 			msg: "EmptyRegion",
@@ -356,6 +375,53 @@ func (ts *configuredTestSuite) TestCreateVolume() {
 					},
 				},
 			},
+		},
+		{
+			msg: "ReplicateZonesEmpty",
+			request: &proto.CreateVolumeRequest{
+				Name: "volume-replicate",
+				Parameters: map[string]string{
+					"storage":   "zfs",
+					"replicate": "true",
+				},
+				VolumeCapabilities: []*proto.VolumeCapability{volcap},
+				CapacityRange:      volsize,
+				AccessibilityRequirements: &proto.TopologyRequirement{
+					Preferred: []*proto.Topology{
+						{
+							Segments: map[string]string{
+								corev1.LabelTopologyRegion: "cluster-1",
+								corev1.LabelTopologyZone:   "pve-1",
+							},
+						},
+					},
+				},
+			},
+			expectedError: status.Error(codes.InvalidArgument, "parameter replicateZones must be provided in replication mode"),
+		},
+		{
+			msg: "ReplicateZonesNodeNotFound",
+			request: &proto.CreateVolumeRequest{
+				Name: "volume-replicate",
+				Parameters: map[string]string{
+					"storage":        "zfs",
+					"replicate":      "true",
+					"replicateZones": "pve-1,pve-99",
+				},
+				VolumeCapabilities: []*proto.VolumeCapability{volcap},
+				CapacityRange:      volsize,
+				AccessibilityRequirements: &proto.TopologyRequirement{
+					Preferred: []*proto.Topology{
+						{
+							Segments: map[string]string{
+								corev1.LabelTopologyRegion: "cluster-1",
+								corev1.LabelTopologyZone:   "pve-1",
+							},
+						},
+					},
+				},
+			},
+			expectedError: status.Error(codes.NotFound, "replicate zone pve-99 not found in cluster cluster-1"),
 		},
 		{
 			msg: "PVCAlreadyExistSameSize",
