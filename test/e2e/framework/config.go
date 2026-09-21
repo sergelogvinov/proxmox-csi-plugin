@@ -85,12 +85,12 @@ func LoadConfig() Config {
 		NamespacePrefix:         getEnvDefault("E2E_NAMESPACE_PREFIX", "e2e"),
 		StorageClass:            getEnvDefault("E2E_STORAGECLASS", "proxmox"),
 		EncryptedStorageClass:   getEnvDefault("E2E_ENCRYPTED_STORAGECLASS", "proxmox-secret"),
-		Timeout:                 getEnvDurationDefault("E2E_TIMEOUT", 5*time.Minute),
 		ProxmoxConfig:           os.Getenv("E2E_PROXMOX_CONFIG"),
 		NodeName:                os.Getenv("E2E_NODE_NAME"),
 		NodePluginNamespace:     getEnvDefault("E2E_NODE_NAMESPACE", "csi-proxmox"),
 		NodePluginLabelSelector: getEnvDefault("E2E_NODE_LABEL_SELECTOR", "app.kubernetes.io/name=proxmox-csi-plugin,app.kubernetes.io/component=node"),
 		NodePluginContainer:     getEnvDefault("E2E_NODE_CONTAINER", "proxmox-csi-plugin-node"),
+		Timeout:                 getEnvDurationDefault("E2E_TIMEOUT", 5*time.Minute),
 	}
 
 	classes := getEnvDefault("E2E_STORAGECLASSES", "proxmox,proxmox-ceph,proxmox-rbd")
