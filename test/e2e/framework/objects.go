@@ -39,6 +39,43 @@ const appLabelKey = "app"
 // it while its volume is mounted.
 const alpineImage = "alpine"
 
+// Constants shared by every pod builder in this file, pulled out of the
+// individual builders so the same literal isn't repeated across them.
+const (
+	sleepCommand      = "sleep"
+	sleepDuration     = "1d"
+	storageVolumeName = "storage"
+	storageMountPath  = "/mnt"
+	capabilityAll     = "ALL"
+)
+
+// newStorageContainer builds the Container every pod builder in this file
+// uses: a sleeping alpine image (so a test can exec into it while its
+// volume is mounted) mounting volumeName at storageMountPath, running as
+// uid/gid runAsUser.
+func newStorageContainer(runAsUser int64, volumeName string) corev1.Container {
+	return corev1.Container{
+		Name:    alpineImage,
+		Image:   alpineImage,
+		Command: []string{sleepCommand, sleepDuration},
+		SecurityContext: &corev1.SecurityContext{
+			AllowPrivilegeEscalation: ptr.To(false),
+			RunAsUser:                ptr.To(runAsUser),
+			RunAsGroup:               ptr.To(runAsUser),
+			RunAsNonRoot:             ptr.To(true),
+			SeccompProfile: &corev1.SeccompProfile{
+				Type: corev1.SeccompProfileTypeRuntimeDefault,
+			},
+			Capabilities: &corev1.Capabilities{
+				Drop: []corev1.Capability{capabilityAll},
+			},
+		},
+		VolumeMounts: []corev1.VolumeMount{
+			{Name: volumeName, MountPath: storageMountPath},
+		},
+	}
+}
+
 // StatefulSetOptions parameterizes NewTestStatefulSet.
 type StatefulSetOptions struct {
 	Name         string
@@ -107,33 +144,12 @@ func NewTestStatefulSet(opts StatefulSetOptions) *appsv1.StatefulSet {
 						RunAsUser:  ptr.To(int64(1000)),
 						RunAsGroup: ptr.To(int64(1000)),
 					},
-					Containers: []corev1.Container{
-						{
-							Name:    alpineImage,
-							Image:   alpineImage,
-							Command: []string{"sleep", "1d"},
-							SecurityContext: &corev1.SecurityContext{
-								AllowPrivilegeEscalation: ptr.To(false),
-								RunAsUser:                ptr.To(int64(1000)),
-								RunAsGroup:               ptr.To(int64(1000)),
-								RunAsNonRoot:             ptr.To(true),
-								SeccompProfile: &corev1.SeccompProfile{
-									Type: corev1.SeccompProfileTypeRuntimeDefault,
-								},
-								Capabilities: &corev1.Capabilities{
-									Drop: []corev1.Capability{"ALL"},
-								},
-							},
-							VolumeMounts: []corev1.VolumeMount{
-								{Name: "storage", MountPath: "/mnt"},
-							},
-						},
-					},
+					Containers: []corev1.Container{newStorageContainer(1000, storageVolumeName)},
 				},
 			},
 			VolumeClaimTemplates: []corev1.PersistentVolumeClaim{
 				{
-					ObjectMeta: metav1.ObjectMeta{Name: "storage"},
+					ObjectMeta: metav1.ObjectMeta{Name: storageVolumeName},
 					Spec: corev1.PersistentVolumeClaimSpec{
 						AccessModes:      []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
 						StorageClassName: &opts.StorageClass,
@@ -205,26 +221,7 @@ func NewEphemeralPod(opts EphemeralPodOptions) *corev1.Pod {
 				RunAsGroup: ptr.To(int64(65534)),
 				RunAsUser:  ptr.To(int64(65534)),
 			},
-			Containers: []corev1.Container{
-				{
-					Name:    alpineImage,
-					Image:   alpineImage,
-					Command: []string{"sleep", "6000"},
-					SecurityContext: &corev1.SecurityContext{
-						AllowPrivilegeEscalation: ptr.To(false),
-						RunAsNonRoot:             ptr.To(true),
-						Capabilities: &corev1.Capabilities{
-							Drop: []corev1.Capability{"ALL"},
-						},
-						SeccompProfile: &corev1.SeccompProfile{
-							Type: corev1.SeccompProfileTypeRuntimeDefault,
-						},
-					},
-					VolumeMounts: []corev1.VolumeMount{
-						{Name: volumeName, MountPath: "/mnt"},
-					},
-				},
-			},
+			Containers: []corev1.Container{newStorageContainer(65534, volumeName)},
 			Volumes: []corev1.Volume{
 				{
 					Name: volumeName,
@@ -256,6 +253,107 @@ func NewEphemeralPod(opts EphemeralPodOptions) *corev1.Pod {
 // ephemeral volume's PVC: "<pod name>-<volume name>".
 func EphemeralPVCName(podName, volumeName string) string {
 	return podName + "-" + volumeName
+}
+
+// PVCOptions parameterizes NewPVC.
+type PVCOptions struct {
+	Name         string
+	Namespace    string
+	StorageClass string
+	Size         string                            // e.g. "1Gi"
+	DataSource   *corev1.TypedLocalObjectReference // set to clone from a VolumeSnapshot or another PVC
+}
+
+// NewPVC builds a standalone PersistentVolumeClaim, mirroring docs/deploy/pvc.yaml's
+// PVC half - unlike NewTestStatefulSet's volumeClaimTemplates, this is a PVC a
+// test creates and owns directly, e.g. as a snapshot's source or as a
+// restore/clone target via DataSource.
+func NewPVC(opts PVCOptions) *corev1.PersistentVolumeClaim {
+	return &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      opts.Name,
+			Namespace: opts.Namespace,
+		},
+		Spec: corev1.PersistentVolumeClaimSpec{
+			AccessModes:      []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
+			StorageClassName: &opts.StorageClass,
+			DataSource:       opts.DataSource,
+			Resources: corev1.VolumeResourceRequirements{
+				Requests: corev1.ResourceList{
+					corev1.ResourceStorage: resource.MustParse(opts.Size),
+				},
+			},
+		},
+	}
+}
+
+// PodOptions parameterizes NewPod.
+type PodOptions struct {
+	Name      string
+	Namespace string
+	PVCName   string
+}
+
+// NewPod builds a Pod mounting an existing, named PVC at /mnt: a sleeping
+// alpine container, non-root. Used where a test needs to mount a standalone
+// PVC (e.g. NewPVC's output) rather than one owned by a StatefulSet or a
+// generic ephemeral volume.
+func NewPod(opts PodOptions) *corev1.Pod {
+	terminationGrace := int64(3)
+
+	return &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      opts.Name,
+			Namespace: opts.Namespace,
+		},
+		Spec: corev1.PodSpec{
+			TerminationGracePeriodSeconds: &terminationGrace,
+			SecurityContext: &corev1.PodSecurityContext{
+				FSGroup:    ptr.To(int64(1000)),
+				RunAsUser:  ptr.To(int64(1000)),
+				RunAsGroup: ptr.To(int64(1000)),
+			},
+			Containers: []corev1.Container{newStorageContainer(1000, storageVolumeName)},
+			Volumes: []corev1.Volume{
+				{
+					Name: storageVolumeName,
+					VolumeSource: corev1.VolumeSource{
+						PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+							ClaimName: opts.PVCName,
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+// VolumeSnapshotAPIGroup is the API group of the dataSource this suite uses
+// to restore a PVC from a VolumeSnapshot.
+const VolumeSnapshotAPIGroup = "snapshot.storage.k8s.io"
+
+// NewVolumeSnapshotDataSource builds the DataSource a restore PVC needs to
+// clone from the named VolumeSnapshot, for use as PVCOptions.DataSource.
+func NewVolumeSnapshotDataSource(snapshotName string) *corev1.TypedLocalObjectReference {
+	apiGroup := VolumeSnapshotAPIGroup
+
+	return &corev1.TypedLocalObjectReference{
+		APIGroup: &apiGroup,
+		Kind:     "VolumeSnapshot",
+		Name:     snapshotName,
+	}
+}
+
+// NewPVCCloneDataSource builds the DataSource a clone PVC needs to copy an
+// existing, same-namespace PVC directly - no APIGroup, since
+// PersistentVolumeClaim is a core resource - for use as
+// PVCOptions.DataSource. Mirrors docs/volumesnapshot.md's "Creating a
+// PersistentVolumeClaim from an Existing PersistentVolumeClaim" example.
+func NewPVCCloneDataSource(pvcName string) *corev1.TypedLocalObjectReference {
+	return &corev1.TypedLocalObjectReference{
+		Kind: "PersistentVolumeClaim",
+		Name: pvcName,
+	}
 }
 
 // NewVolumeAttributesClass builds a VolumeAttributesClass, mirroring

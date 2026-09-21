@@ -65,9 +65,26 @@ type Config struct {
 	// Secret with an "encryption-passphrase" key - see hack/e2e-tests.md.
 	EncryptedStorageClass string
 
+	// ReplicatedStorageClass is the StorageClass used by the
+	// zonereplication test. It must be a ZFS-backed class with
+	// parameters.replicate: "true" and parameters.replicateZones listing
+	// exactly two Proxmox zones (see docs/options.md) - the test reads
+	// those two zones directly off the StorageClass rather than a
+	// separately configured env var.
+	ReplicatedStorageClass string
+
 	// NodeName, when set, pins the encrypted-volume test to a specific
 	// node instead of auto-selecting the first Ready/schedulable one.
 	NodeName string
+
+	// SnapshotZone, when set, overrides the Proxmox zone the snapshot2zone
+	// scenario (docs/e2e.md scenario 8) targets via
+	// VolumeSnapshotClass.parameters.zone. Left unset, that scenario
+	// auto-discovers a zone distinct from the source volume's own from
+	// nodes' topology.kubernetes.io/zone labels (framework.ListZones),
+	// skipping if the cluster doesn't advertise a second one - see
+	// docs/e2e.md's Open questions on test cluster requirements.
+	SnapshotZone string
 
 	// NodePluginNamespace/NodePluginLabelSelector locate the CSI
 	// node-plugin DaemonSet pods, used to inspect host-level state
@@ -85,8 +102,10 @@ func LoadConfig() Config {
 		NamespacePrefix:         getEnvDefault("E2E_NAMESPACE_PREFIX", "e2e"),
 		StorageClass:            getEnvDefault("E2E_STORAGECLASS", "proxmox"),
 		EncryptedStorageClass:   getEnvDefault("E2E_ENCRYPTED_STORAGECLASS", "proxmox-secret"),
+		ReplicatedStorageClass:  getEnvDefault("E2E_REPLICATED_STORAGECLASS", "proxmox-zfs"),
 		ProxmoxConfig:           os.Getenv("E2E_PROXMOX_CONFIG"),
 		NodeName:                os.Getenv("E2E_NODE_NAME"),
+		SnapshotZone:            os.Getenv("E2E_SNAPSHOT_ZONE"),
 		NodePluginNamespace:     getEnvDefault("E2E_NODE_NAMESPACE", "csi-proxmox"),
 		NodePluginLabelSelector: getEnvDefault("E2E_NODE_LABEL_SELECTOR", "app.kubernetes.io/name=proxmox-csi-plugin,app.kubernetes.io/component=node"),
 		NodePluginContainer:     getEnvDefault("E2E_NODE_CONTAINER", "proxmox-csi-plugin-node"),
