@@ -143,20 +143,17 @@ func TestEncryptedEphemeralVolume(t *testing.T) {
 	done()
 	require.NoError(err, "no new dm-crypt mapper appeared on node %s for pod %s's volume", node.Name, podName)
 
-	rawDevice := framework.EncryptedMapperRawDevice(mapper)
-	f.Logf("volume backed by dm-crypt mapper %s (raw device %s)", mapper, rawDevice)
-
 	// 5. The actual assertion: the passphrase configured in the
 	// StorageClass's secret is the one that opens this device's LUKS
 	// header - not just that *some* passphrase was used.
-	f.Logf("verifying the configured passphrase opens %s (cryptsetup luksOpen --test-passphrase)", rawDevice)
+	f.Logf("verifying the configured passphrase opens %s (cryptsetup luksOpen --test-passphrase)", mapper)
 
 	ctx, cancel = f.Context()
 	_, stderr, err := framework.ExecInPod(ctx, f.Client.RESTConfig, f.Client.Clientset, nodePluginPod.Namespace, nodePluginPod.Name, f.Config.NodePluginContainer,
-		[]string{"cryptsetup", "luksOpen", "--test-passphrase", rawDevice, "--key-file=-"}, strings.NewReader(passphrase))
+		[]string{"cryptsetup", "luksOpen", "--test-passphrase", mapper, "--key-file=-"}, strings.NewReader(passphrase))
 
 	cancel()
-	require.NoError(err, "passphrase from secret %s/%s did not open %s (stderr: %s)", secretNamespace, secretName, rawDevice, stderr)
+	require.NoError(err, "passphrase from secret %s/%s did not open %s (stderr: %s)", secretNamespace, secretName, mapper, stderr)
 
 	// 6. Delete the pod and confirm both the auto-created PVC and its PV
 	// are gone - unlike a StatefulSet's PVC, an ephemeral volume's PVC is

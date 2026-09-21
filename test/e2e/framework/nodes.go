@@ -95,10 +95,6 @@ func hasBlockingTaint(node *corev1.Node) bool {
 			continue
 		}
 
-		if taint.Key == "node-role.kubernetes.io/control-plane" && taint.Value == "" {
-			continue
-		}
-
 		return true
 	}
 

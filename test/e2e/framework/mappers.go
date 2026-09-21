@@ -29,39 +29,33 @@ import (
 	"k8s.io/client-go/rest"
 )
 
-// encryptedMapperSuffix is the suffix the driver's LUKS layer
-// (github.com/siderolabs/go-blockdevice/blockdevice/util.PartPathEncrypted)
-// appends to a raw device's basename to name its /dev/mapper entry, e.g.
-// "/dev/sdb" -> "/dev/mapper/sdb-encrypted".
-const encryptedMapperSuffix = "-encrypted"
-
 // ListEncryptedMappers execs into a privileged pod (normally the CSI
 // node-plugin pod, which has host device access) and returns the names of
 // every dm-crypt mapper the driver created (i.e. everything under
 // /dev/mapper ending in "-encrypted").
 func ListEncryptedMappers(ctx context.Context, restConfig *rest.Config, clientset *kubernetes.Clientset, namespace, podName, container string) ([]string, error) {
-	stdout, _, err := ExecInPod(ctx, restConfig, clientset, namespace, podName, container,
-		[]string{"sh", "-c", "ls -1 /dev/mapper 2>/dev/null || true"}, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list /dev/mapper on pod %s/%s: %w", namespace, podName, err)
-	}
-
 	var mappers []string
 
-	for _, line := range strings.Split(stdout, "\n") {
-		if line = strings.TrimSpace(line); strings.HasSuffix(line, encryptedMapperSuffix) {
-			mappers = append(mappers, line)
+	stdout, _, err := ExecInPod(ctx, restConfig, clientset, namespace, podName, container,
+		[]string{"blkid", "--match-token", "TYPE=crypto_LUKS"}, nil)
+	if err != nil {
+		if strings.Contains(err.Error(), "exit code 2") {
+			return mappers, nil
+		}
+
+		return nil, fmt.Errorf("failed to list encrypted mappers on pod %s/%s: %w", namespace, podName, err)
+	}
+
+	for line := range strings.SplitSeq(stdout, "\n") {
+		line = strings.TrimSpace(line)
+		if strings.Contains(line, "crypto_LUKS") {
+			devRaw, _, _ := strings.Cut(line, ":")
+
+			mappers = append(mappers, devRaw)
 		}
 	}
 
 	return mappers, nil
-}
-
-// EncryptedMapperRawDevice returns the raw block device path backing a
-// mapper name returned by ListEncryptedMappers, e.g. "sdb-encrypted" ->
-// "/dev/sdb".
-func EncryptedMapperRawDevice(mapper string) string {
-	return "/dev/" + strings.TrimSuffix(mapper, encryptedMapperSuffix)
 }
 
 // WaitForNewEncryptedMapper polls ListEncryptedMappers until a mapper shows
