@@ -20,14 +20,18 @@ package framework
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
+	"time"
 
+	goproxmox "github.com/sergelogvinov/go-proxmox"
 	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/config"
 	pxpool "github.com/sergelogvinov/proxmox-csi-plugin/pkg/proxmoxpool"
 	volume "github.com/sergelogvinov/proxmox-csi-plugin/pkg/utils/volume"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/util/wait"
 )
 
 // scsiDeviceNamePrefix mirrors the unexported deviceNamePrefix in
@@ -116,4 +120,108 @@ func parseDiskOptions(raw string) map[string]string {
 	}
 
 	return opts
+}
+
+// ReplicationJob is the subset of a Proxmox cluster replication job config
+// (GET /cluster/replication) this suite inspects.
+type ReplicationJob struct {
+	ID     string `json:"id"`
+	Target string `json:"target"`
+}
+
+// WaitForReplicationJob polls Proxmox's /cluster/replication until a
+// replication job exists whose id has the "<vmID>-" prefix createReplication
+// (pkg/csi/utils.go) itself posts when wiring up a replicated disk, and
+// whose target is targetZone, then returns it - the real, Proxmox-side
+// confirmation that zone replication (docs/options.md's replicate/
+// replicateZones StorageClass parameters) was actually configured, since
+// nothing about it is reflected on any Kubernetes object.
+func WaitForReplicationJob(ctx context.Context, cl *goproxmox.APIClient, vmID int, targetZone string, timeout time.Duration) (*ReplicationJob, error) {
+	var found *ReplicationJob
+
+	prefix := fmt.Sprintf("%d-", vmID)
+
+	err := wait.PollUntilContextTimeout(ctx, pollInterval, timeout, true, func(ctx context.Context) (bool, error) {
+		var jobs []ReplicationJob
+
+		if err := cl.Get(ctx, "/cluster/replication", &jobs); err != nil {
+			if isTransientError(err) {
+				return false, nil
+			}
+
+			return false, err
+		}
+
+		for i := range jobs {
+			if strings.HasPrefix(jobs[i].ID, prefix) && jobs[i].Target == targetZone {
+				found = &jobs[i]
+
+				return true, nil
+			}
+		}
+
+		return false, nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("no replication job for vm %d targeting zone %s appeared: %w", vmID, targetZone, err)
+	}
+
+	return found, nil
+}
+
+// WaitForReplicationJobGone polls Proxmox's /cluster/replication until no
+// job with the given id remains - the real confirmation that
+// DeleteVolume's deleteReplication (pkg/csi/utils.go) actually tore down
+// the replication schedule, not just that the Kubernetes PV disappeared.
+func WaitForReplicationJobGone(ctx context.Context, cl *goproxmox.APIClient, jobID string, timeout time.Duration) error {
+	err := wait.PollUntilContextTimeout(ctx, pollInterval, timeout, true, func(ctx context.Context) (bool, error) {
+		var jobs []ReplicationJob
+
+		if err := cl.Get(ctx, "/cluster/replication", &jobs); err != nil {
+			if isTransientError(err) {
+				return false, nil
+			}
+
+			return false, err
+		}
+
+		for i := range jobs {
+			if jobs[i].ID == jobID {
+				return false, nil
+			}
+		}
+
+		return true, nil
+	})
+	if err != nil {
+		return fmt.Errorf("replication job %s was not deleted: %w", jobID, err)
+	}
+
+	return nil
+}
+
+// WaitForShadowVMGone polls until the Proxmox VM with the given id no
+// longer exists - the disk-owner "shadow" VM prepareReplication
+// (pkg/csi/utils.go) creates to hold a replicated disk, torn down by
+// deleteReplication alongside the replication job itself.
+func WaitForShadowVMGone(ctx context.Context, cl *goproxmox.APIClient, vmID int, timeout time.Duration) error {
+	err := wait.PollUntilContextTimeout(ctx, pollInterval, timeout, true, func(ctx context.Context) (bool, error) {
+		_, err := cl.GetVMByID(ctx, uint64(vmID)) //nolint:gosec
+
+		switch {
+		case errors.Is(err, goproxmox.ErrVirtualMachineNotFound):
+			return true, nil
+		case isTransientError(err):
+			return false, nil
+		case err != nil:
+			return false, err
+		}
+
+		return false, nil
+	})
+	if err != nil {
+		return fmt.Errorf("shadow vm %d was not deleted: %w", vmID, err)
+	}
+
+	return nil
 }
