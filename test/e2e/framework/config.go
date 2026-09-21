@@ -73,17 +73,21 @@ type Config struct {
 	// separately configured env var.
 	ReplicatedStorageClass string
 
+	// SharedStorageClass is the StorageClass used by the shared-storage
+	// test. It must be backed by a Proxmox storage marked "Shared" and
+	// accessible from every node in the region (no per-node restriction),
+	// e.g. Ceph/RBD/NFS - see docs/install.md.
+	SharedStorageClass string
+
 	// NodeName, when set, pins the encrypted-volume test to a specific
 	// node instead of auto-selecting the first Ready/schedulable one.
 	NodeName string
 
-	// SnapshotZone, when set, overrides the Proxmox zone the snapshot2zone
-	// scenario (docs/e2e.md scenario 8) targets via
+	// SnapshotZone, when set, overrides the Proxmox zone targets via
 	// VolumeSnapshotClass.parameters.zone. Left unset, that scenario
 	// auto-discovers a zone distinct from the source volume's own from
-	// nodes' topology.kubernetes.io/zone labels (framework.ListZones),
-	// skipping if the cluster doesn't advertise a second one - see
-	// docs/e2e.md's Open questions on test cluster requirements.
+	// nodes' topology.kubernetes.io/zone labels, within the same
+	// topology.kubernetes.io/region
 	SnapshotZone string
 
 	// NodePluginNamespace/NodePluginLabelSelector locate the CSI
@@ -103,6 +107,7 @@ func LoadConfig() Config {
 		StorageClass:            getEnvDefault("E2E_STORAGECLASS", "proxmox"),
 		EncryptedStorageClass:   getEnvDefault("E2E_ENCRYPTED_STORAGECLASS", "proxmox-secret"),
 		ReplicatedStorageClass:  getEnvDefault("E2E_REPLICATED_STORAGECLASS", "proxmox-zfs"),
+		SharedStorageClass:      getEnvDefault("E2E_SHARED_STORAGECLASS", "proxmox-ceph"),
 		ProxmoxConfig:           os.Getenv("E2E_PROXMOX_CONFIG"),
 		NodeName:                os.Getenv("E2E_NODE_NAME"),
 		SnapshotZone:            os.Getenv("E2E_SNAPSHOT_ZONE"),

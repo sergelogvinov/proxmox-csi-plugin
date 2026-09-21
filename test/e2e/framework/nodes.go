@@ -21,6 +21,7 @@ package framework
 import (
 	"context"
 	"fmt"
+	"sort"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -28,16 +29,10 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
-// TopologyZoneLabel is the standard Kubernetes topology label this driver
-// expects on every node - a Proxmox node name (see docs/install.md).
-const TopologyZoneLabel = "topology.kubernetes.io/zone"
-
-// ListZones returns the distinct TopologyZoneLabel values carried by Ready,
-// schedulable nodes. Used to auto-discover which Proxmox zones a test
-// cluster actually has (e.g. for the snapshot2zone scenario to pick a
-// target zone distinct from a volume's own) rather than requiring a
-// developer to hand-configure one.
-func ListZones(ctx context.Context, clientset *kubernetes.Clientset) ([]string, error) {
+// ZonesInSameRegion returns the distinct TopologyZoneLabel values carried
+// by Ready, schedulable nodes within the given corev1.LabelTopologyRegion,
+// sorted for determinism.
+func ZonesInSameRegion(ctx context.Context, clientset *kubernetes.Clientset, region string) ([]string, error) {
 	nodes, err := clientset.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list nodes: %w", err)
@@ -49,11 +44,11 @@ func ListZones(ctx context.Context, clientset *kubernetes.Clientset) ([]string, 
 
 	for i := range nodes.Items {
 		node := &nodes.Items[i]
-		if node.Spec.Unschedulable {
+		if node.Spec.Unschedulable || node.Labels[corev1.LabelTopologyRegion] != region {
 			continue
 		}
 
-		zone := node.Labels[TopologyZoneLabel]
+		zone := node.Labels[corev1.LabelTopologyZone]
 		if zone == "" || seen[zone] {
 			continue
 		}
@@ -68,6 +63,8 @@ func ListZones(ctx context.Context, clientset *kubernetes.Clientset) ([]string, 
 			}
 		}
 	}
+
+	sort.Strings(zones)
 
 	return zones, nil
 }
