@@ -28,6 +28,50 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
+// TopologyZoneLabel is the standard Kubernetes topology label this driver
+// expects on every node - a Proxmox node name (see docs/install.md).
+const TopologyZoneLabel = "topology.kubernetes.io/zone"
+
+// ListZones returns the distinct TopologyZoneLabel values carried by Ready,
+// schedulable nodes. Used to auto-discover which Proxmox zones a test
+// cluster actually has (e.g. for the snapshot2zone scenario to pick a
+// target zone distinct from a volume's own) rather than requiring a
+// developer to hand-configure one.
+func ListZones(ctx context.Context, clientset *kubernetes.Clientset) ([]string, error) {
+	nodes, err := clientset.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list nodes: %w", err)
+	}
+
+	seen := map[string]bool{}
+
+	var zones []string
+
+	for i := range nodes.Items {
+		node := &nodes.Items[i]
+		if node.Spec.Unschedulable {
+			continue
+		}
+
+		zone := node.Labels[TopologyZoneLabel]
+		if zone == "" || seen[zone] {
+			continue
+		}
+
+		for _, cond := range node.Status.Conditions {
+			if cond.Type == corev1.NodeReady && cond.Status == corev1.ConditionTrue {
+				seen[zone] = true
+
+				zones = append(zones, zone)
+
+				break
+			}
+		}
+	}
+
+	return zones, nil
+}
+
 // SelectTargetNode returns the node to pin a single-node-scoped test to:
 // preferredName if set (E2E_NODE_NAME), otherwise the first Ready,
 // schedulable node found.
