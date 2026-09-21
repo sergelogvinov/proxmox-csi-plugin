@@ -200,6 +200,45 @@ func WaitForPVCResized(ctx context.Context, clientset *kubernetes.Clientset, nam
 	return pvc, nil
 }
 
+// WaitForPVCVolumeAttributesClass polls until the PVC's
+// status.currentVolumeAttributesClassName reaches wantClass and no
+// ControllerModifyVolume operation is still in flight. An "Infeasible"
+// modifyVolumeStatus (the CSI driver rejected the requested parameters) is a
+// terminal failure, so the wait aborts immediately instead of polling until
+// timeout.
+func WaitForPVCVolumeAttributesClass(ctx context.Context, clientset *kubernetes.Clientset, namespace, name, wantClass string, timeout time.Duration) (*corev1.PersistentVolumeClaim, error) {
+	var pvc *corev1.PersistentVolumeClaim
+
+	err := wait.PollUntilContextTimeout(ctx, pollInterval, timeout, true, func(ctx context.Context) (bool, error) {
+		p, err := clientset.CoreV1().PersistentVolumeClaims(namespace).Get(ctx, name, metav1.GetOptions{})
+
+		switch {
+		case isTransientError(err):
+			return false, nil
+		case err != nil:
+			return false, err
+		}
+
+		pvc = p
+
+		if status := p.Status.ModifyVolumeStatus; status != nil {
+			if status.Status == corev1.PersistentVolumeClaimModifyVolumeInfeasible {
+				return false, fmt.Errorf("modifying pvc %s/%s to volumeattributesclass %s was rejected as infeasible (target %s)",
+					namespace, name, wantClass, status.TargetVolumeAttributesClassName)
+			}
+
+			return false, nil
+		}
+
+		return p.Status.CurrentVolumeAttributesClassName != nil && *p.Status.CurrentVolumeAttributesClassName == wantClass, nil
+	})
+	if err != nil {
+		return pvc, fmt.Errorf("pvc %s/%s did not converge to volumeattributesclass %s: %w", namespace, name, wantClass, err)
+	}
+
+	return pvc, nil
+}
+
 // waitForGone polls getErr (a Get call's error) until it reports NotFound.
 // A transient error (an API server hiccup) retries; anything else aborts
 // the wait immediately instead of silently retrying it until the timeout.

@@ -23,6 +23,7 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	storagev1 "k8s.io/api/storage/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
@@ -255,4 +256,21 @@ func NewEphemeralPod(opts EphemeralPodOptions) *corev1.Pod {
 // ephemeral volume's PVC: "<pod name>-<volume name>".
 func EphemeralPVCName(podName, volumeName string) string {
 	return podName + "-" + volumeName
+}
+
+// NewVolumeAttributesClass builds a VolumeAttributesClass, mirroring
+// docs/volume-attributes.yaml: a cluster-scoped object naming the CSI driver
+// and the mutable Proxmox disk parameters (backup, diskIOPS, diskMBps, ...)
+// it should apply. Unlike a StorageClass, the e2e suite owns the lifecycle
+// of the ones it creates - they're throwaway parameter sets specific to a
+// test run, not a durable mapping to a Proxmox storage backend - so callers
+// must register their own cleanup.
+func NewVolumeAttributesClass(name, driverName string, parameters map[string]string) *storagev1.VolumeAttributesClass {
+	return &storagev1.VolumeAttributesClass{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+		},
+		DriverName: driverName,
+		Parameters: parameters,
+	}
 }
