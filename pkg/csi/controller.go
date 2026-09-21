@@ -209,7 +209,26 @@ func (d *ControllerService) CreateVolume(ctx context.Context, request *csi.Creat
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
+	storageConfig, err := cl.GetClusterStorage(ctx, params.StorageID)
+	if err != nil {
+		klog.ErrorS(err, "CreateVolume: failed to get proxmox storage config", "cluster", region, "storage", params.StorageID)
+
+		return nil, status.Errorf(codes.Internal, "failed to get proxmox storage config: %v", err)
+	}
+
+	klog.V(5).InfoS("CreateVolume: storage config", "storage", storageConfig)
+
 	if zone == "" {
+		// Only shared storage can be provisioned without a zone:
+		// The volume is reachable from every Proxmox node, so any node with the storage can create it.
+		// Local storage would pin the volume to an arbitrary node, which a node without a zone label could never match.
+		if storageConfig.Shared == 0 {
+			err := status.Error(codes.InvalidArgument, "zone must be provided")
+			klog.ErrorS(err, "CreateVolume: zone is required for non-shared storage", "cluster", region, "storage", params.StorageID, "accessibleTopology", accessibleTopology)
+
+			return nil, err
+		}
+
 		zones, err := cl.GetNodesForStorage(ctx, params.StorageID)
 		if err != nil {
 			klog.ErrorS(err, "CreateVolume: failed to get zones with storage", "cluster", region, "storage", params.StorageID)
@@ -225,15 +244,6 @@ func (d *ControllerService) CreateVolume(ctx context.Context, request *csi.Creat
 
 		zone = zones[0]
 	}
-
-	storageConfig, err := cl.GetClusterStorage(ctx, params.StorageID)
-	if err != nil {
-		klog.ErrorS(err, "CreateVolume: failed to get proxmox storage config", "cluster", region, "storage", params.StorageID)
-
-		return nil, status.Errorf(codes.Internal, "failed to get proxmox storage config: %v", err)
-	}
-
-	klog.V(5).InfoS("CreateVolume: storage config", "storage", storageConfig)
 
 	topology := []*csi.Topology{
 		{

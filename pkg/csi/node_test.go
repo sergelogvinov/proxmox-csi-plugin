@@ -500,16 +500,24 @@ func TestNodeServiceNodeGetInfo(t *testing.T) {
 			expectedError: fmt.Errorf("rpc error: code = Internal desc = failed to get node nonexist-node: nodes \"nonexist-node\" not found"),
 		},
 		{
-			msg:           "RegionNode",
+			msg:           "MissingRegion",
 			kclient:       fake.NewClientset(nodes),
 			nodeName:      "node-zone",
-			expectedError: fmt.Errorf("rpc error: code = Internal desc = failed to get region or zone for node node-zone"),
+			expectedError: fmt.Errorf("rpc error: code = Internal desc = failed to get region for node node-zone"),
 		},
 		{
-			msg:           "ZoneNode",
-			kclient:       fake.NewClientset(nodes),
-			nodeName:      "node-region",
-			expectedError: fmt.Errorf("rpc error: code = Internal desc = failed to get region or zone for node node-region"),
+			msg:      "MissingZone",
+			kclient:  fake.NewClientset(nodes),
+			nodeName: "node-region",
+			expectedResponse: &proto.NodeGetInfoResponse{
+				NodeId:            "node-region",
+				MaxVolumesPerNode: csi.DefaultMaxVolumesPerNode,
+				AccessibleTopology: &proto.Topology{
+					Segments: map[string]string{
+						corev1.LabelTopologyRegion: "region",
+					},
+				},
+			},
 		},
 		{
 			msg:      "GoodNode",

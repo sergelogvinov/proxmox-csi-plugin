@@ -82,8 +82,8 @@ For better performance use SCSI Controller - `VirtIO SCSI single`.
 
 Proxmox CSI Plugin uses the well-known node labels to define the disk location:
 
-* `topology.kubernetes.io/region` - the name must be the same as in cloud config region name
-* `topology.kubernetes.io/zone` - proxmox node name
+* `topology.kubernetes.io/region` - the name must be the same as in cloud config region name (required)
+* `topology.kubernetes.io/zone` - proxmox node name (required for local storage, optional if the node uses shared storage only)
 * `topology.proxmox.sinextra.dev/region` - alternative region label (optional)
 * `topology.proxmox.sinextra.dev/node` - alternative zone label (optional)
 

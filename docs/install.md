@@ -77,15 +77,19 @@ All VMs in the cluster must have the `SCSI Controller` set to `VirtIO SCSI singl
 ## Prepare Kubernetes cluster
 
 Proxmox CSI Plugin relies on the well-known Kubernetes topology node labels to define the disk location.
-* `topology.kubernetes.io/region` - Cluster name, the name must be the same as in cloud config region name
-* `topology.kubernetes.io/zone` - Proxmox node name
-
+* `topology.kubernetes.io/region` - Cluster name, the name must be the same as in cloud config region name (required)
+* `topology.kubernetes.io/zone` - Proxmox node name (required for local storage, optional for shared storage)
 
 ```shell
 kubectl label nodes region1-node-1 topology.kubernetes.io/region=Region1
 kubectl label nodes region1-node-1 topology.kubernetes.io/zone=pve-1
 ```
 > Note: All nodes provisioned by Proxmox CSI Plugin should be labeled.
+
+The zone label can be omitted on nodes that only use shared storage (storage marked `shared` in Proxmox, for example Ceph RBD, NFS or iSCSI).
+Volumes on shared storage are reachable from every Proxmox node, so the plugin provisions them with region-only topology.
+Storage that is not shared (typically `lvm`, `lvmthin`, `zfspool` or a local `dir`) still requires the zone label.
+The plugin rejects volume creation for such storage when the zone is unknown.
 
 
 Alternatively, you can use [Proxmox Cloud Controller Manager](https://github.com/sergelogvinov/proxmox-cloud-controller-manager). Proxmox CCM will manage topology labels for you.
