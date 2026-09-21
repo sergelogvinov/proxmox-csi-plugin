@@ -26,6 +26,7 @@ import (
 	proxmoxcsi "github.com/sergelogvinov/proxmox-csi-plugin/pkg/csi"
 	"github.com/sergelogvinov/proxmox-csi-plugin/test/e2e/framework"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -37,13 +38,18 @@ import (
 // status.snapshotHandle (region/zone/storage/disk, see pkg/utils/volume),
 // rather than just trusting the VolumeSnapshotClass parameter was honored.
 //
-// The target zone is auto-discovered from nodes' topology.kubernetes.io/zone
-// labels (framework.ListZones) rather than requiring a developer to
-// hand-configure one; E2E_SNAPSHOT_ZONE still works as an explicit override.
-// Skipped (t.Skip) when the cluster doesn't advertise a second zone, since
-// this scenario needs a real multi-zone test cluster the suite can't assume
-// (see docs/e2e.md's Open questions). Split out from test/e2e/snapshot/ into
-// its own scenario so that one stays focused on same-zone restore/clone.
+// The source's region/zone are read off the node its pod actually lands on,
+// and the target zone is another zone discovered within that *same region*
+// (framework.ZonesInSameRegion) rather than requiring a developer to
+// hand-configure one; E2E_SNAPSHOT_ZONE still works as an explicit override
+// for the target. Zones are only meaningfully comparable within one region
+// - each region is a distinct Proxmox cluster - so the target must be
+// discovered scoped to the source's own region, not picked independently of
+// it. Skipped (t.Skip) when the source's region doesn't advertise a second
+// zone, since this scenario needs a real multi-zone test cluster the suite
+// can't assume (see docs/e2e.md's Open questions). Split out from
+// test/e2e/snapshot/ into its own scenario so that one stays focused on
+// same-zone restore/clone.
 func TestVolumeSnapshotCrossZoneCopy(t *testing.T) {
 	f := framework.New(t)
 	require := require.New(t)
@@ -57,21 +63,6 @@ func TestVolumeSnapshotCrossZoneCopy(t *testing.T) {
 	stsClient := f.Client.Clientset.AppsV1().StatefulSets(f.Namespace)
 	snapshotClassName := f.Namespace + "-snapclass"
 
-	// 0. Discover which Proxmox zones the cluster actually has, via node
-	// topology labels. Skip fast, before creating anything, unless there's
-	// at least two (or an explicit override) - this scenario needs a real
-	// second zone.
-	ctx, cancel := f.Context()
-	zones, err := framework.ListZones(ctx, f.Client.Clientset)
-
-	cancel()
-	require.NoError(err, "failed to list node topology zones")
-
-	if f.Config.SnapshotZone == "" && len(zones) < 2 {
-		t.Skipf("cluster only advertises %d %s value(s) (%v) - need at least two to test cross-zone copy (set E2E_SNAPSHOT_ZONE to override)",
-			len(zones), framework.TopologyZoneLabel, zones)
-	}
-
 	// 1. Create a single-replica StatefulSet as the snapshot source.
 	f.Logf("creating statefulset %s (storageClass=%s size=%s replicas=1)", stsName, f.Config.StorageClass, sourceSize)
 
@@ -83,8 +74,8 @@ func TestVolumeSnapshotCrossZoneCopy(t *testing.T) {
 		Size:         sourceSize,
 	})
 
-	ctx, cancel = f.Context()
-	_, err = stsClient.Create(ctx, sts, metav1.CreateOptions{})
+	ctx, cancel := f.Context()
+	_, err := stsClient.Create(ctx, sts, metav1.CreateOptions{})
 
 	cancel()
 	require.NoError(err, "failed to create statefulset")
@@ -93,7 +84,7 @@ func TestVolumeSnapshotCrossZoneCopy(t *testing.T) {
 
 	done := f.Step("waiting for pod %s to be ready", sourcePodName)
 	ctx, cancel = f.Context()
-	_, err = framework.WaitForPodReady(ctx, f.Client.Clientset, f.Namespace, sourcePodName, f.Config.Timeout)
+	sourcePod, err := framework.WaitForPodReady(ctx, f.Client.Clientset, f.Namespace, sourcePodName, f.Config.Timeout)
 
 	cancel()
 	done()
@@ -108,11 +99,33 @@ func TestVolumeSnapshotCrossZoneCopy(t *testing.T) {
 	require.NoError(err, "pvc %s never became bound", sourcePVCName)
 	require.Equal(proxmoxcsi.DriverName, sourcePV.Spec.CSI.Driver, "pv %s was not provisioned by this driver", sourcePV.Name)
 
-	sourceZone, err := framework.VolumeZone(sourcePV.Spec.CSI.VolumeHandle)
+	// 2. Read the source's region/zone off the node its pod actually landed
+	// on, then discover zones within that same region to pick a target for
+	// the snapshot copy - the target must come from the source's own
+	// region, since zones are only meaningfully comparable within one.
+	ctx, cancel = f.Context()
+	sourceNode, err := f.Client.Clientset.CoreV1().Nodes().Get(ctx, sourcePod.Spec.NodeName, metav1.GetOptions{})
+
+	cancel()
+	require.NoError(err, "failed to get node %s", sourcePod.Spec.NodeName)
+
+	sourceRegion := sourceNode.Labels[corev1.LabelTopologyRegion]
+	sourceZone := sourceNode.Labels[corev1.LabelTopologyZone]
+	require.NotEmpty(sourceRegion, "node %s has no %s label", sourceNode.Name, corev1.LabelTopologyRegion)
+	require.NotEmpty(sourceZone, "node %s has no %s label", sourceNode.Name, corev1.LabelTopologyZone)
+
+	gotSourceZone, err := framework.VolumeZone(sourcePV.Spec.CSI.VolumeHandle)
 	require.NoError(err, "failed to parse zone from pv %s volume handle %q", sourcePV.Name, sourcePV.Spec.CSI.VolumeHandle)
+	require.Equal(sourceZone, gotSourceZone, "pv %s landed in zone %s, not the zone %s of node %s it's attached to", sourcePV.Name, gotSourceZone, sourceZone, sourceNode.Name)
+
+	ctx, cancel = f.Context()
+	zones, err := framework.ZonesInSameRegion(ctx, f.Client.Clientset, sourceRegion)
+
+	cancel()
+	require.NoError(err, "failed to list zones in region %s", sourceRegion)
 
 	// Pick the target zone: an explicit E2E_SNAPSHOT_ZONE override, or the
-	// first discovered zone distinct from the source's.
+	// first discovered zone in the same region distinct from the source's.
 	targetZone := f.Config.SnapshotZone
 	if targetZone == "" {
 		for _, zone := range zones {
@@ -124,13 +137,16 @@ func TestVolumeSnapshotCrossZoneCopy(t *testing.T) {
 		}
 	}
 
-	require.NotEmpty(targetZone, "no %s distinct from the source volume's zone %s was found among %v (set E2E_SNAPSHOT_ZONE to override)",
-		framework.TopologyZoneLabel, sourceZone, zones)
-	require.NotEqual(sourceZone, targetZone,
-		"target zone %s must differ from the source volume's own zone %s for this check to be meaningful (set E2E_SNAPSHOT_ZONE to override)", targetZone, sourceZone)
-	f.Logf("source pvc %s is in zone %s, targeting zone %s for the snapshot copy", sourcePVCName, sourceZone, targetZone)
+	if targetZone == "" {
+		t.Skipf("region %s only advertises %d %s value(s) (%v) - need at least two to test cross-zone copy (set E2E_SNAPSHOT_ZONE to override)",
+			sourceRegion, len(zones), corev1.LabelTopologyZone, zones)
+	}
 
-	// 2. Create a throwaway VolumeSnapshotClass targeting the discovered
+	require.NotEqual(sourceZone, targetZone,
+		"target zone %s must differ from the source's zone %s for this check to be meaningful (set E2E_SNAPSHOT_ZONE to override)", targetZone, sourceZone)
+	f.Logf("source pod %s is in region %s zone %s, targeting zone %s for the snapshot copy", sourcePodName, sourceRegion, sourceZone, targetZone)
+
+	// 3. Create a throwaway VolumeSnapshotClass targeting the discovered
 	// zone, and snapshot the source PVC through it.
 	f.Logf("creating volumesnapshotclass %s (driver=%s zone=%s)", snapshotClassName, proxmoxcsi.DriverName, targetZone)
 
@@ -172,7 +188,7 @@ func TestVolumeSnapshotCrossZoneCopy(t *testing.T) {
 	require.NoError(err, "volumesnapshot %s never became ready", snapshotName)
 	require.NotEmpty(snapStatus.BoundVolumeSnapshotContentName, "volumesnapshot %s has no bound volumesnapshotcontent", snapshotName)
 
-	// 3. The actual assertion: the snapshot's handle encodes the target
+	// 4. The actual assertion: the snapshot's handle encodes the target
 	// zone, not the source's.
 	ctx, cancel = f.Context()
 	handle, err := framework.VolumeSnapshotContentHandle(ctx, f.Client.Dynamic, snapStatus.BoundVolumeSnapshotContentName)
@@ -185,7 +201,7 @@ func TestVolumeSnapshotCrossZoneCopy(t *testing.T) {
 	require.Equal(targetZone, gotZone, "volumesnapshot %s landed in zone %s, not the target zone %s", snapshotName, gotZone, targetZone)
 	f.Logf("volumesnapshot %s landed in zone %s as expected", snapshotName, gotZone)
 
-	// 4. Delete the VolumeSnapshot and confirm its VolumeSnapshotContent is
+	// 5. Delete the VolumeSnapshot and confirm its VolumeSnapshotContent is
 	// actually gone.
 	f.Logf("deleting volumesnapshot %s", snapshotName)
 
