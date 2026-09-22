@@ -16,6 +16,7 @@ linters:
   disable:
     - depguard
     - errorlint
+    - noinlineerr
     - exhaustruct
     - err113
     - forbidigo
@@ -53,10 +54,7 @@ linters:
     - gomodguard
 
     # temporarily disabled linters
-    - intrange
-    - noinlineerr
     - noctx
-    - modernize
     - exhaustruct_v5
   settings:
     wsl_v5:

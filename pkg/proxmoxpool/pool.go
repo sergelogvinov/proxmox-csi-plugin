@@ -173,7 +173,7 @@ func (c *ProxmoxPool) GetNodeGroup(ctx context.Context, region string, node stri
 			continue
 		}
 
-		for _, n := range strings.Split(g.Nodes, ",") {
+		for n := range strings.SplitSeq(g.Nodes, ",") {
 			if node == strings.Split(n, ":")[0] {
 				return g.Group, nil
 			}

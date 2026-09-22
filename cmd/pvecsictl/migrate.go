@@ -78,6 +78,9 @@ func (c *migrateCmd) runMigration(cmd *cobra.Command, args []string) error {
 	var err error
 
 	taskTimeout, _ := flags.GetInt("timeout") //nolint: errcheck
+	if taskTimeout <= 0 {
+		taskTimeout = 10800
+	}
 
 	// Bound the whole command, not just the disk-copy task: pod eviction and
 	// volume-detach waits below could otherwise block forever on a background
@@ -151,7 +154,10 @@ func (c *migrateCmd) runMigration(cmd *cobra.Command, args []string) error {
 
 		logger.Infof("uncordoning nodes: %s", strings.Join(cordonedNodes, ","))
 
-		if err := tools.UncondonNodes(context.WithoutCancel(ctx), c.kclient, cordonedNodes); err != nil {
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+		defer cleanupCancel()
+
+		if err := tools.UncondonNodes(cleanupCtx, c.kclient, cordonedNodes); err != nil {
 			logger.Errorf("failed to uncordon nodes: %v", err)
 		}
 	}()

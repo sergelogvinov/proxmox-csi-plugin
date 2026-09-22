@@ -96,8 +96,7 @@ func DeleteStorageVolume(ctx context.Context, client *proxmoxrest.Client, node, 
 	}
 
 	if err := client.Nodes(node).Tasks().Wait(ctx, upid, nil); err != nil {
-		var failed *tasks.FailedError
-		if errors.As(err, &failed) {
+		if failed, ok := errors.AsType[*tasks.FailedError](err); ok {
 			return fmt.Errorf("exit status: %s", failed.ExitStatus)
 		}
 
@@ -125,8 +124,7 @@ func MoveQemuDisk(ctx context.Context, client *proxmoxrest.Client, vol *volume.V
 		PollInterval: 15 * time.Second,
 		Timeout:      time.Duration(taskTimeout) * time.Second,
 	}); err != nil {
-		var failed *tasks.FailedError
-		if errors.As(err, &failed) {
+		if failed, ok := errors.AsType[*tasks.FailedError](err); ok {
 			return fmt.Errorf("failed to copy disk, exit status: %s", failed.ExitStatus)
 		}
 

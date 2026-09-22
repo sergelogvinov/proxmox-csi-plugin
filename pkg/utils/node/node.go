@@ -65,8 +65,7 @@ func GetNodeID(nodeName string) (n ID, err error) {
 	vmID := 0
 
 	if info.SerialNumber != "" {
-		options := strings.Split(info.SerialNumber, ";")
-		for _, option := range options {
+		for option := range strings.SplitSeq(info.SerialNumber, ";") {
 			parts := strings.SplitN(option, "=", 2)
 			if len(parts) == 2 {
 				if parts[0] == "i" {

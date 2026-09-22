@@ -138,7 +138,7 @@ func main() {
 		klog.Fatalf("Failed to listen on %s: %v", *csiEndpoint, err)
 	}
 
-	logErr := func(ctx context.Context, req interface{}, _ *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+	logErr := func(ctx context.Context, req any, _ *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 		resp, rpcerr := handler(ctx, req)
 		if rpcerr != nil {
 			klog.Errorf("GRPC error: %v", rpcerr)
