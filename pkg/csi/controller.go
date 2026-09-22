@@ -235,7 +235,7 @@ func (d *ControllerService) CreateVolume(ctx context.Context, request *csi.Creat
 		zone = zones[0]
 	}
 
-	storageConfig, err := storageResource(ctx, cl, params.StorageID)
+	storageConfig, err := cl.Storage().Get(ctx, params.StorageID)
 	if err != nil {
 		klog.ErrorS(err, "CreateVolume: failed to get proxmox storage config", "cluster", region, "storage", params.StorageID)
 
@@ -253,9 +253,8 @@ func (d *ControllerService) CreateVolume(ctx context.Context, request *csi.Creat
 		},
 	}
 
-	if storageConfig.Shared == 1 {
-		// https://pve.proxmox.com/wiki/Storage only block/local storage are supported
-		switch storageConfig.PluginType {
+	if storageConfig.Shared {
+		switch storageConfig.Type {
 		case "cifs", "pbs": // nolint: goconst
 			return nil, status.Error(codes.Internal, "error: shared storage type cifs, pbs are not supported")
 		}
@@ -269,7 +268,7 @@ func (d *ControllerService) CreateVolume(ctx context.Context, request *csi.Creat
 
 		topology = []*csi.Topology{}
 
-		for node := range strings.SplitSeq(config.Nodes, ",") {
+		for _, node := range config.Nodes {
 			if node == "" {
 				continue
 			}
@@ -294,7 +293,7 @@ func (d *ControllerService) CreateVolume(ctx context.Context, request *csi.Creat
 	id := d.vmID
 
 	if params.Replicate {
-		if storageConfig.PluginType != "zfspool" {
+		if storageConfig.Type != "zfspool" {
 			return nil, status.Error(codes.Internal, "error: storage type is not zfs in replication mode")
 		}
 
@@ -319,12 +318,17 @@ func (d *ControllerService) CreateVolume(ctx context.Context, request *csi.Creat
 
 	format := ""
 
-	// LVM Snapshots as Volume-Chain are a technology preview.
-	if storageConfig.PluginType == "lvm" && params.StorageFormat == "qcow2" {
-		format = params.StorageFormat
-	}
+	switch storageConfig.Type {
+	case "lvm":
+		// LVM Snapshots as Volume-Chain are a technology preview.
+		if storageConfig.SnapshotAsVolumeChain != nil && *storageConfig.SnapshotAsVolumeChain {
+			format = "raw"
+		}
 
-	if getStorageLevel(storageConfig) == "file" {
+		if params.StorageFormat == "qcow2" {
+			format = params.StorageFormat
+		}
+	case "dir", "nfs", "cifs", "cephfs", "btrfs": // nolint: goconst
 		format = "raw"
 		if params.StorageFormat == "qcow2" {
 			format = params.StorageFormat
@@ -423,7 +427,7 @@ func (d *ControllerService) CreateVolume(ctx context.Context, request *csi.Creat
 		}
 	}
 
-	if storageConfig.Shared == 1 || params.Replicate {
+	if storageConfig.Shared || params.Replicate {
 		volumeID = vol.VolumeSharedID()
 	}
 
@@ -831,7 +835,7 @@ func (d *ControllerService) CreateSnapshot(ctx context.Context, request *csi.Cre
 		return nil, err
 	}
 
-	if storageConfig.Shared == 1 {
+	if storageConfig.Shared {
 		err = status.Error(codes.Internal, "shared storage does not support snapshot")
 		klog.ErrorS(err, "CreateSnapshot: unsupported storage type for snapshot", "cluster", vol.Cluster(), "storageID", vol.Storage(), "storageType", storageConfig.Type)
 
@@ -859,9 +863,8 @@ func (d *ControllerService) CreateSnapshot(ctx context.Context, request *csi.Cre
 	snapshotID := vol.CopyVolume(fmt.Sprintf("vm-%d-%s", d.vmID, name))
 
 	if params["zone"] != "" {
-		if storageConfig.Nodes != "" {
-			nodes := strings.Split(storageConfig.Nodes, ",")
-			if !slices.Contains(nodes, params["zone"]) {
+		if len(storageConfig.Nodes) > 0 {
+			if !slices.Contains(storageConfig.Nodes, params["zone"]) {
 				err = status.Error(codes.InvalidArgument, "zone specified in parameters is not valid for the storage")
 				klog.ErrorS(err, "CreateSnapshot: invalid zone in parameters", "cluster", vol.Cluster(), "storageID", vol.Storage(), "zone", params["zone"])
 

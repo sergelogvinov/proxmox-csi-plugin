@@ -221,16 +221,6 @@ func getStorageContent(ctx context.Context, cl *proxmoxrest.Client, vol *volume.
 	return nil, nil
 }
 
-func getStorageLevel(res *cluster.Resource) string {
-	// see https://pve.proxmox.com/wiki/Storage
-	switch res.PluginType {
-	case "dir", "nfs", "cifs", "cephfs", "btrfs": // nolint: goconst
-		return "file"
-	default:
-		return "block"
-	}
-}
-
 func getVolumeSize(ctx context.Context, cl *proxmoxrest.Client, vol *volume.Volume) (int64, error) {
 	st, err := getStorageContent(ctx, cl, vol)
 	if err != nil {
