@@ -92,6 +92,26 @@ func SetupMockResponders() {
 						Status:     "available",
 					},
 					&proxmox.ClusterResource{
+						ID:         "storage/rbd-restricted",
+						Type:       "storage",
+						PluginType: "rbd",
+						Node:       "pve-1",
+						Storage:    "rbd-restricted",
+						Content:    "images",
+						Shared:     1,
+						Status:     "available",
+					},
+					&proxmox.ClusterResource{
+						ID:         "storage/rbd-restricted",
+						Type:       "storage",
+						PluginType: "rbd",
+						Node:       "pve-2",
+						Storage:    "rbd-restricted",
+						Content:    "images",
+						Shared:     1,
+						Status:     "available",
+					},
+					&proxmox.ClusterResource{
 						ID:         "storage/zfs",
 						Type:       "storage",
 						PluginType: "zfspool",
@@ -179,6 +199,20 @@ func SetupMockResponders() {
 					Storage: "rbd",
 					Shared:  1,
 					Content: "images",
+				},
+			})
+		},
+	)
+	// Shared storage limited to a subset of Proxmox nodes via the "nodes" storage option.
+	httpmock.RegisterResponder(http.MethodGet, `=~/storage/rbd-restricted$`,
+		func(_ *http.Request) (*http.Response, error) {
+			return httpmock.NewJsonResponse(200, map[string]any{
+				"data": proxmox.ClusterStorage{
+					Type:    "rbd",
+					Storage: "rbd-restricted",
+					Shared:  1,
+					Content: "images",
+					Nodes:   "pve-1,pve-2",
 				},
 			})
 		},

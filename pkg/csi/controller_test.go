@@ -326,7 +326,48 @@ func (ts *configuredTestSuite) TestCreateVolume() {
 					},
 				},
 			},
-			expectedError: status.Error(codes.Internal, "failed to get zones with storage fake-storage: not found"),
+			expectedError: status.Error(codes.Internal, "failed to get proxmox storage config: not found"),
+		},
+		{
+			msg: "EmptyZoneLocalStorage",
+			request: &proto.CreateVolumeRequest{
+				Name:               "volume-id",
+				Parameters:         volParam,
+				VolumeCapabilities: []*proto.VolumeCapability{volcap},
+				CapacityRange:      volsize,
+				AccessibilityRequirements: &proto.TopologyRequirement{
+					Preferred: []*proto.Topology{
+						{
+							Segments: map[string]string{
+								corev1.LabelTopologyRegion: "cluster-1",
+							},
+						},
+					},
+				},
+			},
+			expectedError: status.Error(codes.InvalidArgument, "zone must be provided"),
+		},
+		{
+			msg: "EmptyZoneReplication",
+			request: &proto.CreateVolumeRequest{
+				Name: "volume-id",
+				Parameters: map[string]string{
+					"storage":   "zfs",
+					"replicate": "true",
+				},
+				VolumeCapabilities: []*proto.VolumeCapability{volcap},
+				CapacityRange:      volsize,
+				AccessibilityRequirements: &proto.TopologyRequirement{
+					Preferred: []*proto.Topology{
+						{
+							Segments: map[string]string{
+								corev1.LabelTopologyRegion: "cluster-1",
+							},
+						},
+					},
+				},
+			},
+			expectedError: status.Error(codes.InvalidArgument, "zone must be provided"),
 		},
 		{
 			msg: "EmptyRegion",
@@ -426,6 +467,27 @@ func (ts *configuredTestSuite) TestCreateVolume() {
 					},
 				},
 			},
+		},
+		{
+			msg: "EmptyZoneSharedStorageRestrictedToNodes",
+			request: &proto.CreateVolumeRequest{
+				Name: "volume-rbd-restricted",
+				Parameters: map[string]string{
+					"storage": "rbd-restricted",
+				},
+				VolumeCapabilities: []*proto.VolumeCapability{volcap},
+				CapacityRange:      volsize,
+				AccessibilityRequirements: &proto.TopologyRequirement{
+					Preferred: []*proto.Topology{
+						{
+							Segments: map[string]string{
+								corev1.LabelTopologyRegion: "cluster-1",
+							},
+						},
+					},
+				},
+			},
+			expectedError: status.Error(codes.InvalidArgument, "zone must be provided: shared storage rbd-restricted is restricted to proxmox nodes pve-1,pve-2"),
 		},
 		{
 			msg: "PVCAlreadyExistSameSize",
