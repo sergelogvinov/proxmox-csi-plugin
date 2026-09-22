@@ -33,7 +33,6 @@ import (
 	testcluster "github.com/sergelogvinov/proxmox-csi-plugin/test/cluster"
 
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clientkubernetes "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/fake"
 )
@@ -69,13 +68,9 @@ func (ts *baseCSITestSuite) setupTestSuite(config string) error {
 	nodes := &corev1.NodeList{
 		Items: []corev1.Node{
 			{
-				TypeMeta: metav1.TypeMeta{
-					Kind:       "Node",
-					APIVersion: "v1",
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "cluster-1-node-1",
-				},
+				Kind:       "Node",
+				APIVersion: "v1",
+				Name:       "cluster-1-node-1",
 				Spec: corev1.NodeSpec{
 					ProviderID: "proxmox://cluster-1/100",
 				},
@@ -86,13 +81,9 @@ func (ts *baseCSITestSuite) setupTestSuite(config string) error {
 				},
 			},
 			{
-				TypeMeta: metav1.TypeMeta{
-					Kind:       "Node",
-					APIVersion: "v1",
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "cluster-1-node-2",
-				},
+				Kind:       "Node",
+				APIVersion: "v1",
+				Name:       "cluster-1-node-2",
 				Spec: corev1.NodeSpec{
 					ProviderID: "proxmox://cluster-1/101",
 				},
@@ -108,32 +99,20 @@ func (ts *baseCSITestSuite) setupTestSuite(config string) error {
 	pv := &corev1.PersistentVolumeList{
 		Items: []corev1.PersistentVolume{
 			{
-				TypeMeta: metav1.TypeMeta{
-					Kind:       "PersistentVolume",
-					APIVersion: "v1",
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "pvc-123",
-				},
+				Kind:       "PersistentVolume",
+				APIVersion: "v1",
+				Name:       "pvc-123",
 			},
 			{
-				TypeMeta: metav1.TypeMeta{
-					Kind:       "PersistentVolume",
-					APIVersion: "v1",
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "pvc-error",
-				},
+				Kind:       "PersistentVolume",
+				APIVersion: "v1",
+				Name:       "pvc-error",
 			},
 			{
-				TypeMeta: metav1.TypeMeta{
-					Kind:       "PersistentVolume",
-					APIVersion: "v1",
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:        "pvc-non-exist",
-					Annotations: map[string]string{},
-				},
+				Kind:        "PersistentVolume",
+				APIVersion:  "v1",
+				Name:        "pvc-non-exist",
+				Annotations: map[string]string{},
 			},
 		},
 	}

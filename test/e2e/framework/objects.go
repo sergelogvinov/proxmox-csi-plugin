@@ -100,11 +100,9 @@ func NewTestStatefulSet(opts StatefulSetOptions) *appsv1.StatefulSet {
 	terminationGrace := int64(3)
 
 	return &appsv1.StatefulSet{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      opts.Name,
-			Namespace: opts.Namespace,
-			Labels:    labels,
-		},
+		Name:      opts.Name,
+		Namespace: opts.Namespace,
+		Labels:    labels,
 		Spec: appsv1.StatefulSetSpec{
 			PodManagementPolicy: appsv1.ParallelPodManagement,
 			ServiceName:         opts.Name,
@@ -149,7 +147,7 @@ func NewTestStatefulSet(opts StatefulSetOptions) *appsv1.StatefulSet {
 			},
 			VolumeClaimTemplates: []corev1.PersistentVolumeClaim{
 				{
-					ObjectMeta: metav1.ObjectMeta{Name: storageVolumeName},
+					Name: storageVolumeName,
 					Spec: corev1.PersistentVolumeClaimSpec{
 						AccessModes:      []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
 						StorageClassName: &opts.StorageClass,
@@ -168,11 +166,9 @@ func NewTestStatefulSet(opts StatefulSetOptions) *appsv1.StatefulSet {
 // NewNamespace builds a Namespace object labeled as belonging to the e2e suite.
 func NewNamespace(name string) *corev1.Namespace {
 	return &corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: name,
-			Labels: map[string]string{
-				"app.kubernetes.io/managed-by": "proxmox-csi-plugin-e2e",
-			},
+		Name: name,
+		Labels: map[string]string{
+			"app.kubernetes.io/managed-by": "proxmox-csi-plugin-e2e",
 		},
 	}
 }
@@ -206,10 +202,8 @@ func NewEphemeralPod(opts EphemeralPodOptions) *corev1.Pod {
 	terminationGrace := int64(1)
 
 	return &corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      opts.Name,
-			Namespace: opts.Namespace,
-		},
+		Name:      opts.Name,
+		Namespace: opts.Namespace,
 		Spec: corev1.PodSpec{
 			TerminationGracePeriodSeconds: &terminationGrace,
 			Tolerations: []corev1.Toleration{
@@ -225,19 +219,15 @@ func NewEphemeralPod(opts EphemeralPodOptions) *corev1.Pod {
 			Volumes: []corev1.Volume{
 				{
 					Name: volumeName,
-					VolumeSource: corev1.VolumeSource{
-						Ephemeral: &corev1.EphemeralVolumeSource{
-							VolumeClaimTemplate: &corev1.PersistentVolumeClaimTemplate{
-								ObjectMeta: metav1.ObjectMeta{
-									Labels: map[string]string{"type": "pvc-volume"},
-								},
-								Spec: corev1.PersistentVolumeClaimSpec{
-									AccessModes:      []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
-									StorageClassName: &opts.StorageClass,
-									Resources: corev1.VolumeResourceRequirements{
-										Requests: corev1.ResourceList{
-											corev1.ResourceStorage: resource.MustParse(opts.Size),
-										},
+					Ephemeral: &corev1.EphemeralVolumeSource{
+						VolumeClaimTemplate: &corev1.PersistentVolumeClaimTemplate{
+							Labels: map[string]string{"type": "pvc-volume"},
+							Spec: corev1.PersistentVolumeClaimSpec{
+								AccessModes:      []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
+								StorageClassName: &opts.StorageClass,
+								Resources: corev1.VolumeResourceRequirements{
+									Requests: corev1.ResourceList{
+										corev1.ResourceStorage: resource.MustParse(opts.Size),
 									},
 								},
 							},
@@ -270,10 +260,8 @@ type PVCOptions struct {
 // restore/clone target via DataSource.
 func NewPVC(opts PVCOptions) *corev1.PersistentVolumeClaim {
 	return &corev1.PersistentVolumeClaim{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      opts.Name,
-			Namespace: opts.Namespace,
-		},
+		Name:      opts.Name,
+		Namespace: opts.Namespace,
 		Spec: corev1.PersistentVolumeClaimSpec{
 			AccessModes:      []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
 			StorageClassName: &opts.StorageClass,
@@ -302,10 +290,8 @@ func NewPod(opts PodOptions) *corev1.Pod {
 	terminationGrace := int64(3)
 
 	return &corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      opts.Name,
-			Namespace: opts.Namespace,
-		},
+		Name:      opts.Name,
+		Namespace: opts.Namespace,
 		Spec: corev1.PodSpec{
 			TerminationGracePeriodSeconds: &terminationGrace,
 			SecurityContext: &corev1.PodSecurityContext{
@@ -317,10 +303,8 @@ func NewPod(opts PodOptions) *corev1.Pod {
 			Volumes: []corev1.Volume{
 				{
 					Name: storageVolumeName,
-					VolumeSource: corev1.VolumeSource{
-						PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-							ClaimName: opts.PVCName,
-						},
+					PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+						ClaimName: opts.PVCName,
 					},
 				},
 			},
@@ -365,9 +349,7 @@ func NewPVCCloneDataSource(pvcName string) *corev1.TypedLocalObjectReference {
 // must register their own cleanup.
 func NewVolumeAttributesClass(name, driverName string, parameters map[string]string) *storagev1.VolumeAttributesClass {
 	return &storagev1.VolumeAttributesClass{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: name,
-		},
+		Name:       name,
 		DriverName: driverName,
 		Parameters: parameters,
 	}
