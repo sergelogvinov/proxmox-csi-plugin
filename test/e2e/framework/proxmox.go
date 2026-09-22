@@ -133,7 +133,7 @@ func findVMNode(ctx context.Context, cl *proxmoxrest.Client, vmid int) (string, 
 func parseDiskOptions(raw string) map[string]string {
 	opts := map[string]string{}
 
-	for _, param := range strings.Split(raw, ",") {
+	for param := range strings.SplitSeq(raw, ",") {
 		if kv := strings.SplitN(param, "=", 2); len(kv) == 2 {
 			opts[kv[0]] = kv[1]
 		}

@@ -56,10 +56,10 @@ var (
 // of leaving one orphaned. parameters may be nil (e.g. "zone" to target a
 // specific Proxmox zone for the snapshot copy - see docs/volumesnapshot.md).
 func NewVolumeSnapshotClass(name, driverName string, parameters map[string]string) *unstructured.Unstructured {
-	obj := map[string]interface{}{
+	obj := map[string]any{
 		"apiVersion": volumeSnapshotAPIVersion,
 		"kind":       "VolumeSnapshotClass",
-		"metadata": map[string]interface{}{
+		"metadata": map[string]any{
 			"name": name,
 		},
 		"driver":         driverName,
@@ -67,7 +67,7 @@ func NewVolumeSnapshotClass(name, driverName string, parameters map[string]strin
 	}
 
 	if len(parameters) > 0 {
-		params := make(map[string]interface{}, len(parameters))
+		params := make(map[string]any, len(parameters))
 		for k, v := range parameters {
 			params[k] = v
 		}
@@ -81,16 +81,16 @@ func NewVolumeSnapshotClass(name, driverName string, parameters map[string]strin
 // NewVolumeSnapshot builds a namespaced VolumeSnapshot of sourcePVCName under
 // the given VolumeSnapshotClass.
 func NewVolumeSnapshot(name, namespace, className, sourcePVCName string) *unstructured.Unstructured {
-	return &unstructured.Unstructured{Object: map[string]interface{}{
+	return &unstructured.Unstructured{Object: map[string]any{
 		"apiVersion": volumeSnapshotAPIVersion,
 		"kind":       "VolumeSnapshot",
-		"metadata": map[string]interface{}{
+		"metadata": map[string]any{
 			"name":      name,
 			"namespace": namespace,
 		},
-		"spec": map[string]interface{}{
+		"spec": map[string]any{
 			"volumeSnapshotClassName": className,
-			"source": map[string]interface{}{
+			"source": map[string]any{
 				"persistentVolumeClaimName": sourcePVCName,
 			},
 		},

@@ -23,7 +23,6 @@ import (
 	"github.com/sergelogvinov/go-proxmox-rest/nodes/qemu"
 	"github.com/sergelogvinov/go-proxmox-rest/nodes/storage"
 	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/csi"
-	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/helpers/ptr"
 	pxpool "github.com/sergelogvinov/proxmox-csi-plugin/pkg/proxmoxpool"
 )
 
@@ -62,7 +61,7 @@ func SetupFakeCluster(t *testing.T, pool *pxpool.ProxmoxPool) *fakeapi.Cluster {
 		Name: "cluster-1-node-1",
 		SCSI: map[int]qemu.Drive{
 			0: {File: "local-lvm:vm-100-disk-0", Size: "10G"},
-			1: {File: "local-lvm:vm-9999-pvc-123", Backup: ptr.Ptr(false), IOThread: ptr.Ptr(true), WWN: "0x5056432d49443031"},
+			1: {File: "local-lvm:vm-9999-pvc-123", Backup: new(false), IOThread: new(true), WWN: "0x5056432d49443031"},
 		},
 		SMBios1: &qemu.SMBios1{UUID: "11833f4c-341f-4bd3-aad7-f7abed000000"},
 	}, fakeapi.WithStatus(qemu.VMStatusRunning))
@@ -72,7 +71,7 @@ func SetupFakeCluster(t *testing.T, pool *pxpool.ProxmoxPool) *fakeapi.Cluster {
 		SCSI: map[int]qemu.Drive{
 			0: {File: "local-lvm:vm-101-disk-0", Size: "10G"},
 			1: {File: "local-lvm:vm-101-disk-1", Size: "1G"},
-			2: {File: "rbd:9999/vm-9999-volume-rbd.raw", Backup: ptr.Ptr(false), IOThread: ptr.Ptr(true)},
+			2: {File: "rbd:9999/vm-9999-volume-rbd.raw", Backup: new(false), IOThread: new(true)},
 			3: {File: "local-lvm:vm-101-disk-2", Size: "1G"},
 		},
 		SMBios1: &qemu.SMBios1{UUID: "11833f4c-341f-4bd3-aad7-f7abed000001"},

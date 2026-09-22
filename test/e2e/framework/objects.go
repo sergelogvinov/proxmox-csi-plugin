@@ -19,6 +19,7 @@ limitations under the License.
 package framework
 
 import (
+	"maps"
 	"strconv"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -26,7 +27,6 @@ import (
 	storagev1 "k8s.io/api/storage/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/ptr"
 )
 
 // appLabelKey is the label used to select a StatefulSet's own pods, both for
@@ -59,10 +59,10 @@ func newStorageContainer(runAsUser int64, volumeName string) corev1.Container {
 		Image:   alpineImage,
 		Command: []string{sleepCommand, sleepDuration},
 		SecurityContext: &corev1.SecurityContext{
-			AllowPrivilegeEscalation: ptr.To(false),
-			RunAsUser:                ptr.To(runAsUser),
-			RunAsGroup:               ptr.To(runAsUser),
-			RunAsNonRoot:             ptr.To(true),
+			AllowPrivilegeEscalation: new(false),
+			RunAsUser:                new(runAsUser),
+			RunAsGroup:               new(runAsUser),
+			RunAsNonRoot:             new(true),
 			SeccompProfile: &corev1.SeccompProfile{
 				Type: corev1.SeccompProfileTypeRuntimeDefault,
 			},
@@ -92,10 +92,10 @@ type StatefulSetOptions struct {
 // per replica via volumeClaimTemplates, and pod anti-affinity spreading
 // replicas across nodes.
 func NewTestStatefulSet(opts StatefulSetOptions) *appsv1.StatefulSet {
-	labels := map[string]string{appLabelKey: opts.Name}
-	for k, v := range opts.Labels {
-		labels[k] = v
-	}
+	labels := map[string]string{}
+
+	maps.Copy(labels, opts.Labels)
+	labels[appLabelKey] = opts.Name
 
 	terminationGrace := int64(3)
 
@@ -140,9 +140,9 @@ func NewTestStatefulSet(opts StatefulSetOptions) *appsv1.StatefulSet {
 						},
 					},
 					SecurityContext: &corev1.PodSecurityContext{
-						FSGroup:    ptr.To(int64(1000)),
-						RunAsUser:  ptr.To(int64(1000)),
-						RunAsGroup: ptr.To(int64(1000)),
+						FSGroup:    new(int64(1000)),
+						RunAsUser:  new(int64(1000)),
+						RunAsGroup: new(int64(1000)),
 					},
 					Containers: []corev1.Container{newStorageContainer(1000, storageVolumeName)},
 				},
@@ -217,9 +217,9 @@ func NewEphemeralPod(opts EphemeralPodOptions) *corev1.Pod {
 			},
 			NodeSelector: map[string]string{"kubernetes.io/hostname": opts.NodeName},
 			SecurityContext: &corev1.PodSecurityContext{
-				FSGroup:    ptr.To(int64(65534)),
-				RunAsGroup: ptr.To(int64(65534)),
-				RunAsUser:  ptr.To(int64(65534)),
+				FSGroup:    new(int64(65534)),
+				RunAsGroup: new(int64(65534)),
+				RunAsUser:  new(int64(65534)),
 			},
 			Containers: []corev1.Container{newStorageContainer(65534, volumeName)},
 			Volumes: []corev1.Volume{
@@ -309,9 +309,9 @@ func NewPod(opts PodOptions) *corev1.Pod {
 		Spec: corev1.PodSpec{
 			TerminationGracePeriodSeconds: &terminationGrace,
 			SecurityContext: &corev1.PodSecurityContext{
-				FSGroup:    ptr.To(int64(1000)),
-				RunAsUser:  ptr.To(int64(1000)),
-				RunAsGroup: ptr.To(int64(1000)),
+				FSGroup:    new(int64(1000)),
+				RunAsUser:  new(int64(1000)),
+				RunAsGroup: new(int64(1000)),
 			},
 			Containers: []corev1.Container{newStorageContainer(1000, storageVolumeName)},
 			Volumes: []corev1.Volume{

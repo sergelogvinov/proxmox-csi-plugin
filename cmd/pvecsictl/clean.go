@@ -103,9 +103,7 @@ func (c *cleanCmd) runClean(cmd *cobra.Command, args []string) error {
 
 		nodes, err := cl.Cluster().Resources().List(ctx, cluster.ListFilter{
 			Type: cluster.ResourceTypeNode,
-			Match: func(res *cluster.Resource) (bool, error) {
-				return res.Node == node, nil
-			},
+			Node: node,
 		})
 		if err != nil {
 			return fmt.Errorf("failed to get node %s on region %s: %v", node, r, err)

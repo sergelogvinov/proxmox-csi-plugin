@@ -23,7 +23,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/sergelogvinov/go-proxmox-rest/nodes/qemu"
-	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/helpers/ptr"
 )
 
 func TestIsVolumeAttached(t *testing.T) {
@@ -97,7 +96,7 @@ func TestDriveOptions(t *testing.T) {
 
 	assert.Equal(t, "8G", drive.Size)
 	assert.Equal(t, "local-lvm:vm-100-disk-0", drive.File)
-	assert.Equal(t, ptr.Ptr(false), drive.Backup)
-	assert.Equal(t, ptr.Ptr(true), drive.IOThread)
-	assert.Equal(t, ptr.Ptr(100), drive.IOPSRD)
+	assert.Equal(t, new(false), drive.Backup)
+	assert.Equal(t, new(true), drive.IOThread)
+	assert.Equal(t, new(100), drive.IOPSRD)
 }

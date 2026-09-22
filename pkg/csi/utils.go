@@ -34,7 +34,6 @@ import (
 	"github.com/sergelogvinov/go-proxmox-rest/nodes/qemu"
 	"github.com/sergelogvinov/go-proxmox-rest/nodes/storage"
 	"github.com/sergelogvinov/go-proxmox-rest/nodes/tasks"
-	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/helpers/ptr"
 	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/metrics"
 	volume "github.com/sergelogvinov/proxmox-csi-plugin/pkg/utils/volume"
 )
@@ -278,46 +277,46 @@ func driveOptions(drive qemu.Drive, options map[string]string) qemu.Drive {
 	}
 
 	if v, ok := options["backup"]; ok {
-		drive.Backup = ptr.Ptr(v == "1")
+		drive.Backup = new(v == "1")
 	}
 
 	if v, ok := options["iothread"]; ok {
-		drive.IOThread = ptr.Ptr(v == "1")
+		drive.IOThread = new(v == "1")
 	}
 
 	if v, ok := options["ssd"]; ok {
-		drive.SSD = ptr.Ptr(v == "1")
+		drive.SSD = new(v == "1")
 	}
 
 	if v, ok := options["ro"]; ok {
-		drive.RO = ptr.Ptr(v == "1")
+		drive.RO = new(v == "1")
 	}
 
 	if v, ok := options["replicate"]; ok {
-		drive.Replicate = ptr.Ptr(v == "1")
+		drive.Replicate = new(v == "1")
 	}
 
 	if v, ok := options["iops_rd"]; ok {
 		if n, err := strconv.Atoi(v); err == nil {
-			drive.IOPSRD = ptr.Ptr(n)
+			drive.IOPSRD = new(n)
 		}
 	}
 
 	if v, ok := options["iops_wr"]; ok {
 		if n, err := strconv.Atoi(v); err == nil {
-			drive.IOPSWR = ptr.Ptr(n)
+			drive.IOPSWR = new(n)
 		}
 	}
 
 	if v, ok := options["mbps_rd"]; ok {
 		if n, err := strconv.Atoi(v); err == nil {
-			drive.MBPSRD = ptr.Ptr(n)
+			drive.MBPSRD = new(n)
 		}
 	}
 
 	if v, ok := options["mbps_wr"]; ok {
 		if n, err := strconv.Atoi(v); err == nil {
-			drive.MBPSWR = ptr.Ptr(n)
+			drive.MBPSWR = new(n)
 		}
 	}
 
@@ -389,9 +388,9 @@ func createReplication(ctx context.Context, cl *proxmoxrest.Client, id int, vol 
 			ID:       fmt.Sprintf("%d-%d", id, i),
 			Type:     replication.TypeLocal,
 			Target:   z,
-			Schedule: ptr.Ptr(schedule),
-			Disable:  ptr.Ptr(false),
-			Comment:  ptr.Ptr("CSI Replication for Persistent Volume"),
+			Schedule: new(schedule),
+			Disable:  new(false),
+			Comment:  new("CSI Replication for Persistent Volume"),
 		}
 
 		if err := cl.Cluster().Replication().Create(ctx, opts); err != nil {
@@ -702,8 +701,7 @@ func copyVolume(ctx context.Context, cl *proxmoxrest.Client, srcVol *volume.Volu
 	}
 
 	if err := cl.Nodes(srcVol.Node()).Tasks().Wait(ctx, upid, &tasks.WaitOptions{PollInterval: 15 * time.Second, Timeout: 4 * time.Minute}); err != nil {
-		var failed *tasks.FailedError
-		if errors.As(err, &failed) {
+		if failed, ok := errors.AsType[*tasks.FailedError](err); ok {
 			return fmt.Errorf("failed to copy disk, exit status: %s", failed.ExitStatus)
 		}
 
@@ -795,11 +793,11 @@ func resizeVMDisk(ctx context.Context, cl *proxmoxrest.Client, node string, vmid
 
 func defaultVMConfig() *qemu.Config {
 	return &qemu.Config{
-		Boot:    ptr.Ptr("order=scsi0"),
-		Agent:   &qemu.Agent{Enabled: ptr.Ptr(false)},
+		Boot:    new("order=scsi0"),
+		Agent:   &qemu.Agent{Enabled: new(false)},
 		Machine: &qemu.Machine{Type: "pc"},
-		Cores:   ptr.Ptr(1),
-		Memory:  &qemu.Memory{Current: ptr.Ptr(512)},
+		Cores:   new(1),
+		Memory:  &qemu.Memory{Current: new(512)},
 		SCSIHW:  "virtio-scsi-single",
 	}
 }

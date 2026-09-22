@@ -46,9 +46,7 @@ var (
 )
 
 func main() {
-	if exitCode := run(); exitCode != 0 {
-		os.Exit(exitCode)
-	}
+	os.Exit(run())
 }
 
 func run() int {

@@ -37,7 +37,6 @@ import (
 	proxmoxrest "github.com/sergelogvinov/go-proxmox-rest"
 	"github.com/sergelogvinov/go-proxmox-rest/cluster"
 	csiconfig "github.com/sergelogvinov/proxmox-csi-plugin/pkg/config"
-	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/helpers/ptr"
 	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/metrics"
 	pxpool "github.com/sergelogvinov/proxmox-csi-plugin/pkg/proxmoxpool"
 	toolsproxmox "github.com/sergelogvinov/proxmox-csi-plugin/pkg/tools/proxmox"
@@ -308,7 +307,7 @@ func (d *ControllerService) CreateVolume(ctx context.Context, request *csi.Creat
 
 		topology = []*csi.Topology{}
 
-		for _, z := range strings.Split(params.ReplicateZones, ",") {
+		for z := range strings.SplitSeq(params.ReplicateZones, ",") {
 			topology = append(topology, &csi.Topology{
 				Segments: map[string]string{
 					corev1.LabelTopologyRegion: region,
@@ -404,7 +403,7 @@ func (d *ControllerService) CreateVolume(ctx context.Context, request *csi.Creat
 				return nil, status.Errorf(codes.Unavailable, "volume %s is not yet available", srcVol.VolumeID())
 			}
 
-			params.ResizeRequired = ptr.Ptr(true)
+			params.ResizeRequired = new(true)
 			params.ResizeSizeBytes = volSizeBytes
 		}
 
@@ -556,7 +555,7 @@ func (d *ControllerService) ControllerPublishVolume(ctx context.Context, request
 	}
 
 	if request.GetReadonly() {
-		params.ReadOnly = ptr.Ptr(true)
+		params.ReadOnly = new(true)
 	}
 
 	id, err := n.GetVMID()

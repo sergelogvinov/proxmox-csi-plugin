@@ -118,7 +118,7 @@ func LoadConfig() Config {
 	}
 
 	classes := getEnvDefault("E2E_STORAGECLASSES", "proxmox,proxmox-ceph,proxmox-rbd")
-	for _, c := range strings.Split(classes, ",") {
+	for c := range strings.SplitSeq(classes, ",") {
 		if c = strings.TrimSpace(c); c != "" {
 			cfg.StorageClasses = append(cfg.StorageClasses, c)
 		}
