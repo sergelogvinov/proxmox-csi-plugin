@@ -2,7 +2,7 @@ module github.com/sergelogvinov/proxmox-csi-plugin
 
 go 1.27.1
 
-// replace github.com/sergelogvinov/go-proxmox-rest => ../go-proxmox-rest
+// replace github.com/sergelogvinov/go-proxmox-rest => ../proxmox/go-proxmox-rest
 
 require (
 	github.com/container-storage-interface/spec v1.13.0
@@ -11,7 +11,7 @@ require (
 	github.com/kubernetes-csi/csi-lib-utils v0.25.0
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pkg/errors v0.9.1
-	github.com/sergelogvinov/go-proxmox-rest v0.0.0-20260920161051-fbe4f0e1a4dd
+	github.com/sergelogvinov/go-proxmox-rest v0.0.0-20260922140521-cb1976ec06d4
 	github.com/siderolabs/go-blockdevice v0.4.8
 	github.com/siderolabs/go-retry v0.3.3
 	github.com/sirupsen/logrus v1.10.2
