@@ -26,7 +26,6 @@ import (
 	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/csi"
 
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/fake"
 )
@@ -405,82 +404,58 @@ func TestNodeServiceNodeGetInfo(t *testing.T) {
 	nodes := &corev1.NodeList{
 		Items: []corev1.Node{
 			{
-				TypeMeta: metav1.TypeMeta{
-					Kind:       "Node",
-					APIVersion: "v1",
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "node-region",
-					Labels: map[string]string{
-						corev1.LabelTopologyRegion: "region",
-					},
+				Kind:       "Node",
+				APIVersion: "v1",
+				Name:       "node-region",
+				Labels: map[string]string{
+					corev1.LabelTopologyRegion: "region",
 				},
 			},
 			{
-				TypeMeta: metav1.TypeMeta{
-					Kind:       "Node",
-					APIVersion: "v1",
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "node-zone",
-					Labels: map[string]string{
-						corev1.LabelTopologyZone: "zone",
-					},
+				Kind:       "Node",
+				APIVersion: "v1",
+				Name:       "node-zone",
+				Labels: map[string]string{
+					corev1.LabelTopologyZone: "zone",
 				},
 			},
 			{
-				TypeMeta: metav1.TypeMeta{
-					Kind:       "Node",
-					APIVersion: "v1",
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "node-1",
-					Labels: map[string]string{
-						corev1.LabelTopologyRegion: "region",
-						corev1.LabelTopologyZone:   "zone",
-					},
+				Kind:       "Node",
+				APIVersion: "v1",
+				Name:       "node-1",
+				Labels: map[string]string{
+					corev1.LabelTopologyRegion: "region",
+					corev1.LabelTopologyZone:   "zone",
 				},
 			},
 			{
-				TypeMeta: metav1.TypeMeta{
-					Kind:       "Node",
-					APIVersion: "v1",
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "node-max-volumes-override",
-					Labels: map[string]string{
-						corev1.LabelTopologyRegion:        "region",
-						corev1.LabelTopologyZone:          "zone",
-						csi.NodeLabelMaxVolumeAttachments: "2",
-					},
+				Kind:       "Node",
+				APIVersion: "v1",
+				Name:       "node-max-volumes-override",
+				Labels: map[string]string{
+					corev1.LabelTopologyRegion:        "region",
+					corev1.LabelTopologyZone:          "zone",
+					csi.NodeLabelMaxVolumeAttachments: "2",
 				},
 			},
 			{
-				TypeMeta: metav1.TypeMeta{
-					Kind:       "Node",
-					APIVersion: "v1",
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "node-max-volumes-override-negative",
-					Labels: map[string]string{
-						corev1.LabelTopologyRegion:        "region",
-						corev1.LabelTopologyZone:          "zone",
-						csi.NodeLabelMaxVolumeAttachments: "-1",
-					},
+				Kind:       "Node",
+				APIVersion: "v1",
+				Name:       "node-max-volumes-override-negative",
+				Labels: map[string]string{
+					corev1.LabelTopologyRegion:        "region",
+					corev1.LabelTopologyZone:          "zone",
+					csi.NodeLabelMaxVolumeAttachments: "-1",
 				},
 			},
 			{
-				TypeMeta: metav1.TypeMeta{
-					Kind:       "Node",
-					APIVersion: "v1",
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "node-max-volumes-override-over-limit",
-					Labels: map[string]string{
-						corev1.LabelTopologyRegion:        "region",
-						corev1.LabelTopologyZone:          "zone",
-						csi.NodeLabelMaxVolumeAttachments: fmt.Sprintf("%d", csi.VolumesPerNodeHardLimit+1),
-					},
+				Kind:       "Node",
+				APIVersion: "v1",
+				Name:       "node-max-volumes-override-over-limit",
+				Labels: map[string]string{
+					corev1.LabelTopologyRegion:        "region",
+					corev1.LabelTopologyZone:          "zone",
+					csi.NodeLabelMaxVolumeAttachments: fmt.Sprintf("%d", csi.VolumesPerNodeHardLimit+1),
 				},
 			},
 		},
