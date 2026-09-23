@@ -24,11 +24,11 @@ import (
 	"strings"
 	"time"
 
+	pxpool "github.com/sergelogvinov/go-proxmox-pool"
 	proxmoxrest "github.com/sergelogvinov/go-proxmox-rest"
 	"github.com/sergelogvinov/go-proxmox-rest/cluster"
 	"github.com/sergelogvinov/go-proxmox-rest/cluster/replication"
 	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/config"
-	pxpool "github.com/sergelogvinov/proxmox-csi-plugin/pkg/proxmoxpool"
 	volume "github.com/sergelogvinov/proxmox-csi-plugin/pkg/utils/volume"
 
 	corev1 "k8s.io/api/core/v1"
@@ -76,12 +76,12 @@ func VolumeDiskOptions(ctx context.Context, pool *pxpool.ProxmoxPool, node *core
 		return nil, fmt.Errorf("failed to parse volume handle %q of pv %s: %w", pv.Spec.CSI.VolumeHandle, pv.Name, err)
 	}
 
-	vmID, region, err := pool.FindVMByNode(ctx, node)
+	vmID, region, err := FindVMByNode(ctx, pool, node)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find proxmox vm for node %s: %w", node.Name, err)
 	}
 
-	cl, err := pool.GetProxmoxCluster(region)
+	cl, err := pool.Get(region)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get proxmox cluster client for region %s: %w", region, err)
 	}
@@ -105,6 +105,30 @@ func VolumeDiskOptions(ctx context.Context, pool *pxpool.ProxmoxPool, node *core
 	}
 
 	return nil, fmt.Errorf("volume %s is not attached to vm %d (node %s)", vol.Disk(), vmID, node.Name)
+}
+
+// FindVMByNode searches every configured cluster for a VM whose name is
+// prefixed by node.Name and whose SMBIOS UUID matches the node's reported
+// SystemUUID, mirroring the unexported helper of the same name in
+// pkg/csi/find.go.
+func FindVMByNode(ctx context.Context, pool *pxpool.ProxmoxPool, node *corev1.Node) (vmID int, region string, err error) {
+	for _, name := range pool.List() {
+		vms, err := pool.Cluster(name).List(ctx, pxpool.ResourceKindVM,
+			pxpool.WithMatch(func(rs *cluster.Resource) (bool, error) {
+				return strings.HasPrefix(rs.Name, node.Name), nil
+			}),
+			pxpool.WithUUID(node.Status.NodeInfo.SystemUUID),
+		)
+		if err != nil {
+			return 0, "", err
+		}
+
+		if len(vms) > 0 {
+			return vms[0].VMID, name, nil
+		}
+	}
+
+	return 0, "", pxpool.ErrInstanceNotFound
 }
 
 // findVMNode resolves the Proxmox node a guest currently runs on from its

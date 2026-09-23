@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 
+	pxpool "github.com/sergelogvinov/go-proxmox-pool"
 	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/csi"
 	tools "github.com/sergelogvinov/proxmox-csi-plugin/pkg/tools/kubernetes"
 	volume "github.com/sergelogvinov/proxmox-csi-plugin/pkg/utils/volume"
@@ -285,6 +286,20 @@ func swapPVC(
 
 		if _, err := clientset.CoreV1().PersistentVolumes().Patch(ctx, dstPVC.Spec.VolumeName, types.MergePatchType, restorePatch, metav1.PatchOptions{}); err != nil {
 			return fmt.Errorf("failed to restore PersistentVolume reclaim policy: %v", err)
+		}
+	}
+
+	return nil
+}
+
+// checkClusters probes every configured cluster's connectivity and
+// permissions, returning the first error encountered. go-proxmox-pool has
+// no pool-level check; each cluster is checked individually via its
+// Cluster handle.
+func checkClusters(ctx context.Context, pool *pxpool.ProxmoxPool) error {
+	for _, name := range pool.List() {
+		if err := pool.Cluster(name).Check(ctx); err != nil {
+			return err
 		}
 	}
 

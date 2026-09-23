@@ -28,14 +28,17 @@ import (
 
 	"github.com/siderolabs/go-retry/retry"
 
+	pxpool "github.com/sergelogvinov/go-proxmox-pool"
 	proxmoxrest "github.com/sergelogvinov/go-proxmox-rest"
-	"github.com/sergelogvinov/go-proxmox-rest/cluster"
+	pxcluster "github.com/sergelogvinov/go-proxmox-rest/cluster"
 	"github.com/sergelogvinov/go-proxmox-rest/cluster/replication"
 	"github.com/sergelogvinov/go-proxmox-rest/nodes/qemu"
 	"github.com/sergelogvinov/go-proxmox-rest/nodes/storage"
 	"github.com/sergelogvinov/go-proxmox-rest/nodes/tasks"
 	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/metrics"
 	volume "github.com/sergelogvinov/proxmox-csi-plugin/pkg/utils/volume"
+
+	v1 "k8s.io/api/core/v1"
 )
 
 const (
@@ -59,8 +62,8 @@ var errVirtualMachineNotFound = errors.New("virtual machine not found")
 
 // findVMNode resolves the Proxmox node a guest currently runs on from its VMID.
 func findVMNode(ctx context.Context, cl *proxmoxrest.Client, vmid int) (string, error) {
-	resources, err := cl.Cluster().Resources().List(ctx, cluster.ListFilter{
-		Type:      cluster.ResourceTypeVM,
+	resources, err := cl.Cluster().Resources().List(ctx, pxcluster.ListFilter{
+		Type:      pxcluster.ResourceTypeVM,
 		GuestType: guestTypeQemu,
 		VMID:      vmid,
 	})
@@ -75,10 +78,52 @@ func findVMNode(ctx context.Context, cl *proxmoxrest.Client, vmid int) (string, 
 	return resources[0].Node, nil
 }
 
+// findVMByNode searches every configured cluster for a VM whose name is
+// prefixed by node.Name and whose SMBIOS UUID matches the node's reported
+// SystemUUID. Narrowing by name first keeps UUID resolution cheap:
+// pxpool.WithUUID only issues a Config call against candidates that already
+// passed the name filter (or resolves instantly via the pool's UUID index).
+func findVMByNode(ctx context.Context, pool *pxpool.ProxmoxPool, node *v1.Node) (vmID int, region string, err error) {
+	for _, name := range pool.List() {
+		vms, err := pool.Cluster(name).List(ctx, pxpool.ResourceKindVM,
+			pxpool.WithMatch(func(rs *pxcluster.Resource) (bool, error) {
+				return strings.HasPrefix(rs.Name, node.Name), nil
+			}),
+			pxpool.WithUUID(node.Status.NodeInfo.SystemUUID),
+		)
+		if err != nil {
+			return 0, "", err
+		}
+
+		if len(vms) > 0 {
+			return vms[0].VMID, name, nil
+		}
+	}
+
+	return 0, "", pxpool.ErrInstanceNotFound
+}
+
+// findVMByUUID searches every configured cluster for a VM whose SMBIOS
+// UUID matches uuid.
+func findVMByUUID(ctx context.Context, pool *pxpool.ProxmoxPool, uuid string) (vmID int, region string, err error) {
+	for _, name := range pool.List() {
+		vms, err := pool.Cluster(name).List(ctx, pxpool.ResourceKindVM, pxpool.WithUUID(uuid))
+		if err != nil {
+			return 0, "", err
+		}
+
+		if len(vms) > 0 {
+			return vms[0].VMID, name, nil
+		}
+	}
+
+	return 0, "", pxpool.ErrInstanceNotFound
+}
+
 // storageResource returns the /cluster/resources entry for storageID.
-func storageResource(ctx context.Context, cl *proxmoxrest.Client, storageID string) (*cluster.Resource, error) {
-	resources, err := cl.Cluster().Resources().List(ctx, cluster.ListFilter{
-		Type:      cluster.ResourceTypeStorage,
+func storageResource(ctx context.Context, cl *proxmoxrest.Client, storageID string) (*pxcluster.Resource, error) {
+	resources, err := cl.Cluster().Resources().List(ctx, pxcluster.ListFilter{
+		Type:      pxcluster.ResourceTypeStorage,
 		StorageID: storageID,
 	})
 	if err != nil {
@@ -94,10 +139,10 @@ func storageResource(ctx context.Context, cl *proxmoxrest.Client, storageID stri
 
 // storageNodes returns the nodes storageID is currently available on.
 func storageNodes(ctx context.Context, cl *proxmoxrest.Client, storageID string) ([]string, error) {
-	resources, err := cl.Cluster().Resources().List(ctx, cluster.ListFilter{
-		Type:      cluster.ResourceTypeStorage,
+	resources, err := cl.Cluster().Resources().List(ctx, pxcluster.ListFilter{
+		Type:      pxcluster.ResourceTypeStorage,
 		StorageID: storageID,
-		Match: func(rs *cluster.Resource) (bool, error) {
+		Match: func(rs *pxcluster.Resource) (bool, error) {
 			return rs.Status == "available", nil
 		},
 	})
@@ -153,10 +198,10 @@ func getVMByAttachedVolume(ctx context.Context, cl *proxmoxrest.Client, vol *vol
 
 	lun := 0
 
-	resources, err := cl.Cluster().Resources().List(ctx, cluster.ListFilter{
-		Type:      cluster.ResourceTypeVM,
+	resources, err := cl.Cluster().Resources().List(ctx, pxcluster.ListFilter{
+		Type:      pxcluster.ResourceTypeVM,
 		GuestType: guestTypeQemu,
-		Match: func(rs *cluster.Resource) (bool, error) {
+		Match: func(rs *pxcluster.Resource) (bool, error) {
 			// Skip the storage owner VM (e.g., 9999), as the VM uses for the replications
 			if vol.VMID() == strconv.Itoa(rs.VMID) {
 				return false, nil
@@ -314,9 +359,9 @@ func driveOptions(drive qemu.Drive, options map[string]string) qemu.Drive {
 }
 
 func prepareReplication(ctx context.Context, cl *proxmoxrest.Client, node string, name string, vmID int) (int, error) {
-	resources, err := cl.Cluster().Resources().List(ctx, cluster.ListFilter{
-		Type: cluster.ResourceTypeVM,
-		Match: func(rs *cluster.Resource) (bool, error) {
+	resources, err := cl.Cluster().Resources().List(ctx, pxcluster.ListFilter{
+		Type: pxcluster.ResourceTypeVM,
+		Match: func(rs *pxcluster.Resource) (bool, error) {
 			return rs.Name == name, nil
 		},
 	})
@@ -476,11 +521,11 @@ func deleteReplication(ctx context.Context, cl *proxmoxrest.Client, vol *volume.
 		return nil
 	}
 
-	resources, err := cl.Cluster().Resources().List(ctx, cluster.ListFilter{
-		Type:      cluster.ResourceTypeVM,
+	resources, err := cl.Cluster().Resources().List(ctx, pxcluster.ListFilter{
+		Type:      pxcluster.ResourceTypeVM,
 		GuestType: guestTypeQemu,
 		VMID:      id,
-		Match: func(rs *cluster.Resource) (bool, error) {
+		Match: func(rs *pxcluster.Resource) (bool, error) {
 			return rs.Name == vol.PV(), nil
 		},
 	})

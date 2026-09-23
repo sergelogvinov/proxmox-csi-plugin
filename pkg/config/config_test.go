@@ -23,8 +23,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	pxpool "github.com/sergelogvinov/go-proxmox-pool"
 	providerconfig "github.com/sergelogvinov/proxmox-csi-plugin/pkg/config"
-	pxpool "github.com/sergelogvinov/proxmox-csi-plugin/pkg/proxmoxpool"
 )
 
 func TestReadCloudConfig(t *testing.T) {
@@ -118,7 +118,7 @@ clusters:
 					Provider:       providerconfig.ProviderDefault,
 					ControllerVMID: providerconfig.DefaultControllerVMID,
 				},
-				Clusters: []*pxpool.ProxmoxCluster{
+				Clusters: []*pxpool.ClusterConfig{
 					{
 						URL:      "https://example.com",
 						Insecure: false,
@@ -144,7 +144,7 @@ clusters:
 					Provider:       providerconfig.ProviderDefault,
 					ControllerVMID: providerconfig.DefaultControllerVMID,
 				},
-				Clusters: []*pxpool.ProxmoxCluster{
+				Clusters: []*pxpool.ClusterConfig{
 					{
 						URL:             "https://example.com",
 						Insecure:        false,
@@ -170,7 +170,7 @@ clusters:
 					Provider:       providerconfig.ProviderDefault,
 					ControllerVMID: providerconfig.DefaultControllerVMID,
 				},
-				Clusters: []*pxpool.ProxmoxCluster{
+				Clusters: []*pxpool.ClusterConfig{
 					{
 						URL:             "https://example.com",
 						Insecure:        false,
@@ -198,7 +198,7 @@ clusters:
 					Provider:       providerconfig.ProviderCapmox,
 					ControllerVMID: providerconfig.DefaultControllerVMID,
 				},
-				Clusters: []*pxpool.ProxmoxCluster{
+				Clusters: []*pxpool.ClusterConfig{
 					{
 						URL:         "https://example.com",
 						Insecure:    false,

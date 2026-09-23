@@ -55,7 +55,7 @@ type Config struct {
 	Timeout time.Duration
 
 	// ProxmoxConfig, when set, points at a cloud-config.yaml the suite can
-	// use to talk to the Proxmox API directly (via pkg/proxmoxpool) to
+	// use to talk to the Proxmox API directly (via go-proxmox-pool) to
 	// verify backing disks independently of what Kubernetes reports.
 	ProxmoxConfig string
 

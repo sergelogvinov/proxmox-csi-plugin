@@ -143,12 +143,12 @@ func TestZoneReplication(t *testing.T) {
 	require.NoError(err, "failed to get node %s", pod.Spec.NodeName)
 
 	ctx, cancel = f.Context()
-	vmID, region, err := pxPool.FindVMByNode(ctx, node)
+	vmID, region, err := framework.FindVMByNode(ctx, pxPool, node)
 
 	cancel()
 	require.NoError(err, "failed to find proxmox vm for node %s", node.Name)
 
-	cl, err := pxPool.GetProxmoxCluster(region)
+	cl, err := pxPool.Get(region)
 	require.NoError(err, "failed to get proxmox cluster client for region %s", region)
 
 	done = f.Step("waiting for a replication job for vm %d targeting zone %s", vmID, targetZone)

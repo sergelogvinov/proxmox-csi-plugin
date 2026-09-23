@@ -24,9 +24,9 @@ import (
 
 	cobra "github.com/spf13/cobra"
 
+	pxpool "github.com/sergelogvinov/go-proxmox-pool"
 	csiconfig "github.com/sergelogvinov/proxmox-csi-plugin/pkg/config"
 	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/csi"
-	pxpool "github.com/sergelogvinov/proxmox-csi-plugin/pkg/proxmoxpool"
 	tools "github.com/sergelogvinov/proxmox-csi-plugin/pkg/tools/kubernetes"
 	toolsproxmox "github.com/sergelogvinov/proxmox-csi-plugin/pkg/tools/proxmox"
 	volume "github.com/sergelogvinov/proxmox-csi-plugin/pkg/utils/volume"
@@ -109,7 +109,7 @@ func (c *migrateCmd) runMigration(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("persistentvolumeclaims %s is already on proxmox node %s", pvc, node)
 	}
 
-	cluster, err := c.pclient.GetProxmoxCluster(vol.Cluster())
+	cluster, err := c.pclient.Get(vol.Cluster())
 	if err != nil {
 		return fmt.Errorf("failed to get Proxmox cluster: %v", err)
 	}
@@ -255,7 +255,7 @@ func (c *migrateCmd) migrationValidate(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("failed to create Proxmox cluster client: %v", err)
 	}
 
-	if err = c.pclient.CheckClusters(context.TODO()); err != nil {
+	if err = checkClusters(context.TODO(), c.pclient); err != nil {
 		return fmt.Errorf("failed to initialize Proxmox clusters: %v", err)
 	}
 
