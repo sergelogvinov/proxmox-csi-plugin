@@ -287,7 +287,7 @@ func (ts *configuredTestSuite) TestCreateVolume() {
 					},
 				},
 			},
-			expectedError: status.Error(codes.Internal, "region not found"),
+			expectedError: status.Error(codes.Internal, "cluster not found"),
 		},
 		{
 			msg: "NonSupportZonalSMB",
@@ -461,7 +461,7 @@ func (ts *configuredTestSuite) TestDeleteVolume() {
 			request: &proto.DeleteVolumeRequest{
 				VolumeId: "fake-region/node/data/volume-id",
 			},
-			expectedError: status.Error(codes.Internal, "region not found"),
+			expectedError: status.Error(codes.Internal, "cluster not found"),
 		},
 		{
 			msg: "WrongPVZone",
@@ -587,7 +587,7 @@ func (ts *configuredTestSuite) TestControllerPublishVolumeError() {
 				VolumeCapability: volCap,
 				VolumeContext:    volCtx,
 			},
-			expectedError: status.Error(codes.Internal, "region not found"),
+			expectedError: status.Error(codes.Internal, "cluster not found"),
 		},
 		{
 			msg: "VolumeNotExist",
@@ -673,7 +673,7 @@ func (ts *configuredTestSuite) TestControllerUnpublishVolumeError() {
 				NodeId:   "node-id",
 				VolumeId: "fake-region/node/data/volume-id",
 			},
-			expectedError: status.Error(codes.Internal, "region not found"),
+			expectedError: status.Error(codes.Internal, "cluster not found"),
 		},
 		{
 			msg: "WrongPVZone",
@@ -754,7 +754,7 @@ func (ts *configuredTestSuite) TestGetCapacity() {
 					csi.StorageIDKey: "local-lvm",
 				},
 			},
-			expectedError: status.Error(codes.Internal, "region not found"),
+			expectedError: status.Error(codes.Internal, "cluster not found"),
 		},
 		{
 			msg: "TopologyZone",
@@ -795,7 +795,7 @@ func (ts *configuredTestSuite) TestGetCapacity() {
 					csi.StorageIDKey: "local-lvm",
 				},
 			},
-			expectedError: status.Error(codes.Internal, "region not found"),
+			expectedError: status.Error(codes.Internal, "cluster not found"),
 		},
 		{
 			msg: "StorageNotExists",
@@ -866,7 +866,7 @@ func (ts *configuredTestSuite) TestCreateSnapshot() {
 				},
 				SourceVolumeId: "fake-region/node/data/volume-id",
 			},
-			expectedError: status.Error(codes.Internal, "region not found"),
+			expectedError: status.Error(codes.Internal, "cluster not found"),
 		},
 	}
 
@@ -901,7 +901,7 @@ func (ts *configuredTestSuite) TestDeleteSnapshot() {
 			request: &proto.DeleteSnapshotRequest{
 				SnapshotId: "fake-region/node/data/volume-id",
 			},
-			expectedError: status.Error(codes.Internal, "region not found"),
+			expectedError: status.Error(codes.Internal, "cluster not found"),
 		},
 		{
 			msg: "PVCNonExist",
@@ -975,7 +975,7 @@ func (ts *configuredTestSuite) TestControllerExpandVolumeError() {
 				VolumeId:      "fake-region/node/data/volume-id",
 				CapacityRange: capRange,
 			},
-			expectedError: status.Error(codes.Internal, "region not found"),
+			expectedError: status.Error(codes.Internal, "cluster not found"),
 		},
 		{
 			msg: "WrongPVC",
@@ -1080,7 +1080,7 @@ func (ts *configuredTestSuite) TestControllerModifyVolume() {
 			request: &proto.ControllerModifyVolumeRequest{
 				VolumeId: "fake-region/node/data/volume-id",
 			},
-			expectedError: status.Error(codes.Internal, "region not found"),
+			expectedError: status.Error(codes.Internal, "cluster not found"),
 		},
 		{
 			msg: "WrongPVZone",

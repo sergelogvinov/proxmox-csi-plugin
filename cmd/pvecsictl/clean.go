@@ -24,10 +24,10 @@ import (
 
 	cobra "github.com/spf13/cobra"
 
+	pxpool "github.com/sergelogvinov/go-proxmox-pool"
 	"github.com/sergelogvinov/go-proxmox-rest/cluster"
 	csiconfig "github.com/sergelogvinov/proxmox-csi-plugin/pkg/config"
 	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/csi"
-	pxpool "github.com/sergelogvinov/proxmox-csi-plugin/pkg/proxmoxpool"
 	tools "github.com/sergelogvinov/proxmox-csi-plugin/pkg/tools/kubernetes"
 	toolsproxmox "github.com/sergelogvinov/proxmox-csi-plugin/pkg/tools/proxmox"
 	volume "github.com/sergelogvinov/proxmox-csi-plugin/pkg/utils/volume"
@@ -78,7 +78,7 @@ func (c *cleanCmd) runClean(cmd *cobra.Command, args []string) error {
 	storageID := args[0]
 	node := args[1]
 
-	candidateRegions := c.pclient.GetRegions()
+	candidateRegions := c.pclient.List()
 
 	if region != "" {
 		if !slices.Contains(candidateRegions, region) {
@@ -96,7 +96,7 @@ func (c *cleanCmd) runClean(cmd *cobra.Command, args []string) error {
 	matchedRegions := []string{}
 
 	for _, r := range candidateRegions {
-		cl, err := c.pclient.GetProxmoxCluster(r)
+		cl, err := c.pclient.Get(r)
 		if err != nil {
 			return fmt.Errorf("failed to get Proxmox cluster client for region %s: %v", r, err)
 		}
@@ -124,7 +124,7 @@ func (c *cleanCmd) runClean(cmd *cobra.Command, args []string) error {
 
 	region = matchedRegions[0]
 
-	cl, err := c.pclient.GetProxmoxCluster(region)
+	cl, err := c.pclient.Get(region)
 	if err != nil {
 		return fmt.Errorf("failed to get Proxmox cluster client for region %s: %v", region, err)
 	}
@@ -215,7 +215,7 @@ func (c *cleanCmd) cleanValidate(_ *cobra.Command, _ []string) error {
 		return fmt.Errorf("failed to create Proxmox cluster client: %v", err)
 	}
 
-	if err = c.pclient.CheckClusters(context.TODO()); err != nil {
+	if err = checkClusters(context.TODO(), c.pclient); err != nil {
 		return fmt.Errorf("failed to initialize Proxmox clusters: %v", err)
 	}
 

@@ -19,11 +19,11 @@ package cluster
 import (
 	"testing"
 
+	pxpool "github.com/sergelogvinov/go-proxmox-pool"
 	"github.com/sergelogvinov/go-proxmox-rest/fakeapi"
 	"github.com/sergelogvinov/go-proxmox-rest/nodes/qemu"
 	"github.com/sergelogvinov/go-proxmox-rest/nodes/storage"
 	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/csi"
-	pxpool "github.com/sergelogvinov/proxmox-csi-plugin/pkg/proxmoxpool"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
@@ -171,7 +171,7 @@ func SetupFakeCluster(t *testing.T, pool *pxpool.ProxmoxPool) *fakeapi.Cluster {
 		SMBios1: &qemu.SMBios1{UUID: "11833f4c-341f-4bd3-aad7-f7abed000002"},
 	}, fakeapi.WithStatus(qemu.VMStatusRunning))
 
-	pool.SetProxmoxCluster("cluster-1", cl.Client(t))
+	pool.Set("cluster-1", cl.Client(t))
 
 	return cl
 }

@@ -34,11 +34,11 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	pxpool "github.com/sergelogvinov/go-proxmox-pool"
 	proxmoxrest "github.com/sergelogvinov/go-proxmox-rest"
 	"github.com/sergelogvinov/go-proxmox-rest/cluster"
 	csiconfig "github.com/sergelogvinov/proxmox-csi-plugin/pkg/config"
 	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/metrics"
-	pxpool "github.com/sergelogvinov/proxmox-csi-plugin/pkg/proxmoxpool"
 	toolsproxmox "github.com/sergelogvinov/proxmox-csi-plugin/pkg/tools/proxmox"
 	utilsnode "github.com/sergelogvinov/proxmox-csi-plugin/pkg/utils/node"
 	volume "github.com/sergelogvinov/proxmox-csi-plugin/pkg/utils/volume"
@@ -211,7 +211,7 @@ func (d *ControllerService) CreateVolume(ctx context.Context, request *csi.Creat
 		}
 	}
 
-	cl, err := d.pxpool.GetProxmoxCluster(region)
+	cl, err := d.pxpool.Get(region)
 	if err != nil {
 		klog.ErrorS(err, "CreateVolume: failed to get proxmox cluster", "cluster", region)
 
@@ -453,7 +453,7 @@ func (d *ControllerService) DeleteVolume(ctx context.Context, request *csi.Delet
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
-	cl, err := d.pxpool.GetProxmoxCluster(vol.Cluster())
+	cl, err := d.pxpool.Get(vol.Cluster())
 	if err != nil {
 		klog.ErrorS(err, "DeleteVolume: failed to get proxmox cluster", "cluster", vol.Cluster())
 
@@ -544,7 +544,7 @@ func (d *ControllerService) ControllerPublishVolume(ctx context.Context, request
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
-	cl, err := d.pxpool.GetProxmoxCluster(vol.Cluster())
+	cl, err := d.pxpool.Get(vol.Cluster())
 	if err != nil {
 		klog.ErrorS(err, "ControllerPublishVolume: failed to get proxmox cluster", "cluster", vol.Cluster())
 
@@ -634,7 +634,7 @@ func (d *ControllerService) ControllerUnpublishVolume(ctx context.Context, reque
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
-	cl, err := d.pxpool.GetProxmoxCluster(vol.Cluster())
+	cl, err := d.pxpool.Get(vol.Cluster())
 	if err != nil {
 		klog.ErrorS(err, "ControllerUnpublishVolume: failed to get proxmox cluster", "cluster", vol.Cluster())
 
@@ -718,7 +718,7 @@ func (d *ControllerService) GetCapacity(ctx context.Context, request *csi.GetCap
 			return nil, status.Error(codes.InvalidArgument, "region and storage must be provided")
 		}
 
-		cl, err := d.pxpool.GetProxmoxCluster(region)
+		cl, err := d.pxpool.Get(region)
 		if err != nil {
 			klog.ErrorS(err, "GetCapacity: failed to get proxmox cluster", "cluster", region)
 
@@ -807,7 +807,7 @@ func (d *ControllerService) CreateSnapshot(ctx context.Context, request *csi.Cre
 		params = map[string]string{}
 	}
 
-	cl, err := d.pxpool.GetProxmoxCluster(vol.Cluster())
+	cl, err := d.pxpool.Get(vol.Cluster())
 	if err != nil {
 		klog.ErrorS(err, "CreateSnapshot: failed to get proxmox cluster", "cluster", vol.Cluster())
 
@@ -922,7 +922,7 @@ func (d *ControllerService) DeleteSnapshot(ctx context.Context, request *csi.Del
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
-	cl, err := d.pxpool.GetProxmoxCluster(vol.Cluster())
+	cl, err := d.pxpool.Get(vol.Cluster())
 	if err != nil {
 		klog.ErrorS(err, "DeleteSnapshot: failed to get proxmox cluster", "cluster", vol.Cluster())
 
@@ -991,7 +991,7 @@ func (d *ControllerService) ControllerExpandVolume(ctx context.Context, request 
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
-	cl, err := d.pxpool.GetProxmoxCluster(vol.Cluster())
+	cl, err := d.pxpool.Get(vol.Cluster())
 	if err != nil {
 		klog.ErrorS(err, "ControllerExpandVolume: failed to get proxmox cluster", "cluster", vol.Cluster())
 
@@ -1063,7 +1063,7 @@ func (d *ControllerService) ControllerModifyVolume(ctx context.Context, request 
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
-	cl, err := d.pxpool.GetProxmoxCluster(vol.Cluster())
+	cl, err := d.pxpool.Get(vol.Cluster())
 	if err != nil {
 		klog.ErrorS(err, "ControllerModifyVolume: failed to get proxmox cluster", "cluster", vol.Cluster())
 
@@ -1113,7 +1113,7 @@ func (d *ControllerService) getVMIDbyNode(ctx context.Context, nodeName string) 
 	id, err := ProxmoxVMIDbyNode(node)
 	if err != nil {
 		if d.Provider == csiconfig.ProviderCapmox {
-			id, region, err := d.pxpool.FindVMByUUID(ctx, node.Status.NodeInfo.SystemUUID)
+			id, region, err := findVMByUUID(ctx, d.pxpool, node.Status.NodeInfo.SystemUUID)
 			if err != nil {
 				return 0, "", status.Error(codes.Internal, err.Error())
 			}
@@ -1123,7 +1123,7 @@ func (d *ControllerService) getVMIDbyNode(ctx context.Context, nodeName string) 
 
 		klog.InfoS("failed to get proxmox VMID from ProviderID", "nodeID", nodeName, "providerID", node.Spec.ProviderID)
 
-		id, region, err := d.pxpool.FindVMByNode(ctx, node)
+		id, region, err := findVMByNode(ctx, d.pxpool, node)
 		if err != nil {
 			klog.ErrorS(err, "failed to get vm ref by nodeID", "nodeID", nodeName)
 
@@ -1137,7 +1137,7 @@ func (d *ControllerService) getVMIDbyNode(ctx context.Context, nodeName string) 
 }
 
 func (d *ControllerService) checkVolume(ctx context.Context, vol *volume.Volume) (int64, error) {
-	cl, err := d.pxpool.GetProxmoxCluster(vol.Cluster())
+	cl, err := d.pxpool.Get(vol.Cluster())
 	if err != nil {
 		return 0, status.Error(codes.Internal, err.Error())
 	}
