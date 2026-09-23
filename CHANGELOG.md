@@ -5,6 +5,22 @@
 
 * enable support for capmox ([6145c7d](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/6145c7d91cfc47c131ac453e2a90a915e5694b2b))
 
+## [0.21.0](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.20.0...v0.21.0) (2026-09-23)
+
+
+### Features
+
+* context7 ([585ed2e](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/585ed2e6966071707ae2c5c2a17d88b31c05d102))
+* proxmox volume-chain storage class ([16371ea](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/16371eac76aaec68992506cd9be3e94bc69c1e3f))
+
+
+### Bug Fixes
+
+* context7 ([f481c45](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/f481c452b5a179dc7f4971db2b4e2c2acb22f43f))
+* e2e encryption ([d8e2a88](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/d8e2a884afec4a458005762dcc9aa4f3f98b7de0))
+* e2e replication ([7bc4323](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/7bc4323d6bf2e62ec308b65fc745182810d3d1cb))
+* rbac for snapshot ([d584780](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/d584780f64b1db1ded6f19be1c5279d212ad3684))
+
 ## [0.20.0](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.19.1...v0.20.0) (2026-08-05)
 
 
