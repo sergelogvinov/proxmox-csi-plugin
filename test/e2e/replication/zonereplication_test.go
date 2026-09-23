@@ -26,8 +26,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	proxmoxcsi "github.com/sergelogvinov/proxmox-csi-plugin/pkg/csi"
+	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/utils/volume"
 	"github.com/sergelogvinov/proxmox-csi-plugin/test/e2e/framework"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -113,6 +115,23 @@ func TestZoneReplication(t *testing.T) {
 	done()
 	require.NoError(err, "pod %s never became ready", podName)
 
+	// The volume handle can't tell us the zone here: createReplication
+	// (pkg/csi/controller.go) hands out vol.VolumeSharedID() for replicated
+	// volumes, which drops the zone segment because the PV's nodeAffinity
+	// spans both of the storageclass's replicateZones. The pod's actual
+	// node - where the driver placed the disk - is the only place the
+	// source zone is still visible from Kubernetes.
+	ctx, cancel = f.Context()
+	node, err := f.Client.Clientset.CoreV1().Nodes().Get(ctx, pod.Spec.NodeName, metav1.GetOptions{})
+
+	cancel()
+	require.NoError(err, "failed to get node %s", pod.Spec.NodeName)
+
+	sourceZone := node.Labels[corev1.LabelTopologyZone]
+	require.NotEmpty(sourceZone, "node %s has no %s label", node.Name, corev1.LabelTopologyZone)
+	require.Contains(zones, sourceZone,
+		"pod %s landed on node %s in zone %s, not one of storageclass %s's declared replicateZones %v", podName, node.Name, sourceZone, f.Config.ReplicatedStorageClass, zones)
+
 	pvcName := framework.StatefulSetPVCName(stsName, 0)
 
 	ctx, cancel = f.Context()
@@ -122,10 +141,10 @@ func TestZoneReplication(t *testing.T) {
 	require.NoError(err, "pvc %s never became bound", pvcName)
 	require.Equal(proxmoxcsi.DriverName, pv.Spec.CSI.Driver, "pv %s was not provisioned by this driver", pv.Name)
 
-	sourceZone, err := framework.VolumeZone(pv.Spec.CSI.VolumeHandle)
+	pvZones, err := framework.VolumeZone(pv.Spec.CSI.VolumeHandle)
 	require.NoError(err, "failed to parse zone from pv %s volume handle %q", pv.Name, pv.Spec.CSI.VolumeHandle)
-	require.Contains(zones, sourceZone,
-		"pv %s landed in zone %s, not one of storageclass %s's declared replicateZones %v", pv.Name, sourceZone, f.Config.ReplicatedStorageClass, zones)
+	require.Empty(pvZones,
+		"pv %s landed in zone %s, should not have any zone information for replicated volumes", pv.Name, pvZones, f.Config.ReplicatedStorageClass, zones)
 
 	targetZone := zones[0]
 	if targetZone == sourceZone {
@@ -136,20 +155,17 @@ func TestZoneReplication(t *testing.T) {
 
 	// 3. The actual assertion: Proxmox created a replication job for this
 	// VM targeting the other zone - otherwise invisible from Kubernetes.
-	ctx, cancel = f.Context()
-	node, err := f.Client.Clientset.CoreV1().Nodes().Get(ctx, pod.Spec.NodeName, metav1.GetOptions{})
+	// The job's Guest is the shadow VM prepareReplication (pkg/csi/utils.go)
+	// created for this PVC, not the k8s node's own VM - its ID is embedded
+	// in the volume handle's disk name (vm-<id>-<pvc>, see pkg/utils/volume).
+	vol, err := volume.NewVolumeFromVolumeID(pv.Spec.CSI.VolumeHandle)
+	require.NoError(err, "failed to parse pv %s volume handle %q", pv.Name, pv.Spec.CSI.VolumeHandle)
 
-	cancel()
-	require.NoError(err, "failed to get node %s", pod.Spec.NodeName)
+	vmID, err := strconv.Atoi(vol.VMID())
+	require.NoError(err, "failed to parse shadow vm id from pv %s volume handle %q", pv.Name, pv.Spec.CSI.VolumeHandle)
 
-	ctx, cancel = f.Context()
-	vmID, region, err := framework.FindVMByNode(ctx, pxPool, node)
-
-	cancel()
-	require.NoError(err, "failed to find proxmox vm for node %s", node.Name)
-
-	cl, err := pxPool.Get(region)
-	require.NoError(err, "failed to get proxmox cluster client for region %s", region)
+	cl, err := pxPool.Get(vol.Region())
+	require.NoError(err, "failed to get proxmox cluster client for region %s", vol.Region())
 
 	done = f.Step("waiting for a replication job for vm %d targeting zone %s", vmID, targetZone)
 	ctx, cancel = f.Context()

@@ -11,7 +11,7 @@ require (
 	github.com/golang/protobuf v1.5.4
 	github.com/kubernetes-csi/csi-lib-utils v0.25.0
 	github.com/patrickmn/go-cache v2.1.0+incompatible
-	github.com/sergelogvinov/go-proxmox-pool v0.0.0-20260923043120-bad7c5d4e5f6
+	github.com/sergelogvinov/go-proxmox-pool v0.0.0-20260923113905-7d2f06110ee4
 	github.com/sergelogvinov/go-proxmox-rest v0.0.0-20260922140521-cb1976ec06d4
 	github.com/siderolabs/go-blockdevice v0.4.8
 	github.com/siderolabs/go-retry v0.3.3

@@ -176,8 +176,6 @@ func parseDiskOptions(raw string) map[string]string {
 func WaitForReplicationJob(ctx context.Context, cl *proxmoxrest.Client, vmID int, targetZone string, timeout time.Duration) (*replication.Job, error) {
 	var found *replication.Job
 
-	prefix := fmt.Sprintf("%d-", vmID)
-
 	err := wait.PollUntilContextTimeout(ctx, pollInterval, timeout, true, func(ctx context.Context) (bool, error) {
 		jobs, err := cl.Cluster().Replication().List(ctx)
 		if err != nil {
@@ -189,7 +187,7 @@ func WaitForReplicationJob(ctx context.Context, cl *proxmoxrest.Client, vmID int
 		}
 
 		for i := range jobs {
-			if strings.HasPrefix(jobs[i].ID, prefix) && jobs[i].Target == targetZone {
+			if jobs[i].Guest == vmID && jobs[i].Target == targetZone {
 				found = &jobs[i]
 
 				return true, nil
