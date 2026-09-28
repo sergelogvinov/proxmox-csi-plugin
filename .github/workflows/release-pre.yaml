@@ -17,19 +17,21 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
       - name: Unshallow
         run: git fetch --prune --unshallow
 
-      - name: Release version
-        if: startsWith(github.head_ref, 'release-please')
-        run: jq -r '"TAG=v"+.[]' hack/release-please-manifest.json >> "$GITHUB_ENV"
-
+      - name: Install Helm
+        uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        with:
+          version: v4.3.0
       - name: Helm docs
         uses: gabe565/setup-helm-docs-action@d5c35bdc9133cfbea3b671acadf50a29029e87c2 # v1.0.4
         with:
           version: v1.14.2
+
+      - name: Release version
+        if: startsWith(github.head_ref, 'release-please')
+        run: jq -r '"TAG=v"+.[]' hack/release-please-manifest.json >> "$GITHUB_ENV"
 
       - name: Generate
         run: make docs
@@ -52,7 +54,7 @@ jobs:
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
         with:
-          version: "v2.16.0"
-          args: check
+          version: "v2.18.2"
+          args: build --snapshot --verbose --clean --single-target
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
