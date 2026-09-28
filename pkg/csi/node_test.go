@@ -423,6 +423,12 @@ func TestNodeServiceNodeGetInfo(t *testing.T) {
 			{
 				Kind:       "Node",
 				APIVersion: "v1",
+				Name:       "node-no-region",
+				Labels:     map[string]string{},
+			},
+			{
+				Kind:       "Node",
+				APIVersion: "v1",
 				Name:       "node-max-volumes-override",
 				Labels: map[string]string{
 					corev1.LabelTopologyRegion:        "region",
@@ -465,6 +471,12 @@ func TestNodeServiceNodeGetInfo(t *testing.T) {
 			kclient:       fake.NewClientset(nodes),
 			nodeName:      "nonexist-node",
 			expectedError: fmt.Errorf("rpc error: code = Internal desc = failed to get node nonexist-node: nodes \"nonexist-node\" not found"),
+		},
+		{
+			msg:           "NodeNoRegion",
+			kclient:       fake.NewClientset(nodes),
+			nodeName:      "node-no-region",
+			expectedError: fmt.Errorf("rpc error: code = Internal desc = failed to get region for node node-no-region"),
 		},
 		{
 			msg:      "GoodNodeNoZone",
