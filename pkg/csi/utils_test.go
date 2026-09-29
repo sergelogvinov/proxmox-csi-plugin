@@ -85,6 +85,31 @@ func TestIsVolumeAttached(t *testing.T) {
 	}
 }
 
+func TestGenerateWWN(t *testing.T) {
+	t.Parallel()
+
+	pv1 := "pvc-3f8e1c2a-1234-4a1b-9c3d-abcdefabcdef"
+	pv2 := "pvc-9c3d1c2a-4321-4a1b-9c3d-fedcbafedcba"
+	pv3 := "disk-1"
+
+	wwn := generateWWN(pv1, 1)
+
+	assert.Len(t, wwn, 16, "WWN must be a 16 hex character (64bit) string")
+	assert.Equal(t, byte('5'), wwn[0], "WWN must start with the NAA-5 (IEEE Registered) nibble")
+
+	assert.Equal(t, wwn, generateWWN(pv1, 1), "WWN must be deterministic for the same PV and lun")
+	assert.NotEqual(t, wwn, generateWWN(pv1, 2), "WWN must differ across luns for the same PV")
+	assert.NotEqual(t, wwn, generateWWN(pv2, 1), "WWN must differ across PVs for the same lun")
+
+	// A PV name doesn't have to be a "pvc-<uuid>" string, e.g. for plain/shared disks.
+	wwn3 := generateWWN(pv3, 1)
+
+	assert.Len(t, wwn3, 16, "WWN must be a 16 hex character (64bit) string for a non-UUID PV name")
+	assert.Equal(t, byte('5'), wwn3[0], "WWN must start with the NAA-5 (IEEE Registered) nibble")
+	assert.Equal(t, wwn3, generateWWN(pv3, 1), "WWN must be deterministic for the same PV and lun")
+	assert.NotEqual(t, wwn, wwn3, "WWN must differ across PVs for the same lun")
+}
+
 func TestDriveOptions(t *testing.T) {
 	t.Parallel()
 
