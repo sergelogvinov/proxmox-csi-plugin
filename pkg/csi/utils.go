@@ -18,9 +18,9 @@ package csi
 
 import (
 	"context"
-	"encoding/hex"
 	"errors"
 	"fmt"
+	"hash/fnv"
 	"slices"
 	"strconv"
 	"strings"
@@ -293,6 +293,22 @@ func isVolumeAttached(cfg *qemu.Config, pvc string) (int, bool) {
 	}
 
 	return 0, false
+}
+
+// generateWWN derives a deterministic 64-bit NAA-5 (IEEE Registered) World Wide
+// Name from the Kubernetes PV name (which embeds the PVC UID, e.g. "pvc-<uid>")
+// and the SCSI lun the disk is attached at, so the same volume always gets the
+// same WWN when reattached at the same lun, and different volumes/luns don't collide.
+func generateWWN(pv string, lun int) string {
+	h := fnv.New64a()
+	fmt.Fprintf(h, "%s:%d", pv, lun)
+
+	sum := h.Sum64()
+	// Force the top nibble to 5 so Linux recognizes the value as a valid
+	// NAA WWN when exposed as naa.<wwn> in /sys/bus/scsi/devices/*/wwid.
+	sum = sum&0x0fffffffffffffff | 0x5000000000000000
+
+	return fmt.Sprintf("%016x", sum)
 }
 
 // driveOptions applies the property overrides in options (as built by
@@ -605,14 +621,36 @@ func attachVolume(ctx context.Context, cl *proxmoxrest.Client, id int, vol *volu
 
 	lun, exist := isVolumeAttached(cfg, vol.Disk())
 	if exist {
-		wwm = hex.EncodeToString(fmt.Appendf(nil, "PVC-ID%02d", lun))
+		wwm = strings.TrimPrefix(cfg.SCSI[lun].WWN, "0x")
+		if wwm == "" {
+			// This scenario occurs when the disk is attached but does not have a WWN set,
+			// some one manually attached the disk without specifying a WWN.
+			wwm = generateWWN(vol.PV(), lun)
+
+			drive := cfg.SCSI[lun]
+			drive.WWN = "0x" + wwm
+
+			upid, err := cl.Nodes(node).Qemu().AttachDrive(ctx, id, &qemu.AttachDriveOptions{
+				Drive:   deviceNamePrefix + strconv.Itoa(lun),
+				Options: drive,
+			})
+			if err != nil {
+				return nil, fmt.Errorf("unable to set disk wwn: %v, drive=%+v", err, drive)
+			}
+
+			if upid != "" {
+				if err := cl.Nodes(node).Tasks().Wait(ctx, upid, &tasks.WaitOptions{Timeout: 5 * time.Minute}); err != nil {
+					return nil, fmt.Errorf("unable to update virtual machine disk: %w", err)
+				}
+			}
+		}
 	} else {
 		for lun = 1; lun < 30; lun++ {
 			if _, used := cfg.SCSI[lun]; used {
 				continue
 			}
 
-			wwm = hex.EncodeToString(fmt.Appendf(nil, "PVC-ID%02d", lun))
+			wwm = generateWWN(vol.PV(), lun)
 
 			drive := driveOptions(qemu.Drive{}, options)
 			drive.File = vol.Storage() + ":" + vol.Disk()
