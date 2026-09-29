@@ -133,3 +133,12 @@ To avoid unnecessary API calls, you can disable disk capacity gathering in the p
 options:
   enableCapacity: false
 ```
+
+## MountVolume failed: InvalidArgument desc = device /dev/disk/by-id/wwn-xxx is not found
+
+`MountVolume.MountDevice failed for volume pvc-xxx with the error: rpc error: code = InvalidArgument desc = device /dev/disk/by-id/wwn-xxx is not found.`
+
+This usually happens when the Linux kernel does not initialize the block device.
+Please check the kernel dmesg logs for related errors.
+
+Try changing the disk controller type from `virtio-scsi-single` to `virtio-scsi-pci` on proxmox VM side.
