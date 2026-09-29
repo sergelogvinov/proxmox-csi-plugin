@@ -13,6 +13,10 @@ Supported storage types:
 
 Proxmox CSI Plugin requires the correct privileges in order to allocate and attach disks.
 
+You can use the [terraform module](https://github.com/sergelogvinov/terraform-proxmox-kubernetes-roles) to create the necessary roles, users, and ACLs in Proxmox.
+
+### Create CSI Role and User (manual)
+
 Create `CSI` role in Proxmox:
 
 ```shell
@@ -26,49 +30,17 @@ Next create a user `kubernetes-csi@pve` for the CSI plugin and grant it the abov
 ```shell
 pveum user add kubernetes-csi@pve
 pveum aclmod / -user kubernetes-csi@pve -role CSI
-pveum user token add kubernetes-csi@pve csi -privsep 0
+pveum user token add kubernetes-csi@pve csi -privsep 1
+pveum aclmod / -tokens 'kubernetes@pve!csi' -role CSI
 ```
 
-Or through terraform:
+### Create CSI Role and User (terraform)
 
 ```hcl
-# Plugin: bpg/proxmox
+module "roles" {
+  source = "github.com/sergelogvinov/terraform-proxmox-kubernetes-roles"
 
-resource "proxmox_virtual_environment_role" "csi" {
-  role_id = "Kubernetes-CSI"
-
-  privileges = [
-    "VM.Audit",
-    "VM.Config.Disk",
-    "Datastore.Allocate",
-    "Datastore.AllocateSpace",
-    "Datastore.Audit",
-  ]
-}
-
-resource "proxmox_virtual_environment_user" "kubernetes" {
-  acl {
-    path      = "/"
-    propagate = true
-    role_id   = proxmox_virtual_environment_role.csi.role_id
-  }
-
-  comment = "Kubernetes"
-  user_id = "kubernetes-csi@pve"
-}
-
-resource "proxmox_virtual_environment_user_token" "csi" {
-  comment    = "Kubernetes CSI"
-  token_name = "csi"
-  user_id    = proxmox_virtual_environment_user.kubernetes.user_id
-}
-
-resource "proxmox_virtual_environment_acl" "csi" {
-  token_id = proxmox_virtual_environment_user_token.csi.id
-  role_id  = proxmox_virtual_environment_role.csi.role_id
-
-  path      = "/"
-  propagate = true
+  tokens = true
 }
 ```
 
