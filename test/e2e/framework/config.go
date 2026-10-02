@@ -22,6 +22,7 @@ limitations under the License.
 package framework
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"strings"
@@ -53,6 +54,12 @@ type Config struct {
 	// Timeout is the default per-wait timeout (pod ready, PVC bound, PV
 	// gone, snapshot ready, ...).
 	Timeout time.Duration
+
+	// SweepAge is the minimum age of a leftover namespace before it is
+	// swept. Younger namespaces may belong to a run that is still going:
+	// go test runs scenario packages in parallel, and several runs may
+	// share one cluster.
+	SweepAge time.Duration
 
 	// ProxmoxConfig, when set, points at a cloud-config.yaml the suite can
 	// use to talk to the Proxmox API directly (via go-proxmox-pool) to
@@ -115,6 +122,7 @@ func LoadConfig() Config {
 		NodePluginLabelSelector: getEnvDefault("E2E_NODE_LABEL_SELECTOR", "app.kubernetes.io/name=proxmox-csi-plugin,app.kubernetes.io/component=node"),
 		NodePluginContainer:     getEnvDefault("E2E_NODE_CONTAINER", "proxmox-csi-plugin-node"),
 		Timeout:                 getEnvDurationDefault("E2E_TIMEOUT", 5*time.Minute),
+		SweepAge:                getEnvDurationDefault("E2E_SWEEP_AGE", 2*time.Hour),
 	}
 
 	classes := getEnvDefault("E2E_STORAGECLASSES", "proxmox,proxmox-ceph,proxmox-rbd")
@@ -138,8 +146,12 @@ func getEnvDefault(key, def string) string {
 func getEnvDurationDefault(key string, def time.Duration) time.Duration {
 	if v := os.Getenv(key); v != "" {
 		d, err := time.ParseDuration(v)
-		if err == nil {
+		if err == nil && d > 0 {
 			return d
+		}
+
+		if err == nil {
+			err = fmt.Errorf("must be positive")
 		}
 
 		log.Printf("e2e: invalid %s=%q (%v), using default %s", key, v, err, def)

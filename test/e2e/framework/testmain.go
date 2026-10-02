@@ -46,8 +46,8 @@ func TestMain(m *testing.M) int {
 	SharedClient = client
 
 	ctx, cancel := context.WithTimeout(context.Background(), cfg.Timeout)
-	log.Printf("e2e: sweeping leftover namespaces from previous runs (prefix %q)", cfg.NamespacePrefix)
-	SweepLeftoverNamespaces(ctx, client.Clientset, cfg.NamespacePrefix)
+	log.Printf("e2e: sweeping leftover namespaces from previous runs (prefix %q, older than %s)", cfg.NamespacePrefix, cfg.SweepAge)
+	SweepLeftoverNamespaces(ctx, client.Clientset, cfg.NamespacePrefix, cfg.SweepAge)
 	cancel()
 
 	return m.Run()
