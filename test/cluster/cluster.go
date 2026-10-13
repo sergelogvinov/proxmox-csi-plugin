@@ -123,6 +123,13 @@ func SetupFakeCluster(t *testing.T, pool *pxpool.ProxmoxPool) *fakeapi.Cluster {
 			fakeapi.WithVolume(storage.Volume{VolID: "rbd:9999/vm-9999-volume-rbd.raw", Format: "raw", Size: 1 << 30, VMID: 9999}))
 		n.AddStorage("zfs", "zfspool",
 			fakeapi.WithCapacity(100<<30, 50<<30, 50<<30))
+
+		// Ceph RBD pool shared by pve-1 and pve-2, with the real RBD volume naming
+		// (no VMID subdirectory, no format suffix). Both nodes see the same images.
+		n.AddStorage("ceph", "rbd", fakeapi.WithShared(),
+			fakeapi.WithCapacity(100<<30, 50<<30, 50<<30),
+			fakeapi.WithVolume(storage.Volume{VolID: "ceph:vm-9999-pvc-ceph-source", Format: "raw", Size: 1 << 30, VMID: 9999}),
+		)
 	}
 
 	pve1.AddStorage("local-lvm", "lvm",

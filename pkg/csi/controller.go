@@ -231,6 +231,16 @@ func (d *ControllerService) CreateVolume(ctx context.Context, request *csi.Creat
 
 	klog.V(5).InfoS("CreateVolume: storage config", "storage", storageConfig)
 
+	// Proxmox cannot copy a volume within the same shared storage: its storage copy
+	// returns without copying anything when the source and the target are the same
+	// shared storage (PVE::Storage::storage_migrate).
+	if srcVol != nil && storageConfig.Shared && srcVol.Storage() == params.StorageID {
+		err := status.Errorf(codes.InvalidArgument, "creating a volume from %s is not supported: Proxmox cannot copy volumes within shared storage %s", srcVol.VolumeID(), params.StorageID)
+		klog.ErrorS(err, "CreateVolume: unsupported volume source", "cluster", region, "contentSourceID", srcVol.VolumeID())
+
+		return nil, err
+	}
+
 	if zone == "" {
 		if !storageConfig.Shared {
 			return nil, status.Error(codes.InvalidArgument, "zone must be provided")
