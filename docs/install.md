@@ -31,7 +31,7 @@ Next create a user `kubernetes-csi@pve` for the CSI plugin and grant it the abov
 pveum user add kubernetes-csi@pve
 pveum aclmod / -user kubernetes-csi@pve -role CSI
 pveum user token add kubernetes-csi@pve csi -privsep 1
-pveum aclmod / -tokens 'kubernetes@pve!csi' -role CSI
+pveum aclmod / -tokens 'kubernetes-csi@pve!csi' -role CSI
 ```
 
 ### Create CSI Role and User (terraform)
