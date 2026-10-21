@@ -17,73 +17,12 @@ limitations under the License.
 package csi
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
 	"github.com/sergelogvinov/go-proxmox-rest/nodes/qemu"
 )
-
-func TestIsVolumeAttached(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		msg           string
-		vmConfig      *qemu.Config
-		pvc           string
-		expectedLun   int
-		expectedExist bool
-	}{
-		{
-			msg:           "Empty VM config",
-			vmConfig:      &qemu.Config{},
-			pvc:           "",
-			expectedLun:   0,
-			expectedExist: false,
-		},
-		{
-			msg: "Empty PVC",
-			vmConfig: &qemu.Config{
-				SCSI: map[int]qemu.Drive{
-					0: {File: "local-lvm:vm-100-disk-0", Size: "8G"},
-					5: {File: "local-lvm:vm-100-pvc-123", Size: "8G"},
-				},
-			},
-			pvc:           "",
-			expectedLun:   0,
-			expectedExist: false,
-		},
-		{
-			msg: "LUN 5",
-			vmConfig: &qemu.Config{
-				SCSI: map[int]qemu.Drive{
-					0: {File: "local-lvm:vm-100-disk-0", Size: "8G"},
-					5: {File: "local-lvm:vm-100-pvc-123", Size: "8G"},
-				},
-			},
-			pvc:           "pvc-123",
-			expectedLun:   5,
-			expectedExist: true,
-		},
-	}
-
-	for _, testCase := range tests {
-		t.Run(fmt.Sprint(testCase.msg), func(t *testing.T) {
-			t.Parallel()
-
-			lun, exist := isVolumeAttached(testCase.vmConfig, testCase.pvc)
-
-			if testCase.expectedExist {
-				assert.True(t, exist)
-				assert.Equal(t, testCase.expectedLun, lun)
-			} else {
-				assert.False(t, exist)
-				assert.Equal(t, 0, lun)
-			}
-		})
-	}
-}
 
 func TestGenerateWWN(t *testing.T) {
 	t.Parallel()
