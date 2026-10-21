@@ -36,6 +36,7 @@ import (
 	"github.com/sergelogvinov/go-proxmox-rest/nodes/storage"
 	"github.com/sergelogvinov/go-proxmox-rest/nodes/tasks"
 	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/metrics"
+	toolsproxmox "github.com/sergelogvinov/proxmox-csi-plugin/pkg/tools/proxmox"
 	volume "github.com/sergelogvinov/proxmox-csi-plugin/pkg/utils/volume"
 
 	v1 "k8s.io/api/core/v1"
@@ -211,12 +212,12 @@ func getVMByAttachedVolume(ctx context.Context, cl *proxmoxrest.Client, vol *vol
 				return false, nil
 			}
 
-			cfg, err := cl.Nodes(rs.Node).Qemu().Config(ctx, rs.VMID, nil)
+			cfg, err := toolsproxmox.GetVMCurrentConfig(ctx, cl, rs.Node, rs.VMID)
 			if err != nil {
 				return false, err
 			}
 
-			l, exist := isVolumeAttached(cfg, vol.Disk())
+			l, exist := toolsproxmox.VolumeLun(cfg, vol.Disk())
 			if exist {
 				lun = l
 			}
@@ -279,20 +280,33 @@ func getVolumeSize(ctx context.Context, cl *proxmoxrest.Client, vol *volume.Volu
 	return st.Size, nil
 }
 
-// isVolumeAttached reports whether pvc is attached to a guest with the given
-// configuration, returning the SCSI lun it's attached at.
-func isVolumeAttached(cfg *qemu.Config, pvc string) (int, bool) {
-	if pvc == "" {
-		return 0, false
+// revertPendingVolume discards the pending entries of pvc's failed hotplugs,
+// so the pending view no longer holds pvc in a slot it isn't current in.
+// Only pvc's own pending entries are touched.
+func revertPendingVolume(ctx context.Context, cl *proxmoxrest.Client, node string, id int, cfgs *toolsproxmox.VMConfigs, pvc string) error {
+	luns := cfgs.PendingOnly(pvc)
+	if len(luns) == 0 {
+		return nil
 	}
 
-	for lun, disk := range cfg.SCSI {
-		if strings.Contains(disk.File, pvc) {
-			return lun, true
+	keys := make([]string, 0, len(luns))
+	for _, lun := range luns {
+		keys = append(keys, deviceNamePrefix+strconv.Itoa(lun))
+	}
+
+	if err := cl.Nodes(node).Qemu().UpdateConfig(ctx, id, &qemu.Config{Revert: keys}); err != nil {
+		return fmt.Errorf("failed to revert pending disk %s: %v", strings.Join(keys, ","), err)
+	}
+
+	for _, lun := range luns {
+		if current, ok := cfgs.Current.SCSI[lun]; ok {
+			cfgs.Pending.SCSI[lun] = current
+		} else {
+			delete(cfgs.Pending.SCSI, lun)
 		}
 	}
 
-	return 0, false
+	return nil
 }
 
 // generateWWN derives a deterministic 64-bit NAA-5 (IEEE Registered) World Wide
@@ -612,22 +626,32 @@ func attachVolume(ctx context.Context, cl *proxmoxrest.Client, id int, vol *volu
 		return nil, fmt.Errorf("failed to get vm config: %v", err)
 	}
 
-	cfg, err := cl.Nodes(node).Qemu().Config(ctx, id, nil)
+	cfgs, err := toolsproxmox.GetVMConfigs(ctx, cl, node, id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get vm config: %v", err)
 	}
 
+	// Clear this volume's own failed hotplugs first, so it never ends up on two
+	// slots. That also frees the slot of a failed hotplug for the retry below,
+	// instead of each retry using up a new lun until none is free.
+	if err := revertPendingVolume(ctx, cl, node, id, cfgs, vol.Disk()); err != nil {
+		return nil, err
+	}
+
 	wwm := ""
 
-	lun, exist := isVolumeAttached(cfg, vol.Disk())
+	// Only the current config counts. A volume that is current but pending
+	// deletion (a hot-unplug that failed) is still attached; the queued delete
+	// may detach it later, e.g. on the guest's next reboot.
+	lun, exist := toolsproxmox.VolumeLun(cfgs.Current, vol.Disk())
 	if exist {
-		wwm = strings.TrimPrefix(cfg.SCSI[lun].WWN, "0x")
+		wwm = strings.TrimPrefix(cfgs.Current.SCSI[lun].WWN, "0x")
 		if wwm == "" {
 			// This scenario occurs when the disk is attached but does not have a WWN set,
 			// some one manually attached the disk without specifying a WWN.
 			wwm = generateWWN(vol.PV(), lun)
 
-			drive := cfg.SCSI[lun]
+			drive := cfgs.Current.SCSI[lun]
 			drive.WWN = "0x" + wwm
 
 			upid, err := cl.Nodes(node).Qemu().AttachDrive(ctx, id, &qemu.AttachDriveOptions{
@@ -646,7 +670,7 @@ func attachVolume(ctx context.Context, cl *proxmoxrest.Client, id int, vol *volu
 		}
 	} else {
 		for lun = 1; lun < 30; lun++ {
-			if _, used := cfg.SCSI[lun]; used {
+			if !cfgs.LunFree(lun) {
 				continue
 			}
 
@@ -685,7 +709,9 @@ func attachVolume(ctx context.Context, cl *proxmoxrest.Client, id int, vol *volu
 		}, nil
 	}
 
-	return nil, fmt.Errorf("no free lun found")
+	// Slots are only used up by other disks: a failed hotplug of this volume
+	// is reverted above, so retries reuse its slot instead of exhausting them.
+	return nil, fmt.Errorf("no free lun found on vm %d", id)
 }
 
 func detachVolume(ctx context.Context, cl *proxmoxrest.Client, id int, vol *volume.Volume) error {
@@ -698,12 +724,20 @@ func detachVolume(ctx context.Context, cl *proxmoxrest.Client, id int, vol *volu
 		return fmt.Errorf("failed to get vm config: %v", err)
 	}
 
-	cfg, err := cl.Nodes(node).Qemu().Config(ctx, id, nil)
+	cfgs, err := toolsproxmox.GetVMConfigs(ctx, cl, node, id)
 	if err != nil {
 		return fmt.Errorf("failed to get vm config: %v", err)
 	}
 
-	if lun, ok := isVolumeAttached(cfg, vol.Disk()); ok {
+	// A hotplug of this volume that failed (pending only) is reverted, not
+	// unlinked: the slot's current entry may be a different volume.
+	if err := revertPendingVolume(ctx, cl, node, id, cfgs, vol.Disk()); err != nil {
+		return err
+	}
+
+	// Unlinking the current disk also retries a hot-unplug that failed
+	// (current, pending deletion).
+	if lun, ok := toolsproxmox.VolumeLun(cfgs.Current, vol.Disk()); ok {
 		device := deviceNamePrefix + strconv.Itoa(lun)
 
 		if err := cl.Nodes(node).Qemu().Unlink(ctx, id, &qemu.UnlinkOptions{IDList: []string{device}}); err != nil {
@@ -720,12 +754,12 @@ func updateVolume(ctx context.Context, cl *proxmoxrest.Client, id int, vol *volu
 		return fmt.Errorf("failed to get vm config: %v", err)
 	}
 
-	cfg, err := cl.Nodes(node).Qemu().Config(ctx, id, nil)
+	cfg, err := toolsproxmox.GetVMCurrentConfig(ctx, cl, node, id)
 	if err != nil {
 		return fmt.Errorf("failed to get vm config: %v", err)
 	}
 
-	lun, ok := isVolumeAttached(cfg, vol.Disk())
+	lun, ok := toolsproxmox.VolumeLun(cfg, vol.Disk())
 	if !ok {
 		return fmt.Errorf("volume is not attached to VM %d", id)
 	}
@@ -793,12 +827,12 @@ func waitAttachVolume(ctx context.Context, cl *proxmoxrest.Client, id int, vol *
 			return fmt.Errorf("failed to get vm config: %v", err)
 		}
 
-		cfg, err := cl.Nodes(node).Qemu().Config(ctx, id, nil)
+		cfg, err := toolsproxmox.GetVMCurrentConfig(ctx, cl, node, id)
 		if err != nil {
 			return fmt.Errorf("failed to get vm config: %v", err)
 		}
 
-		if _, ok := isVolumeAttached(cfg, vol.Disk()); ok {
+		if _, ok := toolsproxmox.VolumeLun(cfg, vol.Disk()); ok {
 			return nil
 		}
 
@@ -826,12 +860,12 @@ func waitDetachVolume(ctx context.Context, cl *proxmoxrest.Client, id int, vol *
 			return fmt.Errorf("failed to get vm config: %v", err)
 		}
 
-		cfg, err := cl.Nodes(node).Qemu().Config(ctx, id, nil)
+		cfgs, err := toolsproxmox.GetVMConfigs(ctx, cl, node, id)
 		if err != nil {
 			return fmt.Errorf("failed to get vm config: %v", err)
 		}
 
-		if _, ok := isVolumeAttached(cfg, vol.Disk()); ok {
+		if !cfgs.Detached(vol.Disk()) {
 			return retry.ExpectedError(fmt.Errorf("volume %s still attached to VM %d", vol.VolumeID(), id))
 		}
 

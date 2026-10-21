@@ -28,6 +28,7 @@ import (
 	proxmoxrest "github.com/sergelogvinov/go-proxmox-rest"
 	"github.com/sergelogvinov/go-proxmox-rest/cluster"
 	"github.com/sergelogvinov/go-proxmox-rest/cluster/replication"
+	"github.com/sergelogvinov/go-proxmox-rest/nodes/qemu"
 	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/config"
 	volume "github.com/sergelogvinov/proxmox-csi-plugin/pkg/utils/volume"
 
@@ -91,7 +92,7 @@ func VolumeDiskOptions(ctx context.Context, pool *pxpool.ProxmoxPool, node *core
 		return nil, fmt.Errorf("failed to find proxmox node running vm %d (node %s): %w", vmID, node.Name, err)
 	}
 
-	vm, err := cl.Nodes(vmNode).Qemu().Config(ctx, vmID, nil)
+	vm, err := cl.Nodes(vmNode).Qemu().Config(ctx, vmID, &qemu.ConfigOptions{Current: true})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get config of vm %d (node %s): %w", vmID, node.Name, err)
 	}

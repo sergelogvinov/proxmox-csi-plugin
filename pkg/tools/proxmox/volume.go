@@ -20,7 +20,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	proxmoxrest "github.com/sergelogvinov/go-proxmox-rest"
@@ -55,22 +54,12 @@ func WaitForVolumeDetach(ctx context.Context, client *proxmoxrest.Client, vmID i
 			return nil
 		}
 
-		cfg, err := client.Nodes(resources[0].Node).Qemu().Config(ctx, vmID, nil)
+		cfgs, err := GetVMConfigs(ctx, client, resources[0].Node, vmID)
 		if err != nil {
 			return fmt.Errorf("failed to get vm config for VMID %d: %v", vmID, err)
 		}
 
-		found := false
-
-		for _, disk := range cfg.SCSI {
-			if strings.Contains(disk.File, pvc) {
-				found = true
-
-				break
-			}
-		}
-
-		if !found {
+		if cfgs.Detached(pvc) {
 			return nil
 		}
 
