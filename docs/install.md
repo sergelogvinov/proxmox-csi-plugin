@@ -44,6 +44,8 @@ module "roles" {
 }
 ```
 
+The ACL is granted on `/` here, which suits a single cluster. To run several isolated tenants on one Proxmox cluster, scope each token instead: see [Multi-tenant deployments](multi-tenancy.md).
+
 All VMs in the cluster must have the `SCSI Controller` set to `VirtIO SCSI single` or `VirtIO SCSI` type to be able to attach disks.
 
 ## Prepare Kubernetes cluster

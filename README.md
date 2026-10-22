@@ -33,6 +33,7 @@ It enables the use of a single storage class to deploy one or many deployments/s
 * [Volume attributes class](docs/options.md): Detailed options for StorageClass.
 * [Volume zone replication](docs/options.md): ZFS replication to another Proxmox node (zone).
 * [Volume snapshots](https://kubernetes.io/docs/concepts/storage/volume-snapshots/): Create and restore volume snapshots. See [limits](docs/volumesnapshot.md) in the documentation.
+* [Multi-tenancy](docs/multi-tenancy.md): Run one Kubernetes cluster per tenant on a shared Proxmox cluster, isolated by scoped Proxmox tokens.
 
 ## Overview
 
