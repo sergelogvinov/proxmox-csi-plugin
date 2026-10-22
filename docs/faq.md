@@ -18,6 +18,12 @@ Proxmox CCM (and many other CCMs) uses [Cloud-Provider](https://github.com/kuber
 
 Make sure that other kubernetes components like CNI can handle the node labels changes.
 
+## Does the zone label have to match the Proxmox node name exactly?
+
+Yes. The `topology.kubernetes.io/zone` label must match the Proxmox node hostname exactly, including case.
+Proxmox compares node names in API requests case-sensitively, so if the Proxmox node is `PVE-01`, the label must be `PVE-01`, not `pve-01`.
+A mismatch causes errors like `hostname lookup 'pve-01' failed` or `zone pve-01 not found in cluster`.
+
 ## Create a PV/PVC with already existing disk
 
 If you have a disk already created in Proxmox, you can use it with the CSI plugin.
