@@ -413,7 +413,7 @@ func prepareReplication(ctx context.Context, cl *proxmoxrest.Client, node string
 
 	mc := metrics.NewMetricContext("createVm")
 
-	upid, err := cl.Nodes(node).Qemu().Create(ctx, &qemu.CreateOptions{
+	task, err := cl.Nodes(node).Qemu().Create(ctx, &qemu.CreateOptions{
 		Config: *cfg,
 		VMID:   id,
 	})
@@ -421,10 +421,8 @@ func prepareReplication(ctx context.Context, cl *proxmoxrest.Client, node string
 		return 0, err
 	}
 
-	if upid != "" {
-		if err := cl.Nodes(node).Tasks().Wait(ctx, upid, &tasks.WaitOptions{Timeout: 5 * time.Minute}); err != nil {
-			return 0, err
-		}
+	if err := task.Wait(ctx, &tasks.WaitOptions{Timeout: 5 * time.Minute}); err != nil {
+		return 0, err
 	}
 
 	return id, nil
@@ -492,7 +490,7 @@ func migrateReplication(ctx context.Context, cl *proxmoxrest.Client, target int,
 		return nil
 	}
 
-	upid, err := cl.Nodes(sourceNode).Qemu().Migrate(ctx, volid, &qemu.MigrateOptions{
+	task, err := cl.Nodes(sourceNode).Qemu().Migrate(ctx, volid, &qemu.MigrateOptions{
 		Target: targetNode,
 		Online: false,
 	})
@@ -500,10 +498,8 @@ func migrateReplication(ctx context.Context, cl *proxmoxrest.Client, target int,
 		return fmt.Errorf("failed to migrate vm config: %v", err)
 	}
 
-	if upid != "" {
-		if err := cl.Nodes(sourceNode).Tasks().Wait(ctx, upid, &tasks.WaitOptions{Timeout: 5 * time.Minute}); err != nil {
-			return fmt.Errorf("unable to migrate virtual machine: %w", err)
-		}
+	if err := task.Wait(ctx, &tasks.WaitOptions{Timeout: 5 * time.Minute}); err != nil {
+		return fmt.Errorf("unable to migrate virtual machine: %w", err)
 	}
 
 	return nil
@@ -517,27 +513,23 @@ func deleteVM(ctx context.Context, cl *proxmoxrest.Client, node string, vmid int
 	}
 
 	if status.Status == qemu.VMStatusRunning {
-		upid, err := cl.Nodes(node).Qemu().Stop(ctx, vmid, nil)
+		task, err := cl.Nodes(node).Qemu().Stop(ctx, vmid, nil)
 		if err != nil {
 			return fmt.Errorf("failed to stop vm %d: %v", vmid, err)
 		}
 
-		if upid != "" {
-			if err := cl.Nodes(node).Tasks().Wait(ctx, upid, &tasks.WaitOptions{Timeout: time.Minute}); err != nil {
-				return fmt.Errorf("unable to stop vm %d: %w", vmid, err)
-			}
+		if err := task.Wait(ctx, &tasks.WaitOptions{Timeout: time.Minute}); err != nil {
+			return fmt.Errorf("unable to stop vm %d: %w", vmid, err)
 		}
 	}
 
-	upid, err := cl.Nodes(node).Qemu().Delete(ctx, vmid, nil)
+	task, err := cl.Nodes(node).Qemu().Delete(ctx, vmid, nil)
 	if err != nil {
 		return fmt.Errorf("cannot delete vm with id %d: %w", vmid, err)
 	}
 
-	if upid != "" {
-		if err := cl.Nodes(node).Tasks().Wait(ctx, upid, &tasks.WaitOptions{Timeout: time.Minute}); err != nil {
-			return fmt.Errorf("unable to delete vm %d: %w", vmid, err)
-		}
+	if err := task.Wait(ctx, &tasks.WaitOptions{Timeout: time.Minute}); err != nil {
+		return fmt.Errorf("unable to delete vm %d: %w", vmid, err)
 	}
 
 	return nil
@@ -654,7 +646,7 @@ func attachVolume(ctx context.Context, cl *proxmoxrest.Client, id int, vol *volu
 			drive := cfgs.Current.SCSI[lun]
 			drive.WWN = "0x" + wwm
 
-			upid, err := cl.Nodes(node).Qemu().AttachDrive(ctx, id, &qemu.AttachDriveOptions{
+			task, err := cl.Nodes(node).Qemu().AttachDrive(ctx, id, &qemu.AttachDriveOptions{
 				Drive:   deviceNamePrefix + strconv.Itoa(lun),
 				Options: drive,
 			})
@@ -662,10 +654,8 @@ func attachVolume(ctx context.Context, cl *proxmoxrest.Client, id int, vol *volu
 				return nil, fmt.Errorf("unable to set disk wwn: %v, drive=%+v", err, drive)
 			}
 
-			if upid != "" {
-				if err := cl.Nodes(node).Tasks().Wait(ctx, upid, &tasks.WaitOptions{Timeout: 5 * time.Minute}); err != nil {
-					return nil, fmt.Errorf("unable to update virtual machine disk: %w", err)
-				}
+			if err := task.Wait(ctx, &tasks.WaitOptions{Timeout: 5 * time.Minute}); err != nil {
+				return nil, fmt.Errorf("unable to update virtual machine disk: %w", err)
 			}
 		}
 	} else {
@@ -680,7 +670,7 @@ func attachVolume(ctx context.Context, cl *proxmoxrest.Client, id int, vol *volu
 			drive.File = vol.Storage() + ":" + vol.Disk()
 			drive.WWN = "0x" + wwm
 
-			upid, err := cl.Nodes(node).Qemu().AttachDrive(ctx, id, &qemu.AttachDriveOptions{
+			task, err := cl.Nodes(node).Qemu().AttachDrive(ctx, id, &qemu.AttachDriveOptions{
 				Drive:   deviceNamePrefix + strconv.Itoa(lun),
 				Options: drive,
 			})
@@ -688,10 +678,8 @@ func attachVolume(ctx context.Context, cl *proxmoxrest.Client, id int, vol *volu
 				return nil, fmt.Errorf("unable to attach disk: %v, drive=%+v", err, drive)
 			}
 
-			if upid != "" {
-				if err := cl.Nodes(node).Tasks().Wait(ctx, upid, &tasks.WaitOptions{Timeout: 5 * time.Minute}); err != nil {
-					return nil, fmt.Errorf("unable to attach virtual machine disk: %w", err)
-				}
+			if err := task.Wait(ctx, &tasks.WaitOptions{Timeout: 5 * time.Minute}); err != nil {
+				return nil, fmt.Errorf("unable to attach virtual machine disk: %w", err)
 			}
 
 			if err := waitAttachVolume(ctx, cl, id, vol); err != nil {
@@ -766,7 +754,7 @@ func updateVolume(ctx context.Context, cl *proxmoxrest.Client, id int, vol *volu
 
 	drive := driveOptions(cfg.SCSI[lun], options)
 
-	upid, err := cl.Nodes(node).Qemu().AttachDrive(ctx, id, &qemu.AttachDriveOptions{
+	task, err := cl.Nodes(node).Qemu().AttachDrive(ctx, id, &qemu.AttachDriveOptions{
 		Drive:   deviceNamePrefix + strconv.Itoa(lun),
 		Options: drive,
 	})
@@ -774,10 +762,8 @@ func updateVolume(ctx context.Context, cl *proxmoxrest.Client, id int, vol *volu
 		return fmt.Errorf("unable to update disk: %v, drive=%+v", err, drive)
 	}
 
-	if upid != "" {
-		if err := cl.Nodes(node).Tasks().Wait(ctx, upid, &tasks.WaitOptions{Timeout: 5 * time.Minute}); err != nil {
-			return fmt.Errorf("unable to update virtual machine disk: %w", err)
-		}
+	if err := task.Wait(ctx, &tasks.WaitOptions{Timeout: 5 * time.Minute}); err != nil {
+		return fmt.Errorf("unable to update virtual machine disk: %w", err)
 	}
 
 	return nil
@@ -800,16 +786,12 @@ func copyVolume(ctx context.Context, cl *proxmoxrest.Client, srcVol *volume.Volu
 		opts.TargetNode = destVol.Node()
 	}
 
-	upid, err := cl.Nodes(srcVol.Node()).Storage().Content(srcVol.Storage()).Copy(ctx, srcVol.Disk(), opts)
+	task, err := cl.Nodes(srcVol.Node()).Storage().Content(srcVol.Storage()).Copy(ctx, srcVol.Disk(), opts)
 	if err != nil {
 		return fmt.Errorf("failed to copy pvc: %v, opts=%+v", err, opts)
 	}
 
-	if upid == "" {
-		return nil
-	}
-
-	if err := cl.Nodes(srcVol.Node()).Tasks().Wait(ctx, upid, &tasks.WaitOptions{PollInterval: 15 * time.Second, Timeout: 4 * time.Minute}); err != nil {
+	if err := task.Wait(ctx, &tasks.WaitOptions{PollInterval: 15 * time.Second, Timeout: 4 * time.Minute}); err != nil {
 		if failed, ok := errors.AsType[*tasks.FailedError](err); ok {
 			return fmt.Errorf("failed to copy disk, exit status: %s", failed.ExitStatus)
 		}
@@ -884,16 +866,12 @@ func waitDetachVolume(ctx context.Context, cl *proxmoxrest.Client, id int, vol *
 
 // resizeVMDisk grows a guest's disk, waiting for the resize task to complete.
 func resizeVMDisk(ctx context.Context, cl *proxmoxrest.Client, node string, vmid int, disk, size string) error {
-	upid, err := cl.Nodes(node).Qemu().Resize(ctx, vmid, &qemu.ResizeOptions{Disk: disk, Size: size})
+	task, err := cl.Nodes(node).Qemu().Resize(ctx, vmid, &qemu.ResizeOptions{Disk: disk, Size: size})
 	if err != nil {
 		return fmt.Errorf("unable to resize virtual machine disk: %w", err)
 	}
 
-	if upid == "" {
-		return nil
-	}
-
-	if err := cl.Nodes(node).Tasks().Wait(ctx, upid, &tasks.WaitOptions{Timeout: 5 * time.Minute}); err != nil {
+	if err := task.Wait(ctx, &tasks.WaitOptions{Timeout: 5 * time.Minute}); err != nil {
 		return fmt.Errorf("unable to resize virtual machine disk: %w", err)
 	}
 
