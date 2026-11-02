@@ -75,16 +75,12 @@ func WaitForVolumeDetach(ctx context.Context, client *proxmoxrest.Client, vmID i
 // for the deletion task to complete if Proxmox runs it as a background
 // task instead of completing it synchronously.
 func DeleteStorageVolume(ctx context.Context, client *proxmoxrest.Client, node, storageID, disk string) error {
-	upid, err := client.Nodes(node).Storage().Content(storageID).Delete(ctx, disk, 0)
+	task, err := client.Nodes(node).Storage().Content(storageID).Delete(ctx, disk, 0)
 	if err != nil {
 		return err
 	}
 
-	if upid == "" {
-		return nil
-	}
-
-	if err := client.Nodes(node).Tasks().Wait(ctx, upid, nil); err != nil {
+	if err := task.Wait(ctx, nil); err != nil {
 		if failed, ok := errors.AsType[*tasks.FailedError](err); ok {
 			return fmt.Errorf("exit status: %s", failed.ExitStatus)
 		}
@@ -97,7 +93,7 @@ func DeleteStorageVolume(ctx context.Context, client *proxmoxrest.Client, node, 
 
 // MoveQemuDisk moves the volume from one node to another.
 func MoveQemuDisk(ctx context.Context, client *proxmoxrest.Client, vol *volume.Volume, node string, taskTimeout int) error {
-	upid, err := client.Nodes(vol.Node()).Storage().Content(vol.Storage()).Copy(ctx, vol.Disk(), &storage.CopyOptions{
+	task, err := client.Nodes(vol.Node()).Storage().Content(vol.Storage()).Copy(ctx, vol.Disk(), &storage.CopyOptions{
 		Target:     vol.Disk(),
 		TargetNode: node,
 	})
@@ -105,11 +101,7 @@ func MoveQemuDisk(ctx context.Context, client *proxmoxrest.Client, vol *volume.V
 		return fmt.Errorf("failed to copy pvc: %v", err)
 	}
 
-	if upid == "" {
-		return nil
-	}
-
-	if err := client.Nodes(vol.Node()).Tasks().Wait(ctx, upid, &tasks.WaitOptions{
+	if err := task.Wait(ctx, &tasks.WaitOptions{
 		PollInterval: 15 * time.Second,
 		Timeout:      time.Duration(taskTimeout) * time.Second,
 	}); err != nil {

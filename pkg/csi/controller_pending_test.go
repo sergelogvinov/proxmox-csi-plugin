@@ -131,12 +131,12 @@ func unpublishedLuns(cfg *qemu.Config) []int {
 func (ts *configuredTestSuite) attachCurrent(vmid int, drive, file string) {
 	cl := ts.fake.Client(ts.T())
 
-	upid, err := cl.Nodes("pve-1").Qemu().AttachDrive(ts.T().Context(), vmid, &qemu.AttachDriveOptions{
+	task, err := cl.Nodes("pve-1").Qemu().AttachDrive(ts.T().Context(), vmid, &qemu.AttachDriveOptions{
 		Drive:   drive,
 		Options: qemu.Drive{File: file},
 	})
 	ts.Require().NoError(err)
-	ts.Require().NoError(cl.Nodes("pve-1").Tasks().Wait(ts.T().Context(), upid, nil))
+	ts.Require().NoError(task.Wait(ts.T().Context(), nil))
 }
 
 func (ts *configuredTestSuite) TestControllerPublishVolumeSkipsLunPendingDeletion() {

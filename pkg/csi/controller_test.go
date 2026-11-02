@@ -562,7 +562,7 @@ func (ts *configuredTestSuite) TestDeleteVolume() {
 			request: &proto.DeleteVolumeRequest{
 				VolumeId: "cluster-1/pve-1/local-lvm/vm-9999-pvc-error",
 			},
-			expectedError: status.Error(codes.Internal, "proxmox API error 596: 596 status code 596"),
+			expectedError: status.Error(codes.Internal, "proxmox API error 596: no route to host (596)"),
 		},
 	}
 
