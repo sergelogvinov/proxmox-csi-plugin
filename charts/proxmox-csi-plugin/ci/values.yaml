@@ -2,6 +2,10 @@
 options:
   enableCapacity: false
 
+selinux:
+  enabled: true
+  seLinuxMount: true
+
 node:
   nodeSelector:
     node.cloudprovider.kubernetes.io/platform: nocloud

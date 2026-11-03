@@ -34,6 +34,18 @@ provisionerName: csi.proxmox.sinextra.dev
 # Currently, cannot be customized.
 clusterID: kubernetes
 
+selinux:
+  # -- Mount a minimal /etc/selinux/config into the node plugin.
+  # mount(8) (libmount/libselinux) treats SELinux as disabled when that file is missing,
+  # and then silently drops SELinux mount options such as context=. Needed for
+  # StorageClass mountOptions like `context=system_u:object_r:ephemeral_t:s0` (Talos)
+  # and for seLinuxMount below. Does not change the node's SELinux mode.
+  enabled: false
+  # -- Set seLinuxMount in the CSIDriver: kubelet then mounts volumes with the pod's
+  # SELinux label (-o context=) instead of relabeling them. Requires selinux.enabled.
+  # ref: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#efficient-selinux-volume-relabeling
+  seLinuxMount: false
+
 # -- Log verbosity level. See https://github.com/kubernetes/community/blob/master/contributors/devel/sig-instrumentation/logging.md
 # for description of individual verbosity levels.
 logVerbosityLevel: 5
