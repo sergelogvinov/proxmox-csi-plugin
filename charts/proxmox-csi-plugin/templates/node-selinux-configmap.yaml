@@ -1,0 +1,16 @@
+{{- if .Values.selinux.enabled }}
+# Without /etc/selinux/config, libselinux reports SELinux as disabled and mount(8)
+# silently drops context= mount options. Only the file's presence matters here;
+# the node's SELinux mode is set by the kernel, not by this file.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "proxmox-csi-plugin.fullname" . }}-node-selinux
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "proxmox-csi-plugin.labels" . | nindent 4 }}
+data:
+  config: |
+    SELINUX=permissive
+    SELINUXTYPE=targeted
+{{- end }}

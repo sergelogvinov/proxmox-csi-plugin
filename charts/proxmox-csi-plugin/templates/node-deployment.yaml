@@ -68,6 +68,12 @@ spec:
               mountPath: /dev
             - name: sys
               mountPath: /sys
+            {{- if .Values.selinux.enabled }}
+            - name: selinux-config
+              mountPath: /etc/selinux/config
+              subPath: config
+              readOnly: true
+            {{- end }}
         - name: csi-node-driver-registrar
           securityContext:
             allowPrivilegeEscalation: false
@@ -131,6 +137,11 @@ spec:
           hostPath:
             path: /sys
             type: Directory
+        {{- if .Values.selinux.enabled }}
+        - name: selinux-config
+          configMap:
+            name: {{ include "proxmox-csi-plugin.fullname" . }}-node-selinux
+        {{- end }}
       {{- with .Values.node.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

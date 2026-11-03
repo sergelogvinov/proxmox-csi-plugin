@@ -1,6 +1,6 @@
 # proxmox-csi-plugin
 
-![Version: 0.5.13](https://img.shields.io/badge/Version-0.5.13-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: v0.21.0](https://img.shields.io/badge/AppVersion-v0.21.0-informational?style=flat-square)
+![Version: 0.5.14](https://img.shields.io/badge/Version-0.5.14-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: v0.21.0](https://img.shields.io/badge/AppVersion-v0.21.0-informational?style=flat-square)
 
 Container Storage Interface plugin for Proxmox
 
@@ -107,6 +107,8 @@ helm upgrade -i --namespace=csi-proxmox -f proxmox-csi.yaml \
 | serviceAccount | object | `{"annotations":{},"create":true,"name":""}` | Pods Service Account. ref: https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/ |
 | provisionerName | string | `"csi.proxmox.sinextra.dev"` | CSI Driver provisioner name. Currently, cannot be customized. |
 | clusterID | string | `"kubernetes"` | Cluster name. Currently, cannot be customized. |
+| selinux.enabled | bool | `false` | Mount a minimal /etc/selinux/config into the node plugin. mount(8) (libmount/libselinux) treats SELinux as disabled when that file is missing, and then silently drops SELinux mount options such as context=. Needed for StorageClass mountOptions like `context=system_u:object_r:ephemeral_t:s0` (Talos) and for seLinuxMount below. Does not change the node's SELinux mode. |
+| selinux.seLinuxMount | bool | `false` | Set seLinuxMount in the CSIDriver: kubelet then mounts volumes with the pod's SELinux label (-o context=) instead of relabeling them. Requires selinux.enabled. ref: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#efficient-selinux-volume-relabeling |
 | logVerbosityLevel | int | `5` | Log verbosity level. See https://github.com/kubernetes/community/blob/master/contributors/devel/sig-instrumentation/logging.md for description of individual verbosity levels. |
 | timeout | string | `"3m"` | Connection timeout between sidecars. |
 | options.enableCapacity | bool | `true` | Enable or disable capacity feature. ref: https://github.com/kubernetes-csi/external-provisioner |

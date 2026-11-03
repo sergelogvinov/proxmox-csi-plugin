@@ -6,5 +6,11 @@ spec:
   attachRequired: true
   podInfoOnMount: true
   storageCapacity: true
+  {{- if .Values.selinux.seLinuxMount }}
+  {{- if not .Values.selinux.enabled }}
+  {{- fail "selinux.seLinuxMount requires selinux.enabled=true: without /etc/selinux/config in the node plugin, mount drops the context= option" }}
+  {{- end }}
+  seLinuxMount: true
+  {{- end }}
   volumeLifecycleModes:
   - Persistent
