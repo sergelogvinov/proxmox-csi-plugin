@@ -5,6 +5,18 @@
 
 * enable support for capmox ([6145c7d](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/6145c7d91cfc47c131ac453e2a90a915e5694b2b))
 
+## [0.22.0](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.21.0...v0.22.0) (2026-11-04)
+
+
+### Features
+
+* **chart:** add selinux options for node plugin and csidriver ([7a41210](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/7a4121055075bf3d18eb6bcbdf05e2999953d0c3))
+
+
+### Bug Fixes
+
+* decide volume attachment from the current vm config ([afcf430](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/afcf43088870c4efdac1d7c241e060244383105e)), closes [#664](https://github.com/sergelogvinov/proxmox-csi-plugin/issues/664)
+
 ## [0.21.0](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.20.0...v0.21.0) (2026-10-17)
 
 
