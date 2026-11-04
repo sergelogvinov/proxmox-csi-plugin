@@ -110,6 +110,11 @@ helm-unit: ## Helm Unit Tests
 	@helm lint charts/proxmox-csi-plugin
 	@helm template -f charts/proxmox-csi-plugin/ci/values.yaml proxmox-csi-plugin charts/proxmox-csi-plugin >/dev/null
 
+.PHONY: helm-prepare
+helm-prepare: ## Prepare Helm Chart for Release
+	sh hack/bump-chart-version.sh proxmox-csi-plugin false false true
+	yq -i '.appVersion = "$(TAG)"' charts/proxmox-csi-plugin/Chart.yaml
+
 .PHONY: helm-login
 helm-login: ## Helm Login
 	@echo "${HELM_TOKEN}" | helm registry login $(REGISTRY) --username $(USERNAME) --password-stdin

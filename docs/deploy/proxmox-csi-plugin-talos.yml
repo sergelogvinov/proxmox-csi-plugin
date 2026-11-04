@@ -17,10 +17,10 @@ metadata:
   name: proxmox-csi-plugin-controller
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.5.13
+    helm.sh/chart: proxmox-csi-plugin-0.5.15
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
-    app.kubernetes.io/version: "v0.21.0"
+    app.kubernetes.io/version: "v0.22.0"
     app.kubernetes.io/managed-by: Helm
 
 ---
@@ -31,10 +31,10 @@ metadata:
   name: proxmox-csi-plugin-node
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.5.13
+    helm.sh/chart: proxmox-csi-plugin-0.5.15
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
-    app.kubernetes.io/version: "v0.21.0"
+    app.kubernetes.io/version: "v0.22.0"
     app.kubernetes.io/managed-by: Helm
 
 ---
@@ -73,10 +73,10 @@ metadata:
   name: proxmox-csi-plugin-controller
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.5.13
+    helm.sh/chart: proxmox-csi-plugin-0.5.15
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
-    app.kubernetes.io/version: "v0.21.0"
+    app.kubernetes.io/version: "v0.22.0"
     app.kubernetes.io/managed-by: Helm
 rules:
   - apiGroups: [""]
@@ -124,10 +124,10 @@ metadata:
   name: proxmox-csi-plugin-node
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.5.13
+    helm.sh/chart: proxmox-csi-plugin-0.5.15
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
-    app.kubernetes.io/version: "v0.21.0"
+    app.kubernetes.io/version: "v0.22.0"
     app.kubernetes.io/managed-by: Helm
 rules:
   - apiGroups:
@@ -144,10 +144,10 @@ kind: ClusterRoleBinding
 metadata:
   name: proxmox-csi-plugin-controller
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.5.13
+    helm.sh/chart: proxmox-csi-plugin-0.5.15
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
-    app.kubernetes.io/version: "v0.21.0"
+    app.kubernetes.io/version: "v0.22.0"
     app.kubernetes.io/managed-by: Helm
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -181,10 +181,10 @@ metadata:
   name: proxmox-csi-plugin-controller
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.5.13
+    helm.sh/chart: proxmox-csi-plugin-0.5.15
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
-    app.kubernetes.io/version: "v0.21.0"
+    app.kubernetes.io/version: "v0.22.0"
     app.kubernetes.io/managed-by: Helm
 rules:
   - apiGroups: ["coordination.k8s.io"]
@@ -209,10 +209,10 @@ metadata:
   name: proxmox-csi-plugin-controller
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.5.13
+    helm.sh/chart: proxmox-csi-plugin-0.5.15
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
-    app.kubernetes.io/version: "v0.21.0"
+    app.kubernetes.io/version: "v0.22.0"
     app.kubernetes.io/managed-by: Helm
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -231,10 +231,10 @@ metadata:
   name: proxmox-csi-plugin-node
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.5.13
+    helm.sh/chart: proxmox-csi-plugin-0.5.15
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
-    app.kubernetes.io/version: "v0.21.0"
+    app.kubernetes.io/version: "v0.22.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   updateStrategy:
@@ -270,7 +270,7 @@ spec:
               - DAC_OVERRIDE
             seccompProfile:
               type: RuntimeDefault
-          image: "ghcr.io/sergelogvinov/proxmox-csi-node:v0.21.0"
+          image: "ghcr.io/sergelogvinov/proxmox-csi-node:v0.22.0"
           imagePullPolicy: IfNotPresent
           args:
             - "-v=5"
@@ -302,7 +302,7 @@ spec:
             readOnlyRootFilesystem: true
             seccompProfile:
               type: RuntimeDefault
-          image: "registry.k8s.io/sig-storage/csi-node-driver-registrar:v2.17.0"
+          image: "registry.k8s.io/sig-storage/csi-node-driver-registrar:v2.18.0"
           imagePullPolicy: IfNotPresent
           args:
             - "-v=5"
@@ -372,10 +372,10 @@ metadata:
   name: proxmox-csi-plugin-controller
   namespace: csi-proxmox
   labels:
-    helm.sh/chart: proxmox-csi-plugin-0.5.13
+    helm.sh/chart: proxmox-csi-plugin-0.5.15
     app.kubernetes.io/name: proxmox-csi-plugin
     app.kubernetes.io/instance: proxmox-csi-plugin
-    app.kubernetes.io/version: "v0.21.0"
+    app.kubernetes.io/version: "v0.22.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   replicas: 1
@@ -420,7 +420,7 @@ spec:
             readOnlyRootFilesystem: true
             seccompProfile:
               type: RuntimeDefault
-          image: "ghcr.io/sergelogvinov/proxmox-csi-controller:v0.21.0"
+          image: "ghcr.io/sergelogvinov/proxmox-csi-controller:v0.22.0"
           imagePullPolicy: IfNotPresent
           args:
             - "-v=5"
@@ -445,7 +445,7 @@ spec:
             readOnlyRootFilesystem: true
             seccompProfile:
               type: RuntimeDefault
-          image: "registry.k8s.io/sig-storage/csi-attacher:v4.12.0"
+          image: "registry.k8s.io/sig-storage/csi-attacher:v4.13.0"
           imagePullPolicy: IfNotPresent
           args:
             - "-v=5"
@@ -469,7 +469,7 @@ spec:
             readOnlyRootFilesystem: true
             seccompProfile:
               type: RuntimeDefault
-          image: "registry.k8s.io/sig-storage/csi-provisioner:v6.3.0"
+          image: "registry.k8s.io/sig-storage/csi-provisioner:v6.4.0"
           imagePullPolicy: IfNotPresent
           args:
             - "-v=5"
@@ -504,7 +504,7 @@ spec:
             readOnlyRootFilesystem: true
             seccompProfile:
               type: RuntimeDefault
-          image: "registry.k8s.io/sig-storage/csi-resizer:v2.2.1"
+          image: "registry.k8s.io/sig-storage/csi-resizer:v2.3.0"
           imagePullPolicy: IfNotPresent
           args:
             - "-v=5"
