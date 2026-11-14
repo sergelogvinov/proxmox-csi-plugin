@@ -29,6 +29,8 @@ import (
 	"github.com/sergelogvinov/go-proxmox-rest/cluster"
 	"github.com/sergelogvinov/go-proxmox-rest/cluster/replication"
 	"github.com/sergelogvinov/go-proxmox-rest/nodes/qemu"
+	"github.com/sergelogvinov/go-proxmox-rest/nodes/tasks"
+	"github.com/sergelogvinov/go-proxmox-rest/task"
 	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/config"
 	volume "github.com/sergelogvinov/proxmox-csi-plugin/pkg/utils/volume"
 
@@ -259,6 +261,105 @@ func WaitForShadowVMGone(ctx context.Context, cl *proxmoxrest.Client, vmID int, 
 	})
 	if err != nil {
 		return fmt.Errorf("shadow vm %d was not deleted: %w", vmID, err)
+	}
+
+	return nil
+}
+
+// ControllerVMID returns the controller VM ID (features.controllerVmID) from
+// cfg.ProxmoxConfig, falling back to config.DefaultControllerVMID the same
+// way the driver does when it is unset. Shadow VMs for replicated volumes
+// (pkg/csi/utils.go's prepareReplication) are allocated above this ID.
+func ControllerVMID(cfg Config) (int, error) {
+	cc, err := config.ReadCloudConfigFromFile(cfg.ProxmoxConfig)
+	if err != nil {
+		return 0, fmt.Errorf("failed to read proxmox cloud config %s: %w", cfg.ProxmoxConfig, err)
+	}
+
+	return cc.Features.ControllerVMID, nil
+}
+
+// FindClustersByZone returns the client of every configured cluster that
+// has a Proxmox node named zone, keyed by region. Node names are only
+// unique within a cluster, so more than one region can match.
+func FindClustersByZone(ctx context.Context, pool *pxpool.ProxmoxPool, zone string) (map[string]*proxmoxrest.Client, error) {
+	clusters := map[string]*proxmoxrest.Client{}
+
+	for _, region := range pool.List() {
+		cl, err := pool.Get(region)
+		if err != nil {
+			return nil, err
+		}
+
+		nodes, err := cl.Cluster().Resources().List(ctx, cluster.ListFilter{
+			Type: cluster.ResourceTypeNode,
+			Match: func(rs *cluster.Resource) (bool, error) {
+				return rs.Node == zone, nil
+			},
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		if len(nodes) > 0 {
+			clusters[region] = cl
+		}
+	}
+
+	if len(clusters) == 0 {
+		return nil, fmt.Errorf("zone %s not found in any configured proxmox cluster", zone)
+	}
+
+	return clusters, nil
+}
+
+// GuestExists reports whether any guest (VM or container) in the cluster
+// holds the given VMID.
+func GuestExists(ctx context.Context, cl *proxmoxrest.Client, vmID int) (bool, error) {
+	resources, err := cl.Cluster().Resources().List(ctx, cluster.ListFilter{
+		Type: cluster.ResourceTypeVM,
+		VMID: vmID,
+	})
+	if err != nil {
+		return false, err
+	}
+
+	return len(resources) > 0, nil
+}
+
+// CreateStoppedVM submits the creation of a minimal diskless VM with the
+// given id and name on node, left stopped - just enough to occupy the VMID.
+// It returns once Proxmox has accepted the request: from then on the id is
+// the caller's to clean up, even if the returned task later fails. Wait for
+// it with WaitForTask.
+func CreateStoppedVM(ctx context.Context, cl *proxmoxrest.Client, node string, vmID int, name string) (*task.Task, error) {
+	t, err := cl.Nodes(node).Qemu().Create(ctx, &qemu.CreateOptions{
+		Name:   name,
+		Cores:  new(1),
+		Memory: &qemu.Memory{Current: new(128)},
+		VMID:   vmID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create vm %d on node %s: %w", vmID, node, err)
+	}
+
+	return t, nil
+}
+
+// WaitForTask waits for a Proxmox task to finish successfully.
+func WaitForTask(ctx context.Context, t *task.Task, timeout time.Duration) error {
+	return t.Wait(ctx, &tasks.WaitOptions{Timeout: timeout})
+}
+
+// DeleteVM destroys the stopped VM with the given id on node.
+func DeleteVM(ctx context.Context, cl *proxmoxrest.Client, node string, vmID int, timeout time.Duration) error {
+	task, err := cl.Nodes(node).Qemu().Delete(ctx, vmID, &qemu.DeleteOptions{Purge: true})
+	if err != nil {
+		return fmt.Errorf("failed to delete vm %d on node %s: %w", vmID, node, err)
+	}
+
+	if err := task.Wait(ctx, &tasks.WaitOptions{Timeout: timeout}); err != nil {
+		return fmt.Errorf("unable to delete vm %d on node %s: %w", vmID, node, err)
 	}
 
 	return nil

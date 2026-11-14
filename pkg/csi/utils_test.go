@@ -20,7 +20,11 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
+	"github.com/sergelogvinov/go-proxmox-rest/cluster"
+	"github.com/sergelogvinov/go-proxmox-rest/fakeapi"
+	"github.com/sergelogvinov/go-proxmox-rest/nodes/lxc"
 	"github.com/sergelogvinov/go-proxmox-rest/nodes/qemu"
 )
 
@@ -63,4 +67,102 @@ func TestDriveOptions(t *testing.T) {
 	assert.Equal(t, new(false), drive.Backup)
 	assert.Equal(t, new(true), drive.IOThread)
 	assert.Equal(t, new(100), drive.IOPSRD)
+}
+
+func TestPrepareReplication(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		msg        string
+		vms        map[int]string
+		containers []int
+		failNextID bool
+		expectedID int
+		expectErr  bool
+		expectNew  bool
+	}{
+		{
+			msg:        "FirstShadowVM",
+			vms:        map[int]string{9999: "controller"},
+			expectedID: 10000,
+			expectNew:  true,
+		},
+		{
+			msg:        "NextIDTaken",
+			vms:        map[int]string{9999: "controller", 10000: "pvc-other"},
+			expectedID: 10001,
+			expectNew:  true,
+		},
+		{
+			msg:        "SkipsTakenIDsUpToGap",
+			vms:        map[int]string{10000: "pvc-a", 10001: "pvc-b", 10003: "pvc-c"},
+			expectedID: 10002,
+			expectNew:  true,
+		},
+		{
+			msg:        "SkipsContainers",
+			vms:        map[int]string{10000: "pvc-a"},
+			containers: []int{10001},
+			expectedID: 10002,
+			expectNew:  true,
+		},
+		{
+			msg:        "ExistingShadowVM",
+			vms:        map[int]string{10000: "pvc-other", 10005: "pvc-test"},
+			failNextID: true,
+			expectedID: 10005,
+		},
+		{
+			msg:        "NextIDRejected",
+			vms:        map[int]string{10000: "pvc-other"},
+			failNextID: true,
+			expectErr:  true,
+		},
+	}
+
+	for _, testCase := range tests {
+		t.Run(testCase.msg, func(t *testing.T) {
+			t.Parallel()
+
+			fake := fakeapi.NewCluster(t, fakeapi.WithNodes("pve-1"))
+			node := fake.Node("pve-1")
+
+			for id, name := range testCase.vms {
+				node.AddVM(id, &qemu.Config{Name: name})
+			}
+
+			for _, id := range testCase.containers {
+				node.AddContainer(id, &lxc.Config{Hostname: "ct"})
+			}
+
+			if testCase.failNextID {
+				fake.FailRequests("GET /cluster/nextid")
+			}
+
+			cl := fake.Client(t)
+
+			id, err := prepareReplication(t.Context(), cl, "pve-1", "pvc-test", 9999)
+			if testCase.expectErr {
+				require.Error(t, err)
+
+				resources, err := cl.Cluster().Resources().List(t.Context(), cluster.ListFilter{Type: cluster.ResourceTypeVM})
+				require.NoError(t, err)
+				assert.Len(t, resources, len(testCase.vms)+len(testCase.containers), "no vm should be created")
+
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, testCase.expectedID, id)
+
+			resources, err := cl.Cluster().Resources().List(t.Context(), cluster.ListFilter{Type: cluster.ResourceTypeVM, VMID: id})
+			require.NoError(t, err)
+			require.Len(t, resources, 1)
+			assert.Equal(t, "pvc-test", resources[0].Name)
+
+			if testCase.expectNew {
+				assert.NotContains(t, testCase.vms, id)
+			}
+		})
+	}
 }

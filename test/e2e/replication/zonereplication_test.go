@@ -88,6 +88,65 @@ func TestZoneReplication(t *testing.T) {
 		"storageclass %s parameters.replicateZones must list two distinct zones", f.Config.ReplicatedStorageClass)
 	f.Logf("storageclass %s replicates between zones %v", f.Config.ReplicatedStorageClass, zones)
 
+	// 1a. Occupy VMID controllerVmID+1 with a stopped VM, so the shadow VM
+	// prepareReplication (pkg/csi/utils.go) creates for this PVC has to skip
+	// over a taken ID - the state every cluster is in after its first
+	// replicated volume (issue #689).
+	controllerVMID, err := framework.ControllerVMID(f.Config)
+	require.NoError(err, "failed to read controller vm id from %s", f.Config.ProxmoxConfig)
+
+	blockerVMID := controllerVMID + 1
+
+	// Node names are only unique within a cluster, and the PVC's region is
+	// not known until it is provisioned - block the id in every configured
+	// cluster that has the zone, so whichever one provisions it has to skip.
+	ctx, cancel = f.Context()
+	blockerClusters, err := framework.FindClustersByZone(ctx, pxPool, zones[0])
+
+	cancel()
+	require.NoError(err, "failed to find proxmox cluster for zone %s", zones[0])
+
+	for region, blockerCl := range blockerClusters {
+		ctx, cancel := f.Context()
+		exists, err := framework.GuestExists(ctx, blockerCl, blockerVMID)
+
+		cancel()
+		require.NoError(err, "failed to check whether vm %d exists in region %s", blockerVMID, region)
+
+		if exists {
+			f.Logf("vm %d already exists in region %s, not creating a blocker vm", blockerVMID, region)
+
+			continue
+		}
+
+		done := f.Step("creating stopped blocker vm %d in region %s zone %s", blockerVMID, region, zones[0])
+		ctx, cancel = f.Context()
+		task, err := framework.CreateStoppedVM(ctx, blockerCl, zones[0], blockerVMID, "e2e-replication-blocker")
+
+		cancel()
+		require.NoError(err, "failed to create blocker vm %d in region %s", blockerVMID, region)
+
+		// Proxmox accepted the creation, so the id is ours to remove from
+		// here on - even if the task itself fails or times out below.
+		t.Cleanup(func() {
+			f.Logf("deleting blocker vm %d in region %s", blockerVMID, region)
+
+			ctx, cancel := f.Context()
+			defer cancel()
+
+			if err := framework.DeleteVM(ctx, blockerCl, zones[0], blockerVMID, f.Config.Timeout); err != nil {
+				f.Logf("failed to delete blocker vm %d in region %s: %v", blockerVMID, region, err)
+			}
+		})
+
+		ctx, cancel = f.Context()
+		err = framework.WaitForTask(ctx, task, f.Config.Timeout)
+
+		cancel()
+		done()
+		require.NoError(err, "failed to create blocker vm %d in region %s", blockerVMID, region)
+	}
+
 	// 2. Provision a PVC on it and see which of the two zones it landed in.
 	f.Logf("creating statefulset %s (storageClass=%s size=%s replicas=1)", stsName, f.Config.ReplicatedStorageClass, size)
 
@@ -163,6 +222,8 @@ func TestZoneReplication(t *testing.T) {
 
 	vmID, err := strconv.Atoi(vol.VMID())
 	require.NoError(err, "failed to parse shadow vm id from pv %s volume handle %q", pv.Name, pv.Spec.CSI.VolumeHandle)
+	require.Greater(vmID, controllerVMID, "shadow vm id %d is not above the controller vm id %d", vmID, controllerVMID)
+	require.NotEqual(blockerVMID, vmID, "shadow vm id %d collides with the blocker vm id", vmID)
 
 	cl, err := pxPool.Get(vol.Region())
 	require.NoError(err, "failed to get proxmox cluster client for region %s", vol.Region())

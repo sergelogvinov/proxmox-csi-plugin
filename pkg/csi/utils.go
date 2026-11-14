@@ -389,21 +389,32 @@ func driveOptions(drive qemu.Drive, options map[string]string) qemu.Drive {
 }
 
 func prepareReplication(ctx context.Context, cl *proxmoxrest.Client, node string, name string, vmID int) (int, error) {
-	resources, err := cl.Cluster().Resources().List(ctx, pxcluster.ListFilter{
-		Type: pxcluster.ResourceTypeVM,
-		Match: func(rs *pxcluster.Resource) (bool, error) {
-			return rs.Name == name, nil
-		},
-	})
+	resources, err := cl.Cluster().Resources().List(ctx, pxcluster.ListFilter{Type: pxcluster.ResourceTypeVM})
 	if err != nil {
 		return 0, err
 	}
 
-	if len(resources) > 0 {
-		return resources[0].VMID, nil
+	used := make(map[int]struct{}, len(resources))
+
+	for _, rs := range resources {
+		if rs.Name == name {
+			return rs.VMID, nil
+		}
+
+		used[rs.VMID] = struct{}{}
 	}
 
-	id, err := cl.Cluster().NextID(ctx, vmID+1)
+	// Proxmox's nextid only checks that the given id is free, it does not search upwards.
+	id := vmID + 1
+	for {
+		if _, ok := used[id]; !ok {
+			break
+		}
+
+		id++
+	}
+
+	id, err = cl.Cluster().NextID(ctx, id)
 	if err != nil {
 		return 0, err
 	}
