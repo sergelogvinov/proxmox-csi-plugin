@@ -5,6 +5,14 @@
 
 * enable support for capmox ([6145c7d](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/6145c7d91cfc47c131ac453e2a90a915e5694b2b))
 
+## [0.22.1](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.22.0...v0.22.1) (2026-11-15)
+
+
+### Bug Fixes
+
+* allocate shadow vm id above taken ids for replicated volumes ([b49f500](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/b49f500e2b203247581debc394a4d516e4b9eaf2)), closes [#689](https://github.com/sergelogvinov/proxmox-csi-plugin/issues/689)
+* do not format a device that is not ready in NodeStageVolume ([fbe78d6](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/fbe78d655088875551c24bed6fe9280570652b27)), closes [#688](https://github.com/sergelogvinov/proxmox-csi-plugin/issues/688)
+
 ## [0.22.0](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.21.0...v0.22.0) (2026-11-04)
 
 
