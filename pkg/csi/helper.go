@@ -18,6 +18,7 @@ package csi
 
 import (
 	"fmt"
+	"io"
 	"net/url"
 	"os"
 	"path"
@@ -25,6 +26,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	proto "github.com/container-storage-interface/spec/lib/go/csi"
@@ -244,6 +246,54 @@ func getDevicePath(deviceContext map[string]string) (string, error) {
 	}
 
 	return devicePath, nil
+}
+
+// waitForDeviceReady waits until the block device reports a non-zero size and its first sector is readable.
+// A hot-plugged disk can be visible in sysfs before it accepts I/O, and blkid treats such a device as unformatted.
+func waitForDeviceReady(devicePath string, timeout time.Duration) error {
+	var lastErr error
+
+	err := retry.Constant(timeout, retry.WithUnits(100*time.Millisecond)).Retry(func() error {
+		if lastErr = checkDeviceReady(devicePath); lastErr != nil {
+			return retry.ExpectedError(lastErr)
+		}
+
+		return nil
+	})
+	if err != nil {
+		if retry.IsTimeout(err) && lastErr != nil {
+			return fmt.Errorf("device %s is not ready: %w", devicePath, lastErr)
+		}
+
+		return fmt.Errorf("device %s is not ready: %w", devicePath, err)
+	}
+
+	return nil
+}
+
+func checkDeviceReady(devicePath string) error {
+	f, err := os.OpenFile(devicePath, os.O_RDONLY|syscall.O_CLOEXEC, 0)
+	if err != nil {
+		return fmt.Errorf("failed to open device: %w", err)
+	}
+
+	defer f.Close() //nolint:errcheck
+
+	size, err := f.Seek(0, io.SeekEnd)
+	if err != nil {
+		return fmt.Errorf("failed to get device size: %w", err)
+	}
+
+	if size == 0 {
+		return fmt.Errorf("device size is zero")
+	}
+
+	sector := make([]byte, 512)
+	if _, err := f.ReadAt(sector, 0); err != nil {
+		return fmt.Errorf("failed to read first sector: %w", err)
+	}
+
+	return nil
 }
 
 // RoundUpSizeBytes calculates how many allocation units are needed to accommodate

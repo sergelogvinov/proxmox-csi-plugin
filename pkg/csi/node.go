@@ -64,6 +64,9 @@ const (
 	// VolumesPerNodeHardLimit is the technical limitation of the number of volumes that can be attached to a single node.
 	// This is currently limited by the QEMU limit of 30 iscsi volumes, see `man qm` for details.`
 	VolumesPerNodeHardLimit = 30
+
+	// deviceReadyTimeout is how long NodeStageVolume waits for a hot-plugged device to accept I/O.
+	deviceReadyTimeout = 10 * time.Second
 )
 
 // NodeService is the node service for the CSI driver
@@ -75,14 +78,17 @@ type NodeService struct {
 
 	Mount       mount.IMount
 	volumeLocks sync.Mutex
+
+	deviceReadyTimeout time.Duration
 }
 
 // NewNodeService returns a new NodeService
 func NewNodeService(nodeID string, clientSet kubernetes.Interface) *NodeService {
 	return &NodeService{
-		nodeID:  nodeID,
-		kclient: clientSet,
-		Mount:   mount.GetMountProvider(),
+		nodeID:             nodeID,
+		kclient:            clientSet,
+		Mount:              mount.GetMountProvider(),
+		deviceReadyTimeout: deviceReadyTimeout,
 	}
 }
 
@@ -130,6 +136,14 @@ func (n *NodeService) NodeStageVolume(_ context.Context, request *csi.NodeStageV
 		return &csi.NodeStageVolumeResponse{}, nil
 	}
 
+	// The device must be readable before mount-utils probes it with blkid,
+	// otherwise a failed probe is reported as an unformatted disk and the disk is formatted.
+	if err := waitForDeviceReady(devicePath, n.deviceReadyTimeout); err != nil {
+		klog.ErrorS(err, "NodeStageVolume: device is not ready", "device", devicePath)
+
+		return nil, status.Error(codes.Unavailable, err.Error())
+	}
+
 	klog.V(5).InfoS("NodeStageVolume: mount device", "device", devicePath, "path", stagingTarget)
 
 	n.volumeLocks.Lock()
@@ -145,6 +159,13 @@ func (n *NodeService) NodeStageVolume(_ context.Context, request *csi.NodeStageV
 	}
 
 	if notMnt {
+		// Check the device again under the lock, it could have become unreadable while waiting for the lock.
+		if err := checkDeviceReady(devicePath); err != nil {
+			klog.ErrorS(err, "NodeStageVolume: device is not ready", "device", devicePath)
+
+			return nil, status.Errorf(codes.Unavailable, "device %s is not ready: %v", devicePath, err)
+		}
+
 		options := []string{}
 		fsType := FSTypeExt4
 
@@ -165,6 +186,8 @@ func (n *NodeService) NodeStageVolume(_ context.Context, request *csi.NodeStageV
 			sb, err := filesystem.Probe(devicePath) //nolint:govet
 			if err != nil {
 				klog.ErrorS(err, "NodeStageVolume: failed to probe filesystem for device", "device", devicePath)
+
+				return nil, status.Errorf(codes.Internal, "failed to probe filesystem for device %s: %v", devicePath, err)
 			}
 
 			key := encryption.NewKey(encryption.AnyKeyslot, []byte(passphraseKey))
