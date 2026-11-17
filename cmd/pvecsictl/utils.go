@@ -32,6 +32,21 @@ import (
 	clientkubernetes "k8s.io/client-go/kubernetes"
 )
 
+// Binding annotations the PV controller sets on a bound claim. A recreated claim must not carry
+// them over: with bind-completed, the controller treats it as already bound and marks it Lost,
+// because its PV is missing or reserved without the new claim's UID.
+const (
+	annBindCompleted     = "pv.kubernetes.io/bind-completed"
+	annBoundByController = "pv.kubernetes.io/bound-by-controller"
+)
+
+// clearClaimBinding removes the binding annotations from a claim that is about to be recreated,
+// so the PV controller binds it to its reserved PV as a new claim.
+func clearClaimBinding(pvc *corev1.PersistentVolumeClaim) {
+	delete(pvc.ObjectMeta.Annotations, annBindCompleted)
+	delete(pvc.ObjectMeta.Annotations, annBoundByController)
+}
+
 func cordoneNodeWithPVs(
 	ctx context.Context,
 	kclient *clientkubernetes.Clientset,
@@ -63,6 +78,7 @@ func replacePVTopology(
 	newPVC.ObjectMeta.ResourceVersion = ""
 	delete(newPVC.ObjectMeta.Annotations, csi.DriverName+"/migrate")
 	delete(newPVC.ObjectMeta.Annotations, csi.DriverName+"/migrate-node")
+	clearClaimBinding(newPVC)
 	newPVC.ObjectMeta.DeletionTimestamp = nil
 	newPVC.ObjectMeta.DeletionGracePeriodSeconds = nil
 	newPVC.Status = corev1.PersistentVolumeClaimStatus{}
@@ -151,6 +167,7 @@ func renamePVC(
 ) error {
 	newPVC := pvc.DeepCopy()
 	newPVC.ObjectMeta.Name = newName
+	clearClaimBinding(newPVC)
 	newPVC.ObjectMeta.UID = ""
 	newPVC.ObjectMeta.ResourceVersion = ""
 	newPVC.Status = corev1.PersistentVolumeClaimStatus{}
@@ -207,6 +224,7 @@ func swapPVC(
 ) error {
 	newSrcPVC := srcPVC.DeepCopy()
 	newSrcPVC.ObjectMeta.Name = dstPVC.ObjectMeta.Name
+	clearClaimBinding(newSrcPVC)
 	newSrcPVC.ObjectMeta.UID = ""
 	newSrcPVC.ObjectMeta.ResourceVersion = ""
 	newSrcPVC.Status = corev1.PersistentVolumeClaimStatus{}
@@ -216,6 +234,7 @@ func swapPVC(
 
 	newDstPVC := dstPVC.DeepCopy()
 	newDstPVC.ObjectMeta.Name = srcPVC.ObjectMeta.Name
+	clearClaimBinding(newDstPVC)
 	newDstPVC.ObjectMeta.UID = ""
 	newDstPVC.ObjectMeta.ResourceVersion = ""
 	newDstPVC.Status = corev1.PersistentVolumeClaimStatus{}
