@@ -10,7 +10,7 @@ The commands and flags may change in the future.
 It works on macOS (Intel/ARM) and Linux (amd64/arm64)
 
 ```shell
-brew install sergelogvinov/tap/pvecsictl
+brew install --cask sergelogvinov/tap/pvecsictl
 ```
 
 RBAC permissions required for the tool
@@ -34,8 +34,8 @@ rules:
     verbs: ["get", "list", "watch", "create", "patch", "delete"]
   - apiGroups: [""]
     resources: ["persistentvolumeclaims"]
-    verbs: ["get", "list", "watch", "create", "patch", "delete"]
-  # Node cordoning/uncordoning
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # Resolve Proxmox VMs of nodes (migrate), cordon nodes (rename, swap)
   - apiGroups: [""]
     resources: ["nodes"]
     verbs: ["get", "list", "watch", "patch"]
@@ -126,15 +126,15 @@ you can force the process by adding the `--force` flag
 ```shell
 pvecsictl migrate --config=hack/cloud-config.yaml -n default storage-test-0 hvm-2 --force
 
-INFO persistentvolumeclaims is using by pods: test-0 on node kube-store-11, trying to force migration
-INFO cordoning nodes: kube-11,kube-12,kube-21,kube-22,kube-store-11,kube-store-21
-INFO terminated pods: test-0
+INFO locking persistentvolumeclaims storage-test-0
+INFO persistentvolumeclaims is using by pod test-0 on node kube-store-11, terminating it
 INFO waiting pods: test-0
 ...
 INFO waiting pods: test-0
+INFO waiting for persistentvolumeclaims storage-test-0 to be released
+INFO waiting for disk vm-9999-pvc-0d79713b-6d0b-41e5-b387-42af370d083f to detach from kubernetes node kube-store-11 (Proxmox VMID 1011)
 INFO moving disk vm-9999-pvc-0d79713b-6d0b-41e5-b387-42af370d083f to proxmox node hvm-2
 INFO replacing persistentvolume topology
-INFO uncordoning nodes: kube-11,kube-12,kube-21,kube-22,kube-store-11,kube-store-21
 INFO persistentvolumeclaims storage-test-0 has been migrated to proxmox node hvm-2
 ```
 
@@ -171,7 +171,25 @@ test-0   1/1     Running            0          85s     10.32.11.96    kube-21   
 
 Here we've migrated the StatefulSet Pod with PVC to another node.
 Force mode helps to migrate StatefulSet deployment to another node without scaling down all replicas.
-It cordoned all nodes which have csi-proxmox plugin. Migrated the disk to another node and un-cordoned all nodes.
+
+How the migration works:
+
+* The PersistentVolume is switched to the `Retain` reclaim policy, so the disk is never deleted.
+  The original policy is recorded in the `csi.proxmox.sinextra.dev/reclaim-policy` annotation and restored on the recreated PersistentVolume.
+* The PersistentVolumeClaim is locked: it is deleted while being held by the `csi.proxmox.sinextra.dev/migrate` finalizer, so it stays `Terminating` for the whole migration.
+  Kubernetes does not schedule pods whose PersistentVolumeClaim is being deleted, so a recreated pod stays `Pending`, while all other workloads keep scheduling normally.
+* With `--force`, the pods using the PersistentVolumeClaim are deleted.
+* The disk is moved only after Kubernetes has released the PersistentVolumeClaim (the `kubernetes.io/pvc-protection` finalizer is gone),
+  at which point no pod can start with it anymore, and the disk is detached from every node it was used on.
+* The PersistentVolumeClaim and PersistentVolume are recreated with the new node affinity, and the `Pending` pod starts on a node in the new zone.
+
+If a pod starts using the PersistentVolumeClaim while it is being locked without `--force`, the migration stops and leaves it locked; re-run the command with `--force` to continue.
+
+If the migration fails before the disk move starts, `pvecsictl` tries to recreate the PersistentVolumeClaim on the original node.
+This is skipped while a pod still uses the PersistentVolumeClaim, for example if a pod could not be deleted, and the PersistentVolumeClaim is left locked instead.
+If it fails later, the PersistentVolumeClaim is left `Terminating` with the finalizer and the PersistentVolume is retained for manual recovery.
+If it fails while the PersistentVolumeClaim and PersistentVolume are being recreated, the disk is retained and `pvecsictl` prints their manifests,
+so they can be recreated with `kubectl apply`.
 
 ### Rename
 

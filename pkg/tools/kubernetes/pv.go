@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -28,6 +29,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
 	clientkubernetes "k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/util/retry"
 )
 
 // PVCResources returns the PersistentVolumeClaim and PersistentVolume resources.
@@ -52,10 +54,28 @@ func PVCResources(ctx context.Context, clientset *clientkubernetes.Clientset, na
 // (e.g. still running init containers or ContainerCreating) may already be using the
 // volume, so it must still be counted.
 func PVCPodUsage(ctx context.Context, clientset *clientkubernetes.Clientset, namespace, pvcName string) (pods []string, node string, err error) {
+	podList, err := PVCPods(ctx, clientset, namespace, pvcName)
+	if err != nil {
+		return nil, "", err
+	}
+
+	for _, pod := range podList {
+		pods = append(pods, pod.Name)
+		node = pod.Spec.NodeName
+	}
+
+	return pods, node, nil
+}
+
+// PVCPods returns the pods that use the specified PersistentVolumeClaim, with the same
+// selection as PVCPodUsage.
+func PVCPods(ctx context.Context, clientset *clientkubernetes.Clientset, namespace, pvcName string) ([]corev1.Pod, error) {
 	podList, err := clientset.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{})
 	if err != nil {
-		return nil, "", fmt.Errorf("failed to list pods: %v", err)
+		return nil, fmt.Errorf("failed to list pods: %v", err)
 	}
+
+	pods := []corev1.Pod{}
 
 	for _, pod := range podList.Items {
 		if pod.Status.Phase == corev1.PodPending && pod.Spec.NodeName == "" {
@@ -64,15 +84,14 @@ func PVCPodUsage(ctx context.Context, clientset *clientkubernetes.Clientset, nam
 
 		for _, volume := range pod.Spec.Volumes {
 			if volume.PersistentVolumeClaim != nil && volume.PersistentVolumeClaim.ClaimName == pvcName {
-				pods = append(pods, pod.Name)
-				node = pod.Spec.NodeName
+				pods = append(pods, pod)
 
 				break
 			}
 		}
 	}
 
-	return pods, node, nil
+	return pods, nil
 }
 
 // PVCCreateOrUpdate creates or updates the specified PersistentVolumeClaim resource.
@@ -119,16 +138,99 @@ func PVReserveForClaim(ctx context.Context, clientset *clientkubernetes.Clientse
 	return nil
 }
 
+// PVSetReclaimPolicy sets the reclaim policy of the specified PersistentVolume.
+func PVSetReclaimPolicy(ctx context.Context, clientset *clientkubernetes.Clientset, pvName string, policy corev1.PersistentVolumeReclaimPolicy) error {
+	patch := []byte(`{"spec":{"persistentVolumeReclaimPolicy":"` + policy + `"}}`)
+
+	if _, err := clientset.CoreV1().PersistentVolumes().Patch(ctx, pvName, types.MergePatchType, patch, metav1.PatchOptions{}); err != nil {
+		return fmt.Errorf("failed to set PersistentVolume %s reclaim policy to %s: %v", pvName, policy, err)
+	}
+
+	return nil
+}
+
+// PVCAddFinalizer adds the finalizer to the specified PersistentVolumeClaim if it is not present yet.
+// It fails if the claim is no longer the object with the given UID.
+func PVCAddFinalizer(ctx context.Context, clientset *clientkubernetes.Clientset, namespace, pvcName string, uid types.UID, finalizer string) error {
+	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		pvc, err := clientset.CoreV1().PersistentVolumeClaims(namespace).Get(ctx, pvcName, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+
+		if pvc.UID != uid {
+			return fmt.Errorf("PersistentVolumeClaim %s was replaced, uid %s instead of %s", pvcName, pvc.UID, uid)
+		}
+
+		if slices.Contains(pvc.Finalizers, finalizer) {
+			return nil
+		}
+
+		pvc.Finalizers = append(pvc.Finalizers, finalizer)
+
+		_, err = clientset.CoreV1().PersistentVolumeClaims(namespace).Update(ctx, pvc, metav1.UpdateOptions{})
+
+		return err
+	})
+	if err != nil {
+		return fmt.Errorf("failed to add finalizer %s to PersistentVolumeClaim %s: %v", finalizer, pvcName, err)
+	}
+
+	return nil
+}
+
+// PVCRemoveFinalizer removes the finalizer from the specified PersistentVolumeClaim.
+// A claim that no longer exists, or that is no longer the object with the given UID, is
+// left untouched and is not an error.
+func PVCRemoveFinalizer(ctx context.Context, clientset *clientkubernetes.Clientset, namespace, pvcName string, uid types.UID, finalizer string) error {
+	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		pvc, err := clientset.CoreV1().PersistentVolumeClaims(namespace).Get(ctx, pvcName, metav1.GetOptions{})
+		if err != nil {
+			if errors.IsNotFound(err) {
+				return nil
+			}
+
+			return err
+		}
+
+		if pvc.UID != uid || !slices.Contains(pvc.Finalizers, finalizer) {
+			return nil
+		}
+
+		pvc.Finalizers = slices.DeleteFunc(pvc.Finalizers, func(f string) bool { return f == finalizer })
+
+		_, err = clientset.CoreV1().PersistentVolumeClaims(namespace).Update(ctx, pvc, metav1.UpdateOptions{})
+
+		return err
+	})
+	if err != nil {
+		return fmt.Errorf("failed to remove finalizer %s from PersistentVolumeClaim %s: %v", finalizer, pvcName, err)
+	}
+
+	return nil
+}
+
 // PVCWaitDelete waits for the specified PersistentVolumeClaim to be deleted.
 // Callers that are about to create a new claim with a name that was just deleted (e.g. during
 // a swap) must wait for the old object to be fully gone first: a finalizer can keep it around
 // after the delete call returns, and creating a same-named claim while it still exists fails.
-func PVCWaitDelete(ctx context.Context, clientset *clientkubernetes.Clientset, namespace, pvcName string) error {
-	if _, err := clientset.CoreV1().PersistentVolumeClaims(namespace).Get(ctx, pvcName, metav1.GetOptions{}); err != nil {
-		if errors.IsNotFound(err) {
-			return nil
+// With a non-empty uid, a claim with the same name but another UID counts as deleted: the
+// object that was waited for is gone, and the caller is left to handle the name collision.
+func PVCWaitDelete(ctx context.Context, clientset *clientkubernetes.Clientset, namespace, pvcName string, uid types.UID) error {
+	gone := func() (bool, error) {
+		pvc, err := clientset.CoreV1().PersistentVolumeClaims(namespace).Get(ctx, pvcName, metav1.GetOptions{})
+		if err != nil {
+			if errors.IsNotFound(err) {
+				return true, nil
+			}
+
+			return false, err
 		}
 
+		return uid != "" && pvc.UID != uid, nil
+	}
+
+	if done, err := gone(); err != nil || done {
 		return err
 	}
 
@@ -157,10 +259,8 @@ func PVCWaitDelete(ctx context.Context, clientset *clientkubernetes.Clientset, n
 			}
 
 		case <-ticker.C:
-			if _, err := clientset.CoreV1().PersistentVolumeClaims(namespace).Get(ctx, pvcName, metav1.GetOptions{}); err != nil {
-				if errors.IsNotFound(err) {
-					return nil
-				}
+			if done, _ := gone(); done { //nolint: errcheck
+				return nil
 			}
 
 		case <-timeout:

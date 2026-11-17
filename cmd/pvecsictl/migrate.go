@@ -18,7 +18,9 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -32,6 +34,8 @@ import (
 	volume "github.com/sergelogvinov/proxmox-csi-plugin/pkg/utils/volume"
 
 	rbacv1 "k8s.io/api/authorization/v1"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clientkubernetes "k8s.io/client-go/kubernetes"
 )
@@ -114,113 +118,93 @@ func (c *migrateCmd) runMigration(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to get Proxmox cluster: %v", err)
 	}
 
+	// Fail fast, before anything is changed. The authoritative check follows the lock.
 	pods, vmName, err := tools.PVCPodUsage(ctx, c.kclient, c.namespace, pvc)
 	if err != nil {
 		return fmt.Errorf("failed to find pods using pvc: %v", err)
 	}
 
-	// Resolve the Proxmox VM ID before the force-drain path so we capture
-	// the node while it is still reachable. Uses providerID first, then
-	// falls back to the proxmox.sinextra.dev/instance-id annotation.
-	var vmID int
-
-	if vmName != "" {
-		kubeNode, nodeErr := c.kclient.CoreV1().Nodes().Get(ctx, vmName, metav1.GetOptions{})
-		if nodeErr != nil {
-			return fmt.Errorf("failed to get kubernetes node %s: %v", vmName, nodeErr)
-		}
-
-		vmID, nodeErr = csi.ProxmoxVMIDbyNode(kubeNode)
-		if nodeErr != nil {
-			return fmt.Errorf("failed to resolve Proxmox VMID from node %s: %v", vmName, nodeErr)
-		}
-
-		logger.Infof("resolved kubernetes node %s to Proxmox VMID %d", vmName, vmID)
+	if len(pods) > 0 && !force {
+		return fmt.Errorf("persistentvolumeclaims is using by pods: %s on node %s, cannot move volume", strings.Join(pods, ","), vmName)
 	}
 
-	cordonedNodes := []string{}
-	unsafeToUncordon := false
+	locked := true
+	unsafeToRestore := false
+	diskMoved := false
 
 	defer func() {
-		if len(cordonedNodes) == 0 {
+		if !locked {
 			return
 		}
 
-		if unsafeToUncordon {
-			logger.Errorf("migration failed after storage changes started, leaving nodes cordoned for manual recovery: %s", strings.Join(cordonedNodes, ","))
-
-			return
-		}
-
-		logger.Infof("uncordoning nodes: %s", strings.Join(cordonedNodes, ","))
-
-		cleanupCtx, cleanupCancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Minute)
 		defer cleanupCancel()
 
-		if err := tools.UncondonNodes(cleanupCtx, c.kclient, cordonedNodes); err != nil {
-			logger.Errorf("failed to uncordon nodes: %v", err)
+		if !unsafeToRestore {
+			logger.Infof("restoring persistentvolumeclaims %s on proxmox node %s", pvc, vol.Node())
+
+			err := c.restorePVC(cleanupCtx, kubePVC, kubePV, vol)
+			if err == nil {
+				return
+			}
+
+			logger.Errorf("failed to restore persistentvolumeclaims: %v", err)
 		}
+
+		// The claim is recreated for wherever the disk is at the point of failure.
+		target := vol.Node()
+		if diskMoved {
+			target = node
+		}
+
+		c.reportRecovery(cleanupCtx, kubePVC, kubePV, vol, target)
 	}()
 
-	if len(pods) > 0 {
-		if force {
-			logger.Infof("persistentvolumeclaims is using by pods: %s on node %s, trying to force migration\n", strings.Join(pods, ","), vmName)
+	logger.Infof("locking persistentvolumeclaims %s", pvc)
 
-			var csiNodes []string
-
-			csiNodes, err = tools.CSINodes(ctx, c.kclient, csi.DriverName)
-			if err != nil {
-				return err
-			}
-
-			cordonedNodes = append(cordonedNodes, csiNodes...)
-
-			logger.Infof("cordoning nodes: %s", strings.Join(cordonedNodes, ","))
-
-			if cordonedNodes, err = tools.CondonNodes(ctx, c.kclient, cordonedNodes); err != nil {
-				return fmt.Errorf("failed to cordon nodes: %v", err)
-			}
-
-			logger.Infof("terminated pods: %s", strings.Join(pods, ","))
-
-			for _, pod := range pods {
-				if err = c.kclient.CoreV1().Pods(c.namespace).Delete(ctx, pod, metav1.DeleteOptions{}); err != nil {
-					return fmt.Errorf("failed to delete pod: %v", err)
-				}
-			}
-
-			for {
-				p, _, e := tools.PVCPodUsage(ctx, c.kclient, c.namespace, pvc)
-				if e != nil {
-					return fmt.Errorf("failed to find pods using pvc: %v", e)
-				}
-
-				if len(p) == 0 {
-					break
-				}
-
-				logger.Infof("waiting pods: %s", strings.Join(p, " "))
-
-				time.Sleep(2 * time.Second)
-			}
-
-			time.Sleep(5 * time.Second)
-		} else {
-			return fmt.Errorf("persistentvolumeclaims is using by pods: %s on node %s, cannot move volume", strings.Join(pods, ","), vmName)
-		}
+	if err = lockPVC(ctx, c.kclient, c.namespace, kubePVC, kubePV); err != nil {
+		return fmt.Errorf("failed to lock persistentvolumeclaims: %v", err)
 	}
 
-	if err = toolsproxmox.WaitForVolumeDetach(ctx, cluster, vmID, vol.Disk()); err != nil {
-		return fmt.Errorf("failed to wait for volume detach: %v", err)
+	podNodes, err := c.waitPVCUnused(ctx, kubePVC, force)
+	if err != nil {
+		return err
+	}
+
+	// The disk has to be detached from every node a pod was seen on, including one from the
+	// first check whose pod was gone by the time of a later one.
+	if vmName != "" && !slices.Contains(podNodes, vmName) {
+		podNodes = append(podNodes, vmName)
+	}
+
+	for _, podNode := range podNodes {
+		// Uses providerID first, then falls back to the proxmox.sinextra.dev/instance-id annotation.
+		kubeNode, nodeErr := c.kclient.CoreV1().Nodes().Get(ctx, podNode, metav1.GetOptions{})
+		if nodeErr != nil {
+			return fmt.Errorf("failed to get kubernetes node %s: %v", podNode, nodeErr)
+		}
+
+		vmID, nodeErr := csi.ProxmoxVMIDbyNode(kubeNode)
+		if nodeErr != nil {
+			return fmt.Errorf("failed to resolve Proxmox VMID from node %s: %v", podNode, nodeErr)
+		}
+
+		logger.Infof("waiting for disk %s to detach from kubernetes node %s (Proxmox VMID %d)", vol.Disk(), podNode, vmID)
+
+		if err = toolsproxmox.WaitForVolumeDetach(ctx, cluster, vmID, vol.Disk()); err != nil {
+			return fmt.Errorf("failed to wait for volume detach: %v", err)
+		}
 	}
 
 	logger.Infof("moving disk %s to proxmox node %s", vol.Disk(), node)
 
-	unsafeToUncordon = true
+	unsafeToRestore = true
 
 	if err = toolsproxmox.MoveQemuDisk(ctx, cluster, vol, node, taskTimeout); err != nil {
 		return fmt.Errorf("failed to move disk: %v", err)
 	}
+
+	diskMoved = true
 
 	logger.Infof("replacing persistentvolume topology")
 
@@ -228,11 +212,161 @@ func (c *migrateCmd) runMigration(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to replace PV topology: %v", err)
 	}
 
-	unsafeToUncordon = false
+	locked = false
 
 	logger.Infof("persistentvolumeclaims %s has been migrated to proxmox node %s", pvc, node)
 
 	return nil
+}
+
+// waitPVCUnused waits until no pod can use the locked claim anymore. The kubelet refuses to
+// start a pod with a Terminating claim only once pvcProtectionFinalizer is gone, and no
+// finalizer can be added back to a Terminating object, so from then on the disk is safe to
+// detach and move. Pods found using the claim meanwhile are deleted in force mode, and stop
+// the migration otherwise. It returns the nodes of all pods seen using the claim.
+func (c *migrateCmd) waitPVCUnused(ctx context.Context, pvc *corev1.PersistentVolumeClaim, force bool) ([]string, error) {
+	nodes := []string{}
+	deleted := map[string]bool{}
+
+	for {
+		live, err := c.kclient.CoreV1().PersistentVolumeClaims(c.namespace).Get(ctx, pvc.Name, metav1.GetOptions{})
+		if err != nil {
+			return nodes, fmt.Errorf("failed to get pvc: %v", err)
+		}
+
+		if live.UID != pvc.UID {
+			return nodes, fmt.Errorf("persistentvolumeclaims %s was replaced during the migration", pvc.Name)
+		}
+
+		pods, err := tools.PVCPods(ctx, c.kclient, c.namespace, pvc.Name)
+		if err != nil {
+			return nodes, fmt.Errorf("failed to find pods using pvc: %v", err)
+		}
+
+		names := []string{}
+
+		for _, pod := range pods {
+			names = append(names, pod.Name)
+
+			if !slices.Contains(nodes, pod.Spec.NodeName) {
+				nodes = append(nodes, pod.Spec.NodeName)
+			}
+		}
+
+		if len(pods) == 0 && !slices.Contains(live.Finalizers, pvcProtectionFinalizer) {
+			return nodes, nil
+		}
+
+		if len(pods) > 0 && !force {
+			return nodes, fmt.Errorf("persistentvolumeclaims %s started being used by pods: %s while it was being locked, re-run with --force to migrate it",
+				pvc.Name, strings.Join(names, ","))
+		}
+
+		for _, pod := range pods {
+			if deleted[pod.Name] {
+				continue
+			}
+
+			logger.Infof("persistentvolumeclaims is using by pod %s on node %s, terminating it", pod.Name, pod.Spec.NodeName)
+
+			if err = c.kclient.CoreV1().Pods(c.namespace).Delete(ctx, pod.Name, metav1.DeleteOptions{}); err != nil && !errors.IsNotFound(err) {
+				return nodes, fmt.Errorf("failed to delete pod: %v", err)
+			}
+
+			deleted[pod.Name] = true
+		}
+
+		if len(pods) > 0 {
+			logger.Infof("waiting pods: %s", strings.Join(names, " "))
+		} else {
+			logger.Infof("waiting for persistentvolumeclaims %s to be released", pvc.Name)
+		}
+
+		select {
+		case <-ctx.Done():
+			return nodes, ctx.Err()
+		case <-time.After(2 * time.Second):
+		}
+	}
+}
+
+// restorePVC recreates the locked claim on its original Proxmox node. It is only safe before
+// the disk move has started, and only once no pod holds the claim anymore: otherwise releasing
+// migrateFinalizer would let the claim go away later with nothing left to recreate it.
+func (c *migrateCmd) restorePVC(
+	ctx context.Context,
+	pvc *corev1.PersistentVolumeClaim,
+	pv *corev1.PersistentVolume,
+	vol *volume.Volume,
+) error {
+	live, err := c.kclient.CoreV1().PersistentVolumeClaims(c.namespace).Get(ctx, pvc.Name, metav1.GetOptions{})
+	if err != nil && !errors.IsNotFound(err) {
+		return fmt.Errorf("failed to get pvc: %v", err)
+	}
+
+	// Another claim took the name: leave it alone, and keep the PV retained, since the
+	// original claim may already be gone and releasing its PV would delete the disk.
+	if err == nil && live.UID != pvc.UID {
+		return fmt.Errorf("persistentvolumeclaims %s was replaced, persistentvolume %s is left retained", pvc.Name, pv.Name)
+	}
+
+	// lockPVC failed before the claim was deleted: undo the lock in place.
+	if err == nil && live.DeletionTimestamp == nil {
+		if err = tools.PVCRemoveFinalizer(ctx, c.kclient, c.namespace, pvc.Name, pvc.UID, migrateFinalizer); err != nil {
+			return err
+		}
+
+		return restoreReclaimPolicy(ctx, c.kclient, pv)
+	}
+
+	pods, _, err := tools.PVCPodUsage(ctx, c.kclient, c.namespace, pvc.Name)
+	if err != nil {
+		return fmt.Errorf("failed to find pods using pvc: %v", err)
+	}
+
+	if len(pods) > 0 {
+		return fmt.Errorf("persistentvolumeclaims is still used by pods: %s", strings.Join(pods, ","))
+	}
+
+	return replacePVTopology(ctx, c.kclient, c.namespace, pvc, pv, vol, vol.Node())
+}
+
+// reportRecovery logs the state a failed migration left behind. While the claim is still held
+// by migrateFinalizer, the original objects are intact. Once it is gone, the claim and possibly
+// the PV have to be recreated, so their manifests for the node holding the disk are printed.
+func (c *migrateCmd) reportRecovery(
+	ctx context.Context,
+	pvc *corev1.PersistentVolumeClaim,
+	pv *corev1.PersistentVolume,
+	vol *volume.Volume,
+	node string,
+) {
+	live, err := c.kclient.CoreV1().PersistentVolumeClaims(c.namespace).Get(ctx, pvc.Name, metav1.GetOptions{})
+	if err == nil && live.UID == pvc.UID && slices.Contains(live.Finalizers, migrateFinalizer) {
+		logger.Errorf("migration failed, leaving persistentvolumeclaims %s terminating with finalizer %s and persistentvolume %s retained for manual recovery",
+			pvc.Name, migrateFinalizer, pv.Name)
+
+		return
+	}
+
+	newPVC, newPV := newPVTopology(c.namespace, pvc, pv, vol, node)
+	newPVC.TypeMeta = metav1.TypeMeta{APIVersion: "v1", Kind: "PersistentVolumeClaim"}
+	newPV.TypeMeta = metav1.TypeMeta{APIVersion: "v1", Kind: "PersistentVolume"}
+
+	logger.Errorf("migration failed after persistentvolumeclaims %s was released, the disk %s on proxmox node %s is retained, "+
+		"but persistentvolumeclaims %s and persistentvolume %s may be missing, recreate them from the manifests below",
+		pvc.Name, vol.Disk(), node, pvc.Name, pv.Name)
+
+	for _, obj := range []any{newPV, newPVC} {
+		manifest, err := json.Marshal(obj)
+		if err != nil {
+			logger.Errorf("failed to marshal manifest: %v", err)
+
+			continue
+		}
+
+		fmt.Println(string(manifest))
+	}
 }
 
 // nolint: dupl,goconst
@@ -276,12 +410,12 @@ func (c *migrateCmd) migrationValidate(cmd *cobra.Command, _ []string) error {
 	accessCheck := []rbacv1.ResourceAttributes{
 		{Group: "", Namespace: "", Resource: "persistentvolumeclaims", Verb: "create"},
 		{Group: "", Namespace: "", Resource: "persistentvolumeclaims", Verb: "delete"},
+		{Group: "", Namespace: "", Resource: "persistentvolumeclaims", Verb: "update"},
 		{Group: "", Namespace: "", Resource: "persistentvolumes", Verb: "create"},
 		{Group: "", Namespace: "", Resource: "persistentvolumes", Verb: "delete"},
 		{Group: "", Namespace: "", Resource: "persistentvolumes", Verb: "patch"},
 		{Group: "", Namespace: "", Resource: "pods", Verb: "delete"},
 		{Group: "", Namespace: "", Resource: "nodes", Verb: "get"},
-		{Group: "", Namespace: "", Resource: "nodes", Verb: "patch"},
 	}
 
 	return checkPermissions(context.TODO(), c.kclient, accessCheck)

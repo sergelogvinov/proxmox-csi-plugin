@@ -19,6 +19,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	pxpool "github.com/sergelogvinov/go-proxmox-pool"
 	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/csi"
@@ -27,6 +28,7 @@ import (
 
 	rbacv1 "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	clientkubernetes "k8s.io/client-go/kubernetes"
@@ -47,6 +49,73 @@ func clearClaimBinding(pvc *corev1.PersistentVolumeClaim) {
 	delete(pvc.ObjectMeta.Annotations, annBoundByController)
 }
 
+// migrateFinalizer keeps a PersistentVolumeClaim in Terminating state while its disk is
+// being migrated. The scheduler refuses to place pods whose claim is being deleted, and the
+// StatefulSet controller neither creates the pod nor recreates the claim from its template.
+const migrateFinalizer = csi.DriverName + "/migrate"
+
+// annReclaimPolicy keeps the original reclaim policy of a PV while a migration holds it at
+// Retain, so a re-run of an interrupted migration, which reads the PV after the switch, can
+// still restore it.
+const annReclaimPolicy = csi.DriverName + "/reclaim-policy"
+
+// pvcProtectionFinalizer is held by Kubernetes while a scheduled pod uses a claim. The kubelet
+// refuses to start a pod with a Terminating claim only once this finalizer is gone.
+const pvcProtectionFinalizer = "kubernetes.io/pvc-protection"
+
+// originalReclaimPolicy returns the reclaim policy the PV had before a migration switched it
+// to Retain.
+func originalReclaimPolicy(pv *corev1.PersistentVolume) corev1.PersistentVolumeReclaimPolicy {
+	if policy := pv.Annotations[annReclaimPolicy]; policy != "" {
+		return corev1.PersistentVolumeReclaimPolicy(policy)
+	}
+
+	return pv.Spec.PersistentVolumeReclaimPolicy
+}
+
+// restoreReclaimPolicy puts back the reclaim policy recorded by lockPVC.
+func restoreReclaimPolicy(ctx context.Context, clientset *clientkubernetes.Clientset, pv *corev1.PersistentVolume) error {
+	patch := fmt.Appendf(nil, `{"metadata":{"annotations":{%q:null}},"spec":{"persistentVolumeReclaimPolicy":%q}}`,
+		annReclaimPolicy, originalReclaimPolicy(pv))
+
+	if _, err := clientset.CoreV1().PersistentVolumes().Patch(ctx, pv.Name, types.MergePatchType, patch, metav1.PatchOptions{}); err != nil {
+		return fmt.Errorf("failed to restore PV reclaim policy: %v", err)
+	}
+
+	return nil
+}
+
+// lockPVC deletes the PersistentVolumeClaim while holding it with migrateFinalizer, so no pod
+// can be scheduled with it until replacePVTopology recreates it. The PV is switched to Retain
+// first, so releasing the claim never deletes the disk. The policy is enforced on the live PV
+// regardless of the copy read earlier, which may be stale, and the original one is recorded
+// in annReclaimPolicy. All changes to the claim are bound to the UID that was read.
+func lockPVC(
+	ctx context.Context,
+	clientset *clientkubernetes.Clientset,
+	namespace string,
+	pvc *corev1.PersistentVolumeClaim,
+	pv *corev1.PersistentVolume,
+) error {
+	patch := fmt.Appendf(nil, `{"metadata":{"annotations":{%q:%q}},"spec":{"persistentVolumeReclaimPolicy":%q}}`,
+		annReclaimPolicy, originalReclaimPolicy(pv), corev1.PersistentVolumeReclaimRetain)
+
+	if _, err := clientset.CoreV1().PersistentVolumes().Patch(ctx, pv.Name, types.MergePatchType, patch, metav1.PatchOptions{}); err != nil {
+		return fmt.Errorf("failed to retain PV: %v", err)
+	}
+
+	if err := tools.PVCAddFinalizer(ctx, clientset, namespace, pvc.Name, pvc.UID, migrateFinalizer); err != nil {
+		return err
+	}
+
+	opts := metav1.DeleteOptions{Preconditions: metav1.NewUIDPreconditions(string(pvc.UID))}
+	if err := clientset.CoreV1().PersistentVolumeClaims(namespace).Delete(ctx, pvc.Name, opts); err != nil {
+		return fmt.Errorf("failed to delete PVC: %v", err)
+	}
+
+	return nil
+}
+
 func cordoneNodeWithPVs(
 	ctx context.Context,
 	kclient *clientkubernetes.Clientset,
@@ -64,21 +133,22 @@ func cordoneNodeWithPVs(
 	return cordonedNodes, err
 }
 
-func replacePVTopology(
-	ctx context.Context,
-	clientset *clientkubernetes.Clientset,
+// newPVTopology builds the PersistentVolume and PersistentVolumeClaim that replace the given ones
+// once the disk lives on the given Proxmox node.
+func newPVTopology(
 	namespace string,
 	pvc *corev1.PersistentVolumeClaim,
 	pv *corev1.PersistentVolume,
 	vol *volume.Volume,
 	node string,
-) error {
+) (*corev1.PersistentVolumeClaim, *corev1.PersistentVolume) {
 	newPVC := pvc.DeepCopy()
 	newPVC.ObjectMeta.UID = ""
 	newPVC.ObjectMeta.ResourceVersion = ""
 	delete(newPVC.ObjectMeta.Annotations, csi.DriverName+"/migrate")
 	delete(newPVC.ObjectMeta.Annotations, csi.DriverName+"/migrate-node")
 	clearClaimBinding(newPVC)
+	newPVC.ObjectMeta.Finalizers = slices.DeleteFunc(newPVC.ObjectMeta.Finalizers, func(f string) bool { return f == migrateFinalizer })
 	newPVC.ObjectMeta.DeletionTimestamp = nil
 	newPVC.ObjectMeta.DeletionGracePeriodSeconds = nil
 	newPVC.Status = corev1.PersistentVolumeClaimStatus{}
@@ -91,6 +161,8 @@ func replacePVTopology(
 	newPV.ObjectMeta.ResourceVersion = ""
 	delete(newPV.ObjectMeta.Annotations, csi.DriverName+"/migrate")
 	delete(newPV.ObjectMeta.Annotations, csi.DriverName+"/migrate-node")
+	delete(newPV.ObjectMeta.Annotations, annReclaimPolicy)
+	newPV.Spec.PersistentVolumeReclaimPolicy = originalReclaimPolicy(pv)
 	newPV.ObjectMeta.DeletionTimestamp = nil
 	newPV.ObjectMeta.DeletionGracePeriodSeconds = nil
 	// Reserve the PV for the claim it is being recreated for, instead of leaving it
@@ -123,21 +195,58 @@ func replacePVTopology(
 		},
 	}
 
-	if pv.Spec.PersistentVolumeReclaimPolicy == corev1.PersistentVolumeReclaimDelete {
-		patch := []byte(`{"spec":{"persistentVolumeReclaimPolicy":"` + corev1.PersistentVolumeReclaimRetain + `"}}`)
+	return newPVC, newPV
+}
 
-		if _, err := clientset.CoreV1().PersistentVolumes().Patch(ctx, pv.Name, types.MergePatchType, patch, metav1.PatchOptions{}); err != nil {
-			return fmt.Errorf("failed to patch PV reclaim policy: %v", err)
-		}
+func replacePVTopology(
+	ctx context.Context,
+	clientset *clientkubernetes.Clientset,
+	namespace string,
+	pvc *corev1.PersistentVolumeClaim,
+	pv *corev1.PersistentVolume,
+	vol *volume.Volume,
+	node string,
+) error {
+	newPVC, newPV := newPVTopology(namespace, pvc, pv, vol, node)
+
+	// Enforce Retain on the live PV, not based on the copy read earlier: if its policy was
+	// changed to Delete since, releasing the claim would delete the disk.
+	if err := tools.PVSetReclaimPolicy(ctx, clientset, pv.Name, corev1.PersistentVolumeReclaimRetain); err != nil {
+		return err
 	}
 
-	policy := metav1.DeletePropagationForeground
-	if err := clientset.CoreV1().PersistentVolumeClaims(namespace).Delete(ctx, pvc.Name, metav1.DeleteOptions{PropagationPolicy: &policy}); err != nil {
+	// Delete the PV up front: it stays Terminating while still bound, and deleting it
+	// early keeps the gap between the old claim going away and the new one being
+	// created as short as possible. The UID precondition makes sure only the PV that
+	// was read is deleted.
+	opts := metav1.DeleteOptions{Preconditions: metav1.NewUIDPreconditions(string(pv.UID))}
+	if err := clientset.CoreV1().PersistentVolumes().Delete(ctx, pv.Name, opts); err != nil && !errors.IsNotFound(err) {
+		return fmt.Errorf("failed to delete PV: %v", err)
+	}
+
+	// The claim may already be Terminating, held by migrateFinalizer from lockPVC.
+	opts = metav1.DeleteOptions{Preconditions: metav1.NewUIDPreconditions(string(pvc.UID))}
+	if err := clientset.CoreV1().PersistentVolumeClaims(namespace).Delete(ctx, pvc.Name, opts); err != nil && !errors.IsNotFound(err) {
 		return fmt.Errorf("failed to delete PVC: %v", err)
 	}
 
-	if err := clientset.CoreV1().PersistentVolumes().Delete(ctx, pv.Name, metav1.DeleteOptions{PropagationPolicy: &policy}); err != nil {
-		return fmt.Errorf("failed to delete PV: %v", err)
+	if err := tools.PVCRemoveFinalizer(ctx, clientset, namespace, pvc.Name, pvc.UID, migrateFinalizer); err != nil {
+		return err
+	}
+
+	if err := tools.PVCWaitDelete(ctx, clientset, namespace, pvc.Name, pvc.UID); err != nil {
+		return fmt.Errorf("failed to wait for PVC deletion: %v", err)
+	}
+
+	// Create the claim right away, before the PV: once the old claim is gone, a
+	// StatefulSet would recreate it from its template. The claim already names the
+	// PV, so it stays Pending until the PV below is created and reserved for it.
+	if _, err := clientset.CoreV1().PersistentVolumeClaims(namespace).Create(ctx, newPVC, metav1.CreateOptions{}); err != nil {
+		if errors.IsAlreadyExists(err) {
+			return fmt.Errorf("PVC %s was recreated by another controller before the migration could create it", pvc.Name)
+		}
+
+		return fmt.Errorf("failed to create PVC: %v", err)
 	}
 
 	if err := tools.PVWaitDelete(ctx, clientset, pv.Name); err != nil {
@@ -146,12 +255,6 @@ func replacePVTopology(
 
 	if _, err := clientset.CoreV1().PersistentVolumes().Create(ctx, newPV, metav1.CreateOptions{}); err != nil {
 		return fmt.Errorf("failed to create PV: %v", err)
-	}
-
-	if _, err := clientset.CoreV1().PersistentVolumeClaims(namespace).Create(ctx, newPVC, metav1.CreateOptions{}); err != nil {
-		if _, err := clientset.CoreV1().PersistentVolumeClaims(namespace).Update(ctx, newPVC, metav1.UpdateOptions{}); err != nil {
-			return fmt.Errorf("failed to create/update PVC: %v", err)
-		}
 	}
 
 	return nil
@@ -272,11 +375,11 @@ func swapPVC(
 	// The claims being recreated reuse each other's names (src -> dstPVC.Name and
 	// dst -> srcPVC.Name), so a finalizer keeping either deleted claim around a
 	// moment longer would make the matching Create below fail with AlreadyExists.
-	if err := tools.PVCWaitDelete(ctx, clientset, namespace, srcPVC.Name); err != nil {
+	if err := tools.PVCWaitDelete(ctx, clientset, namespace, srcPVC.Name, ""); err != nil {
 		return fmt.Errorf("failed to wait for PersistentVolumeClaim %s deletion: %v", srcPVC.Name, err)
 	}
 
-	if err := tools.PVCWaitDelete(ctx, clientset, namespace, dstPVC.Name); err != nil {
+	if err := tools.PVCWaitDelete(ctx, clientset, namespace, dstPVC.Name, ""); err != nil {
 		return fmt.Errorf("failed to wait for PersistentVolumeClaim %s deletion: %v", dstPVC.Name, err)
 	}
 
