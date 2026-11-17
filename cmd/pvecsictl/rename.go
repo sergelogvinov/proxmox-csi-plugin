@@ -199,6 +199,7 @@ func (c *renameCmd) renameValidate(cmd *cobra.Command, _ []string) error {
 		{Group: "", Namespace: "", Resource: "persistentvolumeclaims", Verb: "delete"},
 		{Group: "", Namespace: "", Resource: "persistentvolumes", Verb: "create"},
 		{Group: "", Namespace: "", Resource: "persistentvolumes", Verb: "delete"},
+		{Group: "", Namespace: "", Resource: "persistentvolumes", Verb: "patch"},
 		{Group: "", Namespace: "", Resource: "pods", Verb: "delete"},
 		{Group: "", Namespace: "", Resource: "nodes", Verb: "patch"},
 	}

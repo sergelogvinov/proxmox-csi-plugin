@@ -107,15 +107,21 @@ func replacePVTopology(
 		},
 	}
 
+	if pv.Spec.PersistentVolumeReclaimPolicy == corev1.PersistentVolumeReclaimDelete {
+		patch := []byte(`{"spec":{"persistentVolumeReclaimPolicy":"` + corev1.PersistentVolumeReclaimRetain + `"}}`)
+
+		if _, err := clientset.CoreV1().PersistentVolumes().Patch(ctx, pv.Name, types.MergePatchType, patch, metav1.PatchOptions{}); err != nil {
+			return fmt.Errorf("failed to patch PV reclaim policy: %v", err)
+		}
+	}
+
 	policy := metav1.DeletePropagationForeground
 	if err := clientset.CoreV1().PersistentVolumeClaims(namespace).Delete(ctx, pvc.Name, metav1.DeleteOptions{PropagationPolicy: &policy}); err != nil {
 		return fmt.Errorf("failed to delete PVC: %v", err)
 	}
 
-	if pv.Spec.PersistentVolumeReclaimPolicy != corev1.PersistentVolumeReclaimDelete {
-		if err := clientset.CoreV1().PersistentVolumes().Delete(ctx, pv.Name, metav1.DeleteOptions{PropagationPolicy: &policy}); err != nil {
-			return fmt.Errorf("failed to delete PV: %v", err)
-		}
+	if err := clientset.CoreV1().PersistentVolumes().Delete(ctx, pv.Name, metav1.DeleteOptions{PropagationPolicy: &policy}); err != nil {
+		return fmt.Errorf("failed to delete PV: %v", err)
 	}
 
 	if err := tools.PVWaitDelete(ctx, clientset, pv.Name); err != nil {
