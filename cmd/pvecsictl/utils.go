@@ -59,6 +59,10 @@ const migrateFinalizer = csi.DriverName + "/migrate"
 // still restore it.
 const annReclaimPolicy = csi.DriverName + "/reclaim-policy"
 
+// annMigratedAt is set on the StatefulSets of a migrated claim, so the StatefulSet controller
+// retries them without waiting for its backoff to expire.
+const annMigratedAt = csi.DriverName + "/migrated-at"
+
 // pvcProtectionFinalizer is held by Kubernetes while a scheduled pod uses a claim. The kubelet
 // refuses to start a pod with a Terminating claim only once this finalizer is gone.
 const pvcProtectionFinalizer = "kubernetes.io/pvc-protection"

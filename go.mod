@@ -1,6 +1,6 @@
 module github.com/sergelogvinov/proxmox-csi-plugin
 
-go 1.27.2
+go 1.27.4
 
 // replace github.com/sergelogvinov/go-proxmox-rest => ../proxmox/go-proxmox-rest
 // replace github.com/sergelogvinov/go-proxmox-pool => ../go-proxmox-pool

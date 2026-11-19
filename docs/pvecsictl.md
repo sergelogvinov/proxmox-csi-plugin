@@ -25,6 +25,10 @@ rules:
   - apiGroups: [""]
     resources: ["pods"]
     verbs: ["get", "list", "watch", "delete"]
+  # Trigger StatefulSets waiting for a migrated PVC
+  - apiGroups: ["apps"]
+    resources: ["statefulsets"]
+    verbs: ["patch"]
   - apiGroups: ["storage.k8s.io"]
     resources: ["csinodes"]
     verbs: ["get", "list"]
@@ -136,7 +140,12 @@ INFO waiting for disk vm-9999-pvc-0d79713b-6d0b-41e5-b387-42af370d083f to detach
 INFO moving disk vm-9999-pvc-0d79713b-6d0b-41e5-b387-42af370d083f to proxmox node hvm-2
 INFO replacing persistentvolume topology
 INFO persistentvolumeclaims storage-test-0 has been migrated to proxmox node hvm-2
+INFO triggering statefulset test (attempt 1/5)
 ```
+
+After the migration, or after the PVC is restored on a failed one, the StatefulSets of the pods that used the PVC are annotated with
+`csi.proxmox.sinextra.dev/migrated-at`, so the StatefulSet controller retries them right away.
+The annotation is updated up to 5 times, 5 seconds apart, until a pod using the PVC is recreated.
 
 To check that the zone has changed run
 ```shell
