@@ -5,6 +5,20 @@
 
 * enable support for capmox ([6145c7d](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/6145c7d91cfc47c131ac453e2a90a915e5694b2b))
 
+## [0.23.0](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.22.1...v0.23.0) (2026-11-19)
+
+
+### Features
+
+* migrate pvc without cordoning nodes ([415932d](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/415932d8295781ca9d53ca7d8acb9a8d701cf87e))
+* trigger statefulsets after pvc migration ([4d7ff32](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/4d7ff322a96bc2699efb5747cb90d5bb0cacef6e))
+
+
+### Bug Fixes
+
+* clear binding annotations on recreated pvc ([d0eee25](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/d0eee255e81613c6d24744a44c859c1477cc185a))
+* retain pv before deleting pvc on migrate ([44bf397](https://github.com/sergelogvinov/proxmox-csi-plugin/commit/44bf39723a91bd933092373e60dce709a7f8b245))
+
 ## [0.22.1](https://github.com/sergelogvinov/proxmox-csi-plugin/compare/v0.22.0...v0.22.1) (2026-11-15)
 
 
