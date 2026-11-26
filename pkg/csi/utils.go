@@ -61,6 +61,10 @@ const (
 // gone" from a real API error, the same way they could against the legacy client.
 var errVirtualMachineNotFound = errors.New("virtual machine not found")
 
+// errStorageNotFound indicates that a storage is missing from the storage list,
+// either absent or not visible to the credentials.
+var errStorageNotFound = errors.New("not found or not visible")
+
 // findVMNode resolves the Proxmox node a guest currently runs on from its VMID.
 func findVMNode(ctx context.Context, cl *proxmoxrest.Client, vmid int) (string, error) {
 	resources, err := cl.Cluster().Resources().List(ctx, pxcluster.ListFilter{

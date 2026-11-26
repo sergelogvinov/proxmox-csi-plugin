@@ -120,6 +120,9 @@ func TestNewControllerService(t *testing.T) {
 
 //nolint:dupl
 func (ts *configuredTestSuite) TestCreateVolume() {
+	// Proxmox VE refuses GET /storage/{storage} to a token without Datastore.Allocate.
+	ts.fake.FailRequests("GET /storage/{storage}", fakeapi.WithFaultMessage("Permission check failed"))
+
 	volcap := &proto.VolumeCapability{
 		AccessMode: &proto.VolumeCapability_AccessMode{
 			Mode: proto.VolumeCapability_AccessMode_SINGLE_NODE_WRITER,
@@ -239,7 +242,7 @@ func (ts *configuredTestSuite) TestCreateVolume() {
 					},
 				},
 			},
-			expectedError: status.Error(codes.NotFound, "proxmox storage config fake-storage not found"),
+			expectedError: status.Error(codes.NotFound, "proxmox storage config fake-storage not found or not visible"),
 		},
 		{
 			msg: "RegionZone",
@@ -912,6 +915,9 @@ func (ts *configuredTestSuite) TestGetCapacity() {
 }
 
 func (ts *configuredTestSuite) TestCreateSnapshot() {
+	// Proxmox VE refuses GET /storage/{storage} to a token without Datastore.Allocate.
+	ts.fake.FailRequests("GET /storage/{storage}", fakeapi.WithFaultMessage("Permission check failed"))
+
 	tests := []struct {
 		msg           string
 		request       *proto.CreateSnapshotRequest
@@ -933,6 +939,14 @@ func (ts *configuredTestSuite) TestCreateSnapshot() {
 				SourceVolumeId: "fake-region/node/data/volume-id",
 			},
 			expectedError: status.Error(codes.Internal, "cluster not found"),
+		},
+		{
+			msg: "StorageRBD",
+			request: &proto.CreateSnapshotRequest{
+				Name:           "snap",
+				SourceVolumeId: "cluster-1/pve-1/ceph/vm-9999-pvc-ceph-source",
+			},
+			expectedError: status.Error(codes.Internal, "storage type rbd(ceph) does not support snapshot"),
 		},
 	}
 

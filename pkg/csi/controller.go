@@ -37,6 +37,7 @@ import (
 	pxpool "github.com/sergelogvinov/go-proxmox-pool"
 	proxmoxrest "github.com/sergelogvinov/go-proxmox-rest"
 	"github.com/sergelogvinov/go-proxmox-rest/cluster"
+	pxstorage "github.com/sergelogvinov/go-proxmox-rest/storage"
 	csiconfig "github.com/sergelogvinov/proxmox-csi-plugin/pkg/config"
 	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/metrics"
 	toolsproxmox "github.com/sergelogvinov/proxmox-csi-plugin/pkg/tools/proxmox"
@@ -218,16 +219,18 @@ func (d *ControllerService) CreateVolume(ctx context.Context, request *csi.Creat
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
-	storageConfig, err := cl.Storage().Get(ctx, params.StorageID)
+	storages, err := cl.Storage().List(ctx, pxstorage.ListFilter{StorageID: params.StorageID})
 	if err != nil {
-		if proxmoxrest.IsNotFound(err) {
-			return nil, status.Error(codes.NotFound, fmt.Sprintf("proxmox storage config %s not found", params.StorageID))
-		}
-
 		klog.ErrorS(err, "CreateVolume: failed to get proxmox storage config", "cluster", region, "storage", params.StorageID)
 
 		return nil, status.Errorf(codes.Internal, "failed to get proxmox storage config: %v", err)
 	}
+
+	if len(storages) == 0 {
+		return nil, status.Errorf(codes.NotFound, "proxmox storage config %s %v", params.StorageID, errStorageNotFound)
+	}
+
+	storageConfig := &storages[0]
 
 	klog.V(5).InfoS("CreateVolume: storage config", "storage", storageConfig)
 
@@ -278,16 +281,9 @@ func (d *ControllerService) CreateVolume(ctx context.Context, request *csi.Creat
 			return nil, status.Error(codes.Internal, "error: shared storage type cifs, pbs are not supported")
 		}
 
-		config, err := cl.Storage().Get(ctx, params.StorageID)
-		if err != nil {
-			klog.ErrorS(err, "CreateVolume: failed to get proxmox storage config", "cluster", region, "storageID", params.StorageID)
-
-			return nil, status.Errorf(codes.Internal, "failed to get proxmox storage config: %v", err)
-		}
-
 		topology = []*csi.Topology{}
 
-		for _, node := range config.Nodes {
+		for _, node := range storageConfig.Nodes {
 			if node == "" {
 				continue
 			}
@@ -855,12 +851,18 @@ func (d *ControllerService) CreateSnapshot(ctx context.Context, request *csi.Cre
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
-	storageConfig, err := cl.Storage().Get(ctx, vol.Storage())
+	storages, err := cl.Storage().List(ctx, pxstorage.ListFilter{StorageID: vol.Storage()})
+	if err == nil && len(storages) == 0 {
+		err = fmt.Errorf("proxmox storage config %s %w", vol.Storage(), errStorageNotFound)
+	}
+
 	if err != nil {
 		klog.ErrorS(err, "CreateSnapshot: failed to get proxmox storage config", "cluster", vol.Cluster(), "storageID", vol.Storage())
 
 		return nil, status.Error(codes.Internal, err.Error())
 	}
+
+	storageConfig := &storages[0]
 
 	switch storageConfig.Type {
 	case "cifs", "pbs":
