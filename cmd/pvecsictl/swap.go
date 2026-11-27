@@ -25,9 +25,10 @@ import (
 	cobra "github.com/spf13/cobra"
 
 	tools "github.com/sergelogvinov/proxmox-csi-plugin/pkg/tools/kubernetes"
+	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/tools/kubernetes/rebind"
 
 	rbacv1 "k8s.io/api/authorization/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	corev1 "k8s.io/api/core/v1"
 	clientkubernetes "k8s.io/client-go/kubernetes"
 )
 
@@ -60,7 +61,16 @@ func setSwapCmdFlags(cmd *cobra.Command) {
 
 	flags.StringP("namespace", "n", "", "namespace of the PersistentVolumeClaims")
 
-	flags.BoolP("force", "f", false, "force migration even if the PersistentVolumeClaims is in use")
+	flags.BoolP("force", "f", false, "force swap even if the PersistentVolumeClaims is in use")
+}
+
+// swapClaim is one of the two claims of a Swap.
+type swapClaim struct {
+	name string
+	pvc  *corev1.PersistentVolumeClaim
+	pv   *corev1.PersistentVolume
+	pods []string
+	node string
 }
 
 // nolint: cyclop, gocyclo
@@ -72,24 +82,38 @@ func (c *swapCmd) runSwap(cmd *cobra.Command, args []string) error {
 
 	ctx := context.Background()
 
-	srcPVC, srcPV, err := tools.PVCResources(ctx, c.kclient, c.namespace, args[0])
-	if err != nil {
-		return fmt.Errorf("failed to get resources: %v", err)
+	claims := make([]swapClaim, 0, 2)
+
+	for _, name := range args[:2] {
+		cl := swapClaim{name: name}
+
+		cl.pvc, cl.pv, err = tools.PVCResources(ctx, c.kclient, c.namespace, name)
+		if err != nil {
+			return fmt.Errorf("failed to get resources: %v", err)
+		}
+
+		cl.pods, cl.node, err = tools.PVCPodUsage(ctx, c.kclient, c.namespace, name)
+		if err != nil {
+			return fmt.Errorf("failed to find pods using pvc: %v", err)
+		}
+
+		claims = append(claims, cl)
 	}
 
-	srcPods, srcVMName, err := tools.PVCPodUsage(ctx, c.kclient, c.namespace, args[0])
-	if err != nil {
-		return fmt.Errorf("failed to find pods using pvc: %v", err)
-	}
+	src, dst := claims[0], claims[1]
 
-	dstPVC, dstPV, err := tools.PVCResources(ctx, c.kclient, c.namespace, args[1])
-	if err != nil {
-		return fmt.Errorf("failed to get resources: %v", err)
-	}
+	pods := uniquePods(src.pods, dst.pods)
 
-	dstPods, dstVMName, err := tools.PVCPodUsage(ctx, c.kclient, c.namespace, args[1])
-	if err != nil {
-		return fmt.Errorf("failed to find pods using pvc: %v", err)
+	if len(pods) > 0 {
+		for _, cl := range claims {
+			if len(cl.pods) > 0 && !force {
+				return fmt.Errorf("persistentvolumeclaims is using by pods: %s on the node %s, cannot swap pvc", strings.Join(cl.pods, ","), cl.node)
+			}
+		}
+
+		if src.pv.Spec.CSI == nil || dst.pv.Spec.CSI == nil {
+			return fmt.Errorf("only CSI PersistentVolumes can be swapped in force mode")
+		}
 	}
 
 	cordonedNodes := []string{}
@@ -113,98 +137,82 @@ func (c *swapCmd) runSwap(cmd *cobra.Command, args []string) error {
 		}
 	}()
 
-	if len(srcPods) > 0 || len(dstPods) > 0 {
-		if force {
-			var csiNodes []string
+	targets := []rebind.Target{
+		{Claim: src.name, NewName: dst.name},
+		{Claim: dst.name, NewName: src.name},
+	}
 
-			if srcPV.Spec.CSI == nil || dstPV.Spec.CSI == nil {
-				return fmt.Errorf("only CSI PersistentVolumes can be swapped in force mode")
+	logger.Infof("holding persistentvolumeclaims %s,%s", src.name, dst.name)
+
+	held, err := rebind.Hold(ctx, c.kclient, c.namespace, src.name, dst.name)
+	if err != nil {
+		return holdError(err, []string{src.name, dst.name}, []string{src.pv.Name, dst.pv.Name})
+	}
+
+	done := false
+
+	// Runs before the uncordon above, so it can tell whether the nodes are safe to uncordon.
+	defer func() {
+		if done {
+			return
+		}
+
+		if !abortAndReport(ctx, c.namespace, held, []heldClaimRef{
+			{Name: src.name, UID: src.pvc.UID, Volume: src.pv.Name, NewName: dst.name},
+			{Name: dst.name, UID: dst.pvc.UID, Volume: dst.pv.Name, NewName: src.name},
+		}, "swap") {
+			unsafeToUncordon = true
+		}
+	}()
+
+	if len(pods) > 0 {
+		for _, cl := range claims {
+			if len(cl.pods) == 0 {
+				continue
 			}
 
-			if len(srcPods) > 0 {
-				logger.Infof("persistentvolumeclaims is using by pods: %s on node %s, trying to force swap\n", strings.Join(srcPods, ","), srcVMName)
+			logger.Infof("persistentvolumeclaims is using by pods: %s on node %s, trying to force swap\n", strings.Join(cl.pods, ","), cl.node)
 
-				csiNodes, err = cordoneNodeWithPVs(ctx, c.kclient, srcPV)
-				cordonedNodes = append(cordonedNodes, csiNodes...)
+			csiNodes, err := cordoneNodeWithPVs(ctx, c.kclient, cl.pv)
+			cordonedNodes = append(cordonedNodes, csiNodes...)
 
-				if err != nil {
-					return fmt.Errorf("failed to cordon nodes: %v", err)
+			if err != nil {
+				return fmt.Errorf("failed to cordon nodes: %v", err)
+			}
+		}
+
+		logger.Infof("cordoned nodes: %s", strings.Join(cordonedNodes, ","))
+		logger.Infof("terminated pods: %s", strings.Join(pods, ","))
+
+		if err = deletePods(ctx, c.kclient, c.namespace, pods); err != nil {
+			return err
+		}
+
+		for _, cl := range claims {
+			for {
+				p, _, e := tools.PVCPodUsage(ctx, c.kclient, c.namespace, cl.name)
+				if e != nil {
+					return fmt.Errorf("failed to find pods using pvc: %v", e)
 				}
-			}
 
-			if len(dstPods) > 0 {
-				logger.Infof("persistentvolumeclaims is using by pods: %s on node %s, trying to force swap\n", strings.Join(dstPods, ","), dstVMName)
-
-				csiNodes, err = cordoneNodeWithPVs(ctx, c.kclient, dstPV)
-				cordonedNodes = append(cordonedNodes, csiNodes...)
-
-				if err != nil {
-					return fmt.Errorf("failed to cordon nodes: %v", err)
-				}
-			}
-
-			logger.Infof("cordoned nodes: %s", strings.Join(cordonedNodes, ","))
-
-			pods := srcPods
-			pods = append(pods, dstPods...)
-
-			logger.Infof("terminated pods: %s", strings.Join(pods, ","))
-
-			for _, pod := range pods {
-				if err = c.kclient.CoreV1().Pods(c.namespace).Delete(ctx, pod, metav1.DeleteOptions{}); err != nil {
-					return fmt.Errorf("failed to delete pod: %v", err)
-				}
-			}
-
-			waitPods := func(pod string) error {
-				for {
-					p, _, e := tools.PVCPodUsage(ctx, c.kclient, c.namespace, pod)
-					if e != nil {
-						return fmt.Errorf("failed to find pods using pvc: %v", e)
-					}
-
-					if len(p) == 0 {
-						break
-					}
-
-					logger.Infof("waiting pods: %s", strings.Join(p, " "))
-
-					time.Sleep(2 * time.Second)
+				if len(p) == 0 {
+					break
 				}
 
-				return nil
-			}
+				logger.Infof("waiting pods: %s", strings.Join(p, " "))
 
-			if err := waitPods(args[0]); err != nil {
-				return err
-			}
-
-			if err := waitPods(args[1]); err != nil {
-				return err
-			}
-
-			time.Sleep(5 * time.Second)
-		} else {
-			if len(srcPods) > 0 {
-				return fmt.Errorf("persistentvolumeclaims is using by pods: %s on the node %s, cannot swap pvc", strings.Join(srcPods, ","), srcVMName)
-			}
-
-			if len(dstPods) > 0 {
-				return fmt.Errorf("persistentvolumeclaims is using by pods: %s on the node %s, cannot swap pvc", strings.Join(dstPods, ","), dstVMName)
+				time.Sleep(2 * time.Second)
 			}
 		}
 	}
 
-	unsafeToUncordon = true
-
-	err = swapPVC(ctx, c.kclient, c.namespace, srcPVC, srcPV, dstPVC, dstPV)
-	if err != nil {
+	if err = commitWhenReleased(ctx, held, targets...); err != nil {
 		return fmt.Errorf("failed to swap persistentvolumeclaims: %v", err)
 	}
 
-	unsafeToUncordon = false
+	done = true
 
-	logger.Infof("persistentvolumeclaims %s,%s has been swapped", args[0], args[1])
+	logger.Infof("persistentvolumeclaims %s,%s has been swapped", src.name, dst.name)
 
 	return nil
 }
@@ -228,12 +236,13 @@ func (c *swapCmd) swapValidate(cmd *cobra.Command, _ []string) error {
 	c.namespace = namespace
 
 	accessCheck := []rbacv1.ResourceAttributes{
-		{Group: "", Namespace: "", Resource: "persistentvolumeclaims", Verb: "create"},
-		{Group: "", Namespace: "", Resource: "persistentvolumeclaims", Verb: "delete"},
+		{Group: "", Namespace: c.namespace, Resource: "persistentvolumeclaims", Verb: "create"},
+		{Group: "", Namespace: c.namespace, Resource: "persistentvolumeclaims", Verb: "delete"},
+		{Group: "", Namespace: c.namespace, Resource: "persistentvolumeclaims", Verb: "update"},
 		{Group: "", Namespace: "", Resource: "persistentvolumes", Verb: "create"},
 		{Group: "", Namespace: "", Resource: "persistentvolumes", Verb: "delete"},
 		{Group: "", Namespace: "", Resource: "persistentvolumes", Verb: "patch"},
-		{Group: "", Namespace: "", Resource: "pods", Verb: "delete"},
+		{Group: "", Namespace: c.namespace, Resource: "pods", Verb: "delete"},
 		{Group: "", Namespace: "", Resource: "nodes", Verb: "patch"},
 	}
 

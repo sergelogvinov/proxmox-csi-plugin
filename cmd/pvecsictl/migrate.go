@@ -19,7 +19,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -178,13 +177,7 @@ func (c *migrateCmd) runMigration(cmd *cobra.Command, args []string) (retErr err
 		case !moveStarted:
 			logger.Infof("restoring persistentvolumeclaims %s on proxmox node %s", pvc, vol.Node())
 
-			err := held.Abort(cleanupCtx)
-			if err != nil && !errors.Is(err, rebind.ErrInUse) {
-				logger.Warnf("failed to restore persistentvolumeclaims, retrying: %v", err)
-
-				err = held.Abort(cleanupCtx)
-			}
-
+			err := abortHeld(cleanupCtx, held)
 			if err == nil {
 				c.triggerStatefulSets(cleanupCtx, pvc, statefulSets)
 
@@ -627,13 +620,13 @@ func (c *migrateCmd) migrationValidate(cmd *cobra.Command, _ []string) error {
 	c.namespace = namespace
 
 	accessCheck := []rbacv1.ResourceAttributes{
-		{Group: "", Namespace: "", Resource: "persistentvolumeclaims", Verb: "create"},
-		{Group: "", Namespace: "", Resource: "persistentvolumeclaims", Verb: "delete"},
-		{Group: "", Namespace: "", Resource: "persistentvolumeclaims", Verb: "update"},
+		{Group: "", Namespace: c.namespace, Resource: "persistentvolumeclaims", Verb: "create"},
+		{Group: "", Namespace: c.namespace, Resource: "persistentvolumeclaims", Verb: "delete"},
+		{Group: "", Namespace: c.namespace, Resource: "persistentvolumeclaims", Verb: "update"},
 		{Group: "", Namespace: "", Resource: "persistentvolumes", Verb: "create"},
 		{Group: "", Namespace: "", Resource: "persistentvolumes", Verb: "delete"},
 		{Group: "", Namespace: "", Resource: "persistentvolumes", Verb: "patch"},
-		{Group: "", Namespace: "", Resource: "pods", Verb: "delete"},
+		{Group: "", Namespace: c.namespace, Resource: "pods", Verb: "delete"},
 		{Group: "", Namespace: "", Resource: "nodes", Verb: "get"},
 		{Group: "apps", Namespace: "", Resource: "statefulsets", Verb: "patch"},
 	}

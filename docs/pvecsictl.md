@@ -21,29 +21,33 @@ kind: ClusterRole
 metadata:
   name: pvecsictl
 rules:
-  # Get list of pods with PVCs
+  # Find the pods that use a PVC, delete them (migrate, rename, swap)
   - apiGroups: [""]
     resources: ["pods"]
-    verbs: ["get", "list", "watch", "delete"]
+    verbs: ["list", "delete"]
   # Trigger StatefulSets waiting for a migrated PVC
   - apiGroups: ["apps"]
     resources: ["statefulsets"]
     verbs: ["patch"]
+  # Find the nodes running the CSI driver (rename, swap)
   - apiGroups: ["storage.k8s.io"]
     resources: ["csinodes"]
-    verbs: ["get", "list"]
-  # Create and delete PV/PVC
+    verbs: ["list"]
+  # Recreate PVs, set their reclaim policy and claimRef; list PVs (clean)
   - apiGroups: [""]
     resources: ["persistentvolumes"]
-    verbs: ["get", "list", "watch", "create", "patch", "delete"]
+    verbs: ["get", "list", "create", "patch", "delete"]
+  # Recreate PVCs; add and remove the rebind finalizer (update)
   - apiGroups: [""]
     resources: ["persistentvolumeclaims"]
-    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-  # Resolve Proxmox VMs of nodes (migrate), cordon nodes (rename, swap)
+    verbs: ["get", "create", "update", "delete"]
+  # Resolve Proxmox VMs of nodes (migrate, clean), cordon nodes (rename, swap)
   - apiGroups: [""]
     resources: ["nodes"]
-    verbs: ["get", "list", "watch", "patch"]
+    verbs: ["get", "patch"]
 ```
+
+The tool also creates `selfsubjectaccessreviews` to check these permissions, which the default `system:basic-user` ClusterRole grants to all authenticated users.
 
 ## Usage
 
@@ -232,7 +236,7 @@ pvecsictl rename -n default storage-test-0 storage-test-2
 If you're met with
 
 ```shell
-ERROR Error: persistentvolumeclaims is using by pods: test-0 on node kube-21, cannot move volume
+ERROR Error: persistentvolumeclaims is using by pods: test-0 on node kube-21, cannot rename it
 ```
 
 You can force the process by adding the `--force` flag
@@ -240,7 +244,7 @@ You can force the process by adding the `--force` flag
 ```shell
 pvecsictl rename -n default storage-test-0 storage-test-2 --force
 
-INFO persistentvolumeclaims is using by pods: test-0 on node kube-21, trying to force migration
+INFO persistentvolumeclaims is using by pods: test-0 on node kube-21, trying to force rename
 INFO cordoning nodes: kube-11,kube-12,kube-21,kube-22,kube-store-11,kube-store-21
 INFO terminated pods: test-0
 INFO waiting pods: test-0
