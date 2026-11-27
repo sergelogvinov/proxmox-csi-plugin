@@ -11,6 +11,13 @@ The snapshot created using this method is a full copy of the original volume, no
 Update your Proxmox CSI Driver configuration to include all clusters where you want to enable volume snapshot support.
 Make sure to use the `root@pam` account for this feature to function properly.
 
+The snapshot is created with the Proxmox storage copy API (`POST /nodes/{node}/storage/{storage}/content/{volume}`).
+Proxmox marks this endpoint as experimental and allows it only for a `root@pam` login with `username` and `password`.
+API tokens do not work, even a token of the `root@pam` user or a token with the `Administrator` role, and RBAC privileges do not change it.
+Any other credential gets `403 Permission check failed (user != root@pam)`.
+
+This means the plugin needs the `root@pam` password for this cluster, a much broader credential than a scoped API token.
+
 ```yaml
 clusters:
   - url: https://cluster-api-1.exmple.com:8006/api2/json
