@@ -20,11 +20,11 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"time"
 
 	cobra "github.com/spf13/cobra"
 
 	tools "github.com/sergelogvinov/proxmox-csi-plugin/pkg/tools/kubernetes"
+	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/tools/kubernetes/rebind"
 
 	rbacv1 "k8s.io/api/authorization/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -62,116 +62,39 @@ func setrenameCmdFlags(cmd *cobra.Command) {
 
 	flags.StringP("namespace", "n", "", "namespace of the PersistentVolumeClaims")
 
-	flags.BoolP("force", "f", false, "force migration even if the PersistentVolumeClaims is in use")
+	flags.BoolP("force", "f", false, "terminate the pods using the PersistentVolumeClaims")
+	flags.Int("timeout", defaultRebindTimeout, "timeout in seconds")
 }
 
-// nolint: cyclop, gocyclo
 func (c *renameCmd) runRename(cmd *cobra.Command, args []string) error {
 	flags := cmd.Flags()
-	force, _ := flags.GetBool("force") //nolint: errcheck
+	force, _ := flags.GetBool("force")    //nolint: errcheck
+	timeout, _ := flags.GetInt("timeout") //nolint: errcheck
 
-	var err error
+	ctx, cancel := context.WithTimeout(context.Background(), commandTimeout(timeout))
+	defer cancel()
 
-	ctx := context.Background()
+	src, dst := args[0], args[1]
 
-	if args[0] == args[1] {
+	if src == dst {
 		return fmt.Errorf("source and destination persistentvolumeclaims names must be different")
 	}
 
-	if errs := validation.IsDNS1123Subdomain(args[1]); len(errs) > 0 {
-		return fmt.Errorf("invalid destination persistentvolumeclaims name %q: %s", args[1], strings.Join(errs, ", "))
+	if errs := validation.IsDNS1123Subdomain(dst); len(errs) > 0 {
+		return fmt.Errorf("invalid destination persistentvolumeclaims name %q: %s", dst, strings.Join(errs, ", "))
 	}
 
-	if _, err := c.kclient.CoreV1().PersistentVolumeClaims(c.namespace).Get(ctx, args[1], metav1.GetOptions{}); err == nil {
-		return fmt.Errorf("destination persistentvolumeclaims %s already exists", args[1])
+	if _, err := c.kclient.CoreV1().PersistentVolumeClaims(c.namespace).Get(ctx, dst, metav1.GetOptions{}); err == nil {
+		return fmt.Errorf("destination persistentvolumeclaims %s already exists", dst)
 	} else if !apierrors.IsNotFound(err) {
-		return fmt.Errorf("failed to check destination persistentvolumeclaims %s: %v", args[1], err)
+		return fmt.Errorf("failed to check destination persistentvolumeclaims %s: %v", dst, err)
 	}
 
-	srcPVC, srcPV, err := tools.PVCResources(ctx, c.kclient, c.namespace, args[0])
-	if err != nil {
-		return fmt.Errorf("failed to get resources: %v", err)
-	}
-
-	pods, vmName, err := tools.PVCPodUsage(ctx, c.kclient, c.namespace, args[0])
-	if err != nil {
-		return fmt.Errorf("failed to find pods using pvc: %v", err)
-	}
-
-	cordonedNodes := []string{}
-	unsafeToUncordon := false
-
-	defer func() {
-		if len(cordonedNodes) == 0 {
-			return
-		}
-
-		if unsafeToUncordon {
-			logger.Errorf("rename failed after storage changes started, leaving nodes cordoned for manual recovery: %s", strings.Join(cordonedNodes, ","))
-
-			return
-		}
-
-		logger.Infof("uncordoning nodes: %s", strings.Join(cordonedNodes, ","))
-
-		if err := tools.UncondonNodes(ctx, c.kclient, cordonedNodes); err != nil {
-			logger.Errorf("failed to uncordon nodes: %v", err)
-		}
-	}()
-
-	if len(pods) > 0 {
-		if force {
-			if srcPV.Spec.CSI == nil {
-				return fmt.Errorf("only CSI PersistentVolumes can be swapped in force mode")
-			}
-
-			logger.Infof("persistentvolumeclaims is using by pods: %s on node %s, trying to force migration\n", strings.Join(pods, ","), vmName)
-
-			cordonedNodes, err = cordoneNodeWithPVs(ctx, c.kclient, srcPV)
-			if err != nil {
-				return fmt.Errorf("failed to cordon nodes: %v", err)
-			}
-
-			logger.Infof("cordoned nodes: %s", strings.Join(cordonedNodes, ","))
-			logger.Infof("terminated pods: %s", strings.Join(pods, ","))
-
-			for _, pod := range pods {
-				if err = c.kclient.CoreV1().Pods(c.namespace).Delete(ctx, pod, metav1.DeleteOptions{}); err != nil {
-					return fmt.Errorf("failed to delete pod: %v", err)
-				}
-			}
-
-			for {
-				p, _, e := tools.PVCPodUsage(ctx, c.kclient, c.namespace, args[0])
-				if e != nil {
-					return fmt.Errorf("failed to find pods using pvc: %v", e)
-				}
-
-				if len(p) == 0 {
-					break
-				}
-
-				logger.Infof("waiting pods: %s", strings.Join(p, " "))
-
-				time.Sleep(2 * time.Second)
-			}
-
-			time.Sleep(5 * time.Second)
-		} else {
-			return fmt.Errorf("persistentvolumeclaims is using by pods: %s on node %s, cannot move volume", strings.Join(pods, ","), vmName)
-		}
-	}
-
-	unsafeToUncordon = true
-
-	err = renamePVC(ctx, c.kclient, c.namespace, srcPVC, srcPV, args[1])
-	if err != nil {
+	if err := rebindClaims(ctx, c.kclient, c.namespace, force, []string{src}, rebind.Target{Claim: src, NewName: dst}); err != nil {
 		return fmt.Errorf("failed to rename persistentvolumeclaims: %v", err)
 	}
 
-	unsafeToUncordon = false
-
-	logger.Infof("persistentvolumeclaims %s has been renamed", args[0])
+	logger.Infof("persistentvolumeclaims %s has been renamed to %s", src, dst)
 
 	return nil
 }
@@ -197,11 +120,12 @@ func (c *renameCmd) renameValidate(cmd *cobra.Command, _ []string) error {
 	accessCheck := []rbacv1.ResourceAttributes{
 		{Group: "", Namespace: "", Resource: "persistentvolumeclaims", Verb: "create"},
 		{Group: "", Namespace: "", Resource: "persistentvolumeclaims", Verb: "delete"},
+		{Group: "", Namespace: "", Resource: "persistentvolumeclaims", Verb: "update"},
 		{Group: "", Namespace: "", Resource: "persistentvolumes", Verb: "create"},
 		{Group: "", Namespace: "", Resource: "persistentvolumes", Verb: "delete"},
 		{Group: "", Namespace: "", Resource: "persistentvolumes", Verb: "patch"},
 		{Group: "", Namespace: "", Resource: "pods", Verb: "delete"},
-		{Group: "", Namespace: "", Resource: "nodes", Verb: "patch"},
+		{Group: "apps", Namespace: "", Resource: "statefulsets", Verb: "patch"},
 	}
 
 	return checkPermissions(context.TODO(), c.kclient, accessCheck)

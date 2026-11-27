@@ -18,32 +18,30 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strings"
+	"time"
 
 	pxpool "github.com/sergelogvinov/go-proxmox-pool"
 	tools "github.com/sergelogvinov/proxmox-csi-plugin/pkg/tools/kubernetes"
 	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/tools/kubernetes/rebind"
 
 	rbacv1 "k8s.io/api/authorization/v1"
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 	clientkubernetes "k8s.io/client-go/kubernetes"
 )
 
-// Binding annotations the PV controller sets on a bound claim. A recreated claim must not carry
-// them over: with bind-completed, the controller treats it as already bound and marks it Lost,
-// because its PV is missing or reserved without the new claim's UID.
-const (
-	annBindCompleted     = "pv.kubernetes.io/bind-completed"
-	annBoundByController = "pv.kubernetes.io/bound-by-controller"
-)
+// defaultRebindTimeout is the default of the --timeout flag of rename and swap, in seconds.
+const defaultRebindTimeout = 600
 
-// clearClaimBinding removes the binding annotations from a claim that is about to be recreated,
-// so the PV controller binds it to its reserved PV as a new claim.
-func clearClaimBinding(pvc *corev1.PersistentVolumeClaim) {
-	delete(pvc.ObjectMeta.Annotations, annBindCompleted)
-	delete(pvc.ObjectMeta.Annotations, annBoundByController)
+// commandTimeout returns the timeout of a command from its --timeout flag, in seconds.
+func commandTimeout(seconds int) time.Duration {
+	if seconds <= 0 {
+		seconds = defaultRebindTimeout
+	}
+
+	return time.Duration(seconds) * time.Second
 }
 
 // triggerStatefulSets gets the StatefulSets of the pods a Rebind drained to create them again
@@ -54,179 +52,119 @@ func triggerStatefulSets(ctx context.Context, held *rebind.Rebind) {
 	}
 }
 
-func cordoneNodeWithPVs(
+// rebindClaims rebinds the claims to their targets: it holds them, drains them, and commits
+// the targets. Pods using the claims are deleted in force mode, and stop the Rebind before
+// anything is changed otherwise.
+//
+// A failure before Commit aborts the Rebind, a failed Commit is retried once. If that fails as
+// well, the claims are left held and the state is logged. A re-run of the same command adopts
+// claims that are still held.
+func rebindClaims(
 	ctx context.Context,
-	kclient *clientkubernetes.Clientset,
-	pv *corev1.PersistentVolume,
-) ([]string, error) {
-	csiNodes, err := tools.CSINodes(ctx, kclient, pv.Spec.CSI.Driver)
+	kclient clientkubernetes.Interface,
+	namespace string,
+	force bool,
+	claims []string,
+	targets ...rebind.Target,
+) (retErr error) {
+	names := strings.Join(claims, ",")
+
+	// Fail fast, before anything is changed. Drain does the authoritative check.
+	for _, claim := range claims {
+		pods, err := tools.PVCPods(ctx, kclient, namespace, claim)
+		if err != nil {
+			return fmt.Errorf("failed to find pods using persistentvolumeclaims %s: %v", claim, err)
+		}
+
+		if len(pods) == 0 {
+			continue
+		}
+
+		usage := []string{}
+		for _, pod := range pods {
+			usage = append(usage, pod.Name+" on node "+pod.Spec.NodeName)
+		}
+
+		if !force {
+			return fmt.Errorf("persistentvolumeclaims %s is used by pods: %s, re-run with --force to terminate them", claim, strings.Join(usage, ","))
+		}
+
+		logger.Infof("persistentvolumeclaims %s is used by pods: %s, they will be terminated", claim, strings.Join(usage, ","))
+	}
+
+	logger.Infof("holding persistentvolumeclaims %s", names)
+
+	held, err := rebind.Hold(ctx, kclient, namespace, claims...)
 	if err != nil {
-		return nil, err
+		return fmt.Errorf("failed to hold persistentvolumeclaims: %v", err)
 	}
 
-	// Return whatever was actually cordoned, even on error, so callers can still
-	// uncordon exactly those nodes instead of losing track of partial progress.
-	cordonedNodes, err := tools.CondonNodes(ctx, kclient, csiNodes)
+	held.Logf = logger.Infof
+	committing := false
 
-	return cordonedNodes, err
-}
-
-func renamePVC(
-	ctx context.Context,
-	clientset *clientkubernetes.Clientset,
-	namespace string,
-	pvc *corev1.PersistentVolumeClaim,
-	pv *corev1.PersistentVolume,
-	newName string,
-) error {
-	newPVC := pvc.DeepCopy()
-	newPVC.ObjectMeta.Name = newName
-	clearClaimBinding(newPVC)
-	newPVC.ObjectMeta.UID = ""
-	newPVC.ObjectMeta.ResourceVersion = ""
-	newPVC.Status = corev1.PersistentVolumeClaimStatus{}
-	newPVC.Spec.Resources.Requests = corev1.ResourceList{
-		corev1.ResourceStorage: pvc.Status.Capacity[corev1.ResourceStorage],
-	}
-
-	originalPolicy := pv.Spec.PersistentVolumeReclaimPolicy
-	patch := []byte(`{"spec":{"persistentVolumeReclaimPolicy":"` + corev1.PersistentVolumeReclaimRetain + `"}}`)
-
-	if originalPolicy == corev1.PersistentVolumeReclaimDelete {
-		if _, err := clientset.CoreV1().PersistentVolumes().Patch(ctx, pvc.Spec.VolumeName, types.MergePatchType, patch, metav1.PatchOptions{}); err != nil {
-			return fmt.Errorf("failed to patch PersistentVolume: %v", err)
+	defer func() {
+		if retErr == nil {
+			return
 		}
-	}
 
-	policy := metav1.DeletePropagationForeground
-	if err := clientset.CoreV1().PersistentVolumeClaims(namespace).Delete(ctx, pvc.Name, metav1.DeleteOptions{PropagationPolicy: &policy}); err != nil {
-		return fmt.Errorf("failed to delete PersistentVolumeClaim: %v", err)
-	}
+		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Minute)
+		defer cancel()
 
-	// Reserve the PV for newName instead of clearing claimRef entirely, so no other
-	// Pending claim can bind to it while the renamed claim is being created.
-	if err := tools.PVReserveForClaim(ctx, clientset, pvc.Spec.VolumeName, namespace, newName); err != nil {
-		return err
-	}
+		if !committing {
+			logger.Infof("restoring persistentvolumeclaims %s", names)
 
-	// The destination name was already validated as free before this function was
-	// called, so a plain Create is used: falling back to updating whatever object
-	// currently holds that name would risk mutating an unrelated claim.
-	if _, err := clientset.CoreV1().PersistentVolumeClaims(namespace).Create(ctx, newPVC, metav1.CreateOptions{}); err != nil {
-		return fmt.Errorf("failed to create PersistentVolumeClaim %s: %v", newPVC.Name, err)
-	}
+			err := held.Abort(cleanupCtx)
+			if err != nil && !errors.Is(err, rebind.ErrInUse) {
+				logger.Warnf("failed to restore persistentvolumeclaims, retrying: %v", err)
 
-	if originalPolicy == corev1.PersistentVolumeReclaimDelete {
-		restorePatch := []byte(`{"spec":{"persistentVolumeReclaimPolicy":"` + corev1.PersistentVolumeReclaimDelete + `"}}`)
+				err = held.Abort(cleanupCtx)
+			}
 
-		if _, err := clientset.CoreV1().PersistentVolumes().Patch(ctx, pvc.Spec.VolumeName, types.MergePatchType, restorePatch, metav1.PatchOptions{}); err != nil {
-			return fmt.Errorf("failed to restore PersistentVolume reclaim policy: %v", err)
+			if err == nil {
+				triggerStatefulSets(cleanupCtx, held)
+
+				return
+			}
+
+			logger.Errorf("failed to restore persistentvolumeclaims %s: %v", names, err)
+			logger.Errorf("persistentvolumeclaims %s are left terminating with the %s finalizer and their persistentvolumes are retained, "+
+				"re-run the same command to finish it", names, rebind.Finalizer)
+
+			return
 		}
-	}
 
-	return nil
-}
+		logger.Infof("retrying to recreate persistentvolumeclaims %s", names)
 
-func swapPVC(
-	ctx context.Context,
-	clientset *clientkubernetes.Clientset,
-	namespace string,
-	srcPVC *corev1.PersistentVolumeClaim,
-	srcPV *corev1.PersistentVolume,
-	dstPVC *corev1.PersistentVolumeClaim,
-	dstPV *corev1.PersistentVolume,
-) error {
-	newSrcPVC := srcPVC.DeepCopy()
-	newSrcPVC.ObjectMeta.Name = dstPVC.ObjectMeta.Name
-	clearClaimBinding(newSrcPVC)
-	newSrcPVC.ObjectMeta.UID = ""
-	newSrcPVC.ObjectMeta.ResourceVersion = ""
-	newSrcPVC.Status = corev1.PersistentVolumeClaimStatus{}
-	newSrcPVC.Spec.Resources.Requests = corev1.ResourceList{
-		corev1.ResourceStorage: srcPVC.Status.Capacity[corev1.ResourceStorage],
-	}
+		err := held.Commit(cleanupCtx, targets...)
+		if err == nil {
+			triggerStatefulSets(cleanupCtx, held)
 
-	newDstPVC := dstPVC.DeepCopy()
-	newDstPVC.ObjectMeta.Name = srcPVC.ObjectMeta.Name
-	clearClaimBinding(newDstPVC)
-	newDstPVC.ObjectMeta.UID = ""
-	newDstPVC.ObjectMeta.ResourceVersion = ""
-	newDstPVC.Status = corev1.PersistentVolumeClaimStatus{}
-	newDstPVC.Spec.Resources.Requests = corev1.ResourceList{
-		corev1.ResourceStorage: dstPVC.Status.Capacity[corev1.ResourceStorage],
-	}
+			retErr = nil
 
-	originalSrcPolicy := srcPV.Spec.PersistentVolumeReclaimPolicy
-	originalDstPolicy := dstPV.Spec.PersistentVolumeReclaimPolicy
-
-	patch := []byte(`{"spec":{"persistentVolumeReclaimPolicy":"` + corev1.PersistentVolumeReclaimRetain + `"}}`)
-
-	if originalSrcPolicy == corev1.PersistentVolumeReclaimDelete {
-		if _, err := clientset.CoreV1().PersistentVolumes().Patch(ctx, srcPVC.Spec.VolumeName, types.MergePatchType, patch, metav1.PatchOptions{}); err != nil {
-			return fmt.Errorf("failed to patch PersistentVolume: %v", err)
+			return
 		}
-	}
 
-	if originalDstPolicy == corev1.PersistentVolumeReclaimDelete {
-		if _, err := clientset.CoreV1().PersistentVolumes().Patch(ctx, dstPVC.Spec.VolumeName, types.MergePatchType, patch, metav1.PatchOptions{}); err != nil {
-			return fmt.Errorf("failed to patch PersistentVolume: %v", err)
+		logger.Errorf("failed to recreate persistentvolumeclaims %s: %v", names, err)
+		logger.Errorf("persistentvolumeclaims %s may be partly recreated. Claims and volumes it created are annotated with %s, "+
+			"its persistentvolumes are retained and their original reclaim policy is recorded in the %s annotation",
+			names, rebind.AnnRebindFrom, rebind.AnnReclaimPolicy)
+	}()
+
+	if _, err = held.Drain(ctx, force); err != nil {
+		if errors.Is(err, rebind.ErrInUse) {
+			return fmt.Errorf("persistentvolumeclaims %s started being used while being held, re-run with --force: %v", names, err)
 		}
+
+		return fmt.Errorf("failed to wait for persistentvolumeclaims %s to be released: %v", names, err)
 	}
 
-	policy := metav1.DeletePropagationForeground
+	committing = true
 
-	if err := clientset.CoreV1().PersistentVolumeClaims(namespace).Delete(ctx, srcPVC.Name, metav1.DeleteOptions{PropagationPolicy: &policy}); err != nil {
-		return fmt.Errorf("failed to delete PersistentVolumeClaim: %v", err)
+	if err = held.Commit(ctx, targets...); err != nil {
+		return fmt.Errorf("failed to recreate persistentvolumeclaims %s: %v", names, err)
 	}
 
-	if err := clientset.CoreV1().PersistentVolumeClaims(namespace).Delete(ctx, dstPVC.Name, metav1.DeleteOptions{PropagationPolicy: &policy}); err != nil {
-		return fmt.Errorf("failed to delete PersistentVolumeClaim: %v", err)
-	}
-
-	// The claims being recreated reuse each other's names (src -> dstPVC.Name and
-	// dst -> srcPVC.Name), so a finalizer keeping either deleted claim around a
-	// moment longer would make the matching Create below fail with AlreadyExists.
-	if err := tools.PVCWaitDelete(ctx, clientset, namespace, srcPVC.Name, ""); err != nil {
-		return fmt.Errorf("failed to wait for PersistentVolumeClaim %s deletion: %v", srcPVC.Name, err)
-	}
-
-	if err := tools.PVCWaitDelete(ctx, clientset, namespace, dstPVC.Name, ""); err != nil {
-		return fmt.Errorf("failed to wait for PersistentVolumeClaim %s deletion: %v", dstPVC.Name, err)
-	}
-
-	// Reserve each PV for the claim it will now belong to, so no other Pending
-	// claim can bind to it while the swapped claims are being created.
-	if err := tools.PVReserveForClaim(ctx, clientset, srcPVC.Spec.VolumeName, namespace, newSrcPVC.Name); err != nil {
-		return err
-	}
-
-	if err := tools.PVReserveForClaim(ctx, clientset, dstPVC.Spec.VolumeName, namespace, newDstPVC.Name); err != nil {
-		return err
-	}
-
-	if _, err := tools.PVCCreateOrUpdate(ctx, clientset, newSrcPVC); err != nil {
-		return fmt.Errorf("failed to create/update PersistentVolumeClaim %s: %v", newSrcPVC.Name, err)
-	}
-
-	if _, err := tools.PVCCreateOrUpdate(ctx, clientset, newDstPVC); err != nil {
-		return fmt.Errorf("failed to create/update PersistentVolumeClaim %s: %v", newDstPVC.Name, err)
-	}
-
-	if originalSrcPolicy == corev1.PersistentVolumeReclaimDelete {
-		restorePatch := []byte(`{"spec":{"persistentVolumeReclaimPolicy":"` + corev1.PersistentVolumeReclaimDelete + `"}}`)
-
-		if _, err := clientset.CoreV1().PersistentVolumes().Patch(ctx, srcPVC.Spec.VolumeName, types.MergePatchType, restorePatch, metav1.PatchOptions{}); err != nil {
-			return fmt.Errorf("failed to restore PersistentVolume reclaim policy: %v", err)
-		}
-	}
-
-	if originalDstPolicy == corev1.PersistentVolumeReclaimDelete {
-		restorePatch := []byte(`{"spec":{"persistentVolumeReclaimPolicy":"` + corev1.PersistentVolumeReclaimDelete + `"}}`)
-
-		if _, err := clientset.CoreV1().PersistentVolumes().Patch(ctx, dstPVC.Spec.VolumeName, types.MergePatchType, restorePatch, metav1.PatchOptions{}); err != nil {
-			return fmt.Errorf("failed to restore PersistentVolume reclaim policy: %v", err)
-		}
-	}
+	triggerStatefulSets(ctx, held)
 
 	return nil
 }

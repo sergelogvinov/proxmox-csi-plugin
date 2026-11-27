@@ -29,9 +29,6 @@ rules:
   - apiGroups: ["apps"]
     resources: ["statefulsets"]
     verbs: ["patch"]
-  - apiGroups: ["storage.k8s.io"]
-    resources: ["csinodes"]
-    verbs: ["get", "list"]
   # Create and delete PV/PVC
   - apiGroups: [""]
     resources: ["persistentvolumes"]
@@ -39,10 +36,10 @@ rules:
   - apiGroups: [""]
     resources: ["persistentvolumeclaims"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-  # Resolve Proxmox VMs of nodes (migrate), cordon nodes (rename, swap)
+  # Resolve Proxmox VMs of nodes (migrate)
   - apiGroups: [""]
     resources: ["nodes"]
-    verbs: ["get", "list", "watch", "patch"]
+    verbs: ["get", "list", "watch"]
 ```
 
 ## Usage
@@ -215,6 +212,15 @@ In every case, a PersistentVolume stays `Retain` until its new PersistentVolumeC
 
 Rename PersistentVolumeClaim.
 
+Rename and swap hold the PersistentVolumeClaims the same way as the migration does, and no node is cordoned:
+the PersistentVolumes are switched to `Retain`, the PersistentVolumeClaims stay `Terminating` with the `csi.proxmox.sinextra.dev/rebind` finalizer
+until Kubernetes has released them, and they are then recreated under their new names.
+With `--force`, the pods using them are deleted, and their StatefulSets are triggered once the PersistentVolumeClaims are recreated.
+Both commands stop after `--timeout` seconds (600 by default).
+
+If a rename or swap fails before the PersistentVolumeClaims are recreated, they are put back as they were.
+If they are left held, for example because a pod could not be deleted, re-run the same command to finish it.
+
 Check the current PVCs:
 
 ```shell
@@ -232,7 +238,7 @@ pvecsictl rename -n default storage-test-0 storage-test-2
 If you're met with
 
 ```shell
-ERROR Error: persistentvolumeclaims is using by pods: test-0 on node kube-21, cannot move volume
+ERROR Error: failed to rename persistentvolumeclaims: persistentvolumeclaims storage-test-0 is used by pods: test-0 on node kube-21, re-run with --force to terminate them
 ```
 
 You can force the process by adding the `--force` flag
@@ -240,14 +246,14 @@ You can force the process by adding the `--force` flag
 ```shell
 pvecsictl rename -n default storage-test-0 storage-test-2 --force
 
-INFO persistentvolumeclaims is using by pods: test-0 on node kube-21, trying to force migration
-INFO cordoning nodes: kube-11,kube-12,kube-21,kube-22,kube-store-11,kube-store-21
-INFO terminated pods: test-0
-INFO waiting pods: test-0
+INFO persistentvolumeclaims storage-test-0 is used by pods: test-0 on node kube-21, they will be terminated
+INFO holding persistentvolumeclaims storage-test-0
+INFO terminating pod test-0 on node kube-21
+INFO waiting for pods: test-0
 ...
-INFO waiting pods: test-0
-INFO uncordoning nodes: kube-11,kube-12,kube-21,kube-22,kube-store-11,kube-store-21
-INFO persistentvolumeclaims storage-test-0 has been renamed
+INFO waiting for pods: test-0
+INFO triggering statefulset test (attempt 1/5)
+INFO persistentvolumeclaims storage-test-0 has been renamed to storage-test-2
 ```
 
 Check the result:
@@ -303,14 +309,15 @@ Swap PVCs:
 ```shell
 pvecsictl swap -n default storage-test-0 storage-test-1 -f
 
-INFO persistentvolumeclaims is using by pods: test-0 on node builder-03a, trying to force swap
-INFO persistentvolumeclaims is using by pods: test-1 on node builder-04b, trying to force swap
-INFO cordoned nodes: builder-03a,builder-03b,builder-04a,builder-04b
-INFO terminated pods: test-0,test-1
-INFO waiting pods: test-0
-INFO waiting pods: test-0
+INFO persistentvolumeclaims storage-test-0 is used by pods: test-0 on node builder-03a, they will be terminated
+INFO persistentvolumeclaims storage-test-1 is used by pods: test-1 on node builder-04b, they will be terminated
+INFO holding persistentvolumeclaims storage-test-0,storage-test-1
+INFO terminating pod test-0 on node builder-03a
+INFO terminating pod test-1 on node builder-04b
+INFO waiting for pods: test-0,test-1
+INFO waiting for pods: test-0
+INFO triggering statefulset test (attempt 1/5)
 INFO persistentvolumeclaims storage-test-0,storage-test-1 has been swapped
-INFO uncordoning nodes: builder-03a,builder-03b,builder-04a,builder-04b
 ```
 
 Check the result:
