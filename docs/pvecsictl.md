@@ -185,20 +185,31 @@ How the migration works:
 
 * The PersistentVolume is switched to the `Retain` reclaim policy, so the disk is never deleted.
   The original policy is recorded in the `csi.proxmox.sinextra.dev/reclaim-policy` annotation and restored on the recreated PersistentVolume.
-* The PersistentVolumeClaim is locked: it is deleted while being held by the `csi.proxmox.sinextra.dev/migrate` finalizer, so it stays `Terminating` for the whole migration.
+* The PersistentVolumeClaim is held: it is deleted while being kept by the `csi.proxmox.sinextra.dev/rebind` finalizer, so it stays `Terminating` for the whole migration.
   Kubernetes does not schedule pods whose PersistentVolumeClaim is being deleted, so a recreated pod stays `Pending`, while all other workloads keep scheduling normally.
 * With `--force`, the pods using the PersistentVolumeClaim are deleted.
 * The disk is moved only after Kubernetes has released the PersistentVolumeClaim (the `kubernetes.io/pvc-protection` finalizer is gone),
   at which point no pod can start with it anymore, and the disk is detached from every node it was used on.
 * The PersistentVolumeClaim and PersistentVolume are recreated with the new node affinity, and the `Pending` pod starts on a node in the new zone.
 
-If a pod starts using the PersistentVolumeClaim while it is being locked without `--force`, the migration stops and leaves it locked; re-run the command with `--force` to continue.
+If a pod starts using the PersistentVolumeClaim while it is being held without `--force`, the migration stops and leaves it held; re-run the command with `--force` to continue.
+A re-run picks up a PersistentVolumeClaim that is still held, including one held by the `csi.proxmox.sinextra.dev/migrate` finalizer of older versions.
+A PersistentVolumeClaim whose expansion is still in progress is refused: retry once the expansion is done.
 
-If the migration fails before the disk move starts, `pvecsictl` tries to recreate the PersistentVolumeClaim on the original node.
-This is skipped while a pod still uses the PersistentVolumeClaim, for example if a pod could not be deleted, and the PersistentVolumeClaim is left locked instead.
-If it fails later, the PersistentVolumeClaim is left `Terminating` with the finalizer and the PersistentVolume is retained for manual recovery.
-If it fails while the PersistentVolumeClaim and PersistentVolume are being recreated, the disk is retained and `pvecsictl` prints their manifests,
-so they can be recreated with `kubectl apply`.
+If the migration fails before the disk move starts, `pvecsictl` recreates the PersistentVolumeClaim on the original node.
+This is skipped while a pod still uses the PersistentVolumeClaim, for example if a pod could not be deleted, and the PersistentVolumeClaim is left held instead; re-run the migration to resume it.
+If restoring it fails twice for another reason before the hold is released, the PersistentVolumeClaim is also left held, and re-running the migration resumes it.
+If it fails after the PersistentVolumeClaim was released, `pvecsictl` prints its manifest and the command that reserves the retained PersistentVolume for it.
+
+If the disk move fails, the PersistentVolumeClaim is left `Terminating` with the finalizer and the PersistentVolume is retained.
+The disk may then be on either node: check where it is before running the migration again or recovering it manually.
+
+If recreating the PersistentVolumeClaim and PersistentVolume fails after the disk was moved, `pvecsictl` tries once more.
+If that fails too, it prints their manifests for the new node and the steps to apply them: remove what is left of the old objects,
+create the PersistentVolumeClaim, then the PersistentVolume reserved for that claim's uid.
+Do not run the migration again in that case: the disk has already been moved.
+
+In every case, a PersistentVolume stays `Retain` until its new PersistentVolumeClaim is in place, and the recovery steps stop if another PersistentVolumeClaim has taken the name.
 
 ### Rename
 

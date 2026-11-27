@@ -19,6 +19,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -30,12 +31,13 @@ import (
 	csiconfig "github.com/sergelogvinov/proxmox-csi-plugin/pkg/config"
 	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/csi"
 	tools "github.com/sergelogvinov/proxmox-csi-plugin/pkg/tools/kubernetes"
+	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/tools/kubernetes/rebind"
 	toolsproxmox "github.com/sergelogvinov/proxmox-csi-plugin/pkg/tools/proxmox"
 	volume "github.com/sergelogvinov/proxmox-csi-plugin/pkg/utils/volume"
 
 	rbacv1 "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	clientkubernetes "k8s.io/client-go/kubernetes"
@@ -50,7 +52,7 @@ const (
 
 type migrateCmd struct {
 	pclient   *pxpool.ProxmoxPool
-	kclient   *clientkubernetes.Clientset
+	kclient   clientkubernetes.Interface
 	namespace string
 }
 
@@ -83,7 +85,7 @@ func setMigrateCmdFlags(cmd *cobra.Command) {
 }
 
 // nolint: cyclop, gocyclo
-func (c *migrateCmd) runMigration(cmd *cobra.Command, args []string) error {
+func (c *migrateCmd) runMigration(cmd *cobra.Command, args []string) (retErr error) {
 	flags := cmd.Flags()
 	force, _ := flags.GetBool("force") //nolint: errcheck
 
@@ -146,22 +148,43 @@ func (c *migrateCmd) runMigration(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("persistentvolumeclaims is using by pods: %s on node %s, cannot move volume", strings.Join(pods, ","), vmName)
 	}
 
-	locked := true
-	unsafeToRestore := false
+	// The target the claim is recreated for, once the disk is on the new node.
+	target := rebind.Target{
+		Claim:        pvc,
+		VolumeHandle: volume.NewVolume(vol.Region(), node, vol.Storage(), vol.Disk()).VolumeID(),
+		NodeAffinity: nodeAffinity(vol.Region(), node),
+	}
+
+	logger.Infof("holding persistentvolumeclaims %s", pvc)
+
+	held, err := rebind.Hold(ctx, c.kclient, c.namespace, pvc)
+	if err != nil {
+		return fmt.Errorf("failed to hold persistentvolumeclaims: %v", err)
+	}
+
+	done := false
+	moveStarted := false
 	diskMoved := false
 
 	defer func() {
-		if !locked {
+		if done {
 			return
 		}
 
 		cleanupCtx, cleanupCancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Minute)
 		defer cleanupCancel()
 
-		if !unsafeToRestore {
+		switch {
+		case !moveStarted:
 			logger.Infof("restoring persistentvolumeclaims %s on proxmox node %s", pvc, vol.Node())
 
-			err := c.restorePVC(cleanupCtx, kubePVC, kubePV, vol)
+			err := held.Abort(cleanupCtx)
+			if err != nil && !errors.Is(err, rebind.ErrInUse) {
+				logger.Warnf("failed to restore persistentvolumeclaims, retrying: %v", err)
+
+				err = held.Abort(cleanupCtx)
+			}
+
 			if err == nil {
 				c.triggerStatefulSets(cleanupCtx, pvc, statefulSets)
 
@@ -169,22 +192,30 @@ func (c *migrateCmd) runMigration(cmd *cobra.Command, args []string) error {
 			}
 
 			logger.Errorf("failed to restore persistentvolumeclaims: %v", err)
-		}
 
-		// The claim is recreated for wherever the disk is at the point of failure.
-		target := vol.Node()
-		if diskMoved {
-			target = node
-		}
+			c.reportRecovery(cleanupCtx, held, rebind.Target{Claim: pvc}, kubePVC, kubePV, recoveryBeforeMove, vol.Node(), node)
 
-		c.reportRecovery(cleanupCtx, kubePVC, kubePV, vol, target)
+		case diskMoved:
+			logger.Infof("retrying to recreate persistentvolumeclaims %s on proxmox node %s", pvc, node)
+
+			err := held.Commit(cleanupCtx, target)
+			if err == nil {
+				logger.Infof("persistentvolumeclaims %s has been migrated to proxmox node %s", pvc, node)
+				c.triggerStatefulSets(cleanupCtx, pvc, statefulSets)
+
+				retErr = nil
+
+				return
+			}
+
+			logger.Errorf("failed to recreate persistentvolumeclaims: %v", err)
+
+			c.reportRecovery(cleanupCtx, held, target, kubePVC, kubePV, recoveryAfterMove, vol.Node(), node)
+
+		default:
+			c.reportRecovery(cleanupCtx, held, rebind.Target{Claim: pvc}, kubePVC, kubePV, recoveryMoveFailed, vol.Node(), node)
+		}
 	}()
-
-	logger.Infof("locking persistentvolumeclaims %s", pvc)
-
-	if err = lockPVC(ctx, c.kclient, c.namespace, kubePVC, kubePV); err != nil {
-		return fmt.Errorf("failed to lock persistentvolumeclaims: %v", err)
-	}
 
 	podNodes, podStatefulSets, err := c.waitPVCUnused(ctx, kubePVC, force)
 
@@ -227,7 +258,7 @@ func (c *migrateCmd) runMigration(cmd *cobra.Command, args []string) error {
 
 	logger.Infof("moving disk %s to proxmox node %s", vol.Disk(), node)
 
-	unsafeToRestore = true
+	moveStarted = true
 
 	if err = toolsproxmox.MoveQemuDisk(ctx, cluster, vol, node, taskTimeout); err != nil {
 		return fmt.Errorf("failed to move disk: %v", err)
@@ -237,11 +268,11 @@ func (c *migrateCmd) runMigration(cmd *cobra.Command, args []string) error {
 
 	logger.Infof("replacing persistentvolume topology")
 
-	if err = replacePVTopology(ctx, c.kclient, c.namespace, kubePVC, kubePV, vol, node); err != nil {
+	if err = held.Commit(ctx, target); err != nil {
 		return fmt.Errorf("failed to replace PV topology: %v", err)
 	}
 
-	locked = false
+	done = true
 
 	logger.Infof("persistentvolumeclaims %s has been migrated to proxmox node %s", pvc, node)
 
@@ -283,7 +314,7 @@ func (c *migrateCmd) triggerStatefulSets(ctx context.Context, pvcName string, st
 		for _, name := range statefulSets {
 			logger.Infof("triggering statefulset %s (attempt %d/%d)", name, attempt, triggerAttempts)
 
-			if _, err = c.kclient.AppsV1().StatefulSets(c.namespace).Patch(ctx, name, types.MergePatchType, patch, metav1.PatchOptions{}); err != nil && !errors.IsNotFound(err) {
+			if _, err = c.kclient.AppsV1().StatefulSets(c.namespace).Patch(ctx, name, types.MergePatchType, patch, metav1.PatchOptions{}); err != nil && !apierrors.IsNotFound(err) {
 				logger.Warnf("failed to trigger statefulset %s of persistentvolumeclaims %s: %v", name, pvcName, err)
 			}
 		}
@@ -397,7 +428,7 @@ func (c *migrateCmd) waitPVCUnused(ctx context.Context, pvc *corev1.PersistentVo
 
 			logger.Infof("persistentvolumeclaims is using by pod %s on node %s, terminating it", pod.Name, pod.Spec.NodeName)
 
-			if err = c.kclient.CoreV1().Pods(c.namespace).Delete(ctx, pod.Name, metav1.DeleteOptions{}); err != nil && !errors.IsNotFound(err) {
+			if err = c.kclient.CoreV1().Pods(c.namespace).Delete(ctx, pod.Name, metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
 				return nodes, statefulSets, fmt.Errorf("failed to delete pod: %v", err)
 			}
 
@@ -418,74 +449,110 @@ func (c *migrateCmd) waitPVCUnused(ctx context.Context, pvc *corev1.PersistentVo
 	}
 }
 
-// restorePVC recreates the locked claim on its original Proxmox node. It is only safe before
-// the disk move has started, and only once no pod holds the claim anymore: otherwise releasing
-// migrateFinalizer would let the claim go away later with nothing left to recreate it.
-func (c *migrateCmd) restorePVC(
-	ctx context.Context,
-	pvc *corev1.PersistentVolumeClaim,
-	pv *corev1.PersistentVolume,
-	vol *volume.Volume,
-) error {
-	live, err := c.kclient.CoreV1().PersistentVolumeClaims(c.namespace).Get(ctx, pvc.Name, metav1.GetOptions{})
-	if err != nil && !errors.IsNotFound(err) {
-		return fmt.Errorf("failed to get pvc: %v", err)
-	}
+// recoveryStage is how far a failed migration got.
+type recoveryStage int
 
-	// Another claim took the name: leave it alone, and keep the PV retained, since the
-	// original claim may already be gone and releasing its PV would delete the disk.
-	if err == nil && live.UID != pvc.UID {
-		return fmt.Errorf("persistentvolumeclaims %s was replaced, persistentvolume %s is left retained", pvc.Name, pv.Name)
-	}
+const (
+	// recoveryBeforeMove: the claim could not be restored, the disk is still on its node.
+	recoveryBeforeMove recoveryStage = iota
+	// recoveryMoveFailed: the disk move failed, the disk may be on either node.
+	recoveryMoveFailed
+	// recoveryAfterMove: the disk is on the new node, the claim could not be recreated there.
+	recoveryAfterMove
+)
 
-	// lockPVC failed before the claim was deleted: undo the lock in place.
-	if err == nil && live.DeletionTimestamp == nil {
-		if err = tools.PVCRemoveFinalizer(ctx, c.kclient, c.namespace, pvc.Name, pvc.UID, migrateFinalizer); err != nil {
-			return err
-		}
-
-		return restoreReclaimPolicy(ctx, c.kclient, pv)
-	}
-
-	pods, _, err := tools.PVCPodUsage(ctx, c.kclient, c.namespace, pvc.Name)
-	if err != nil {
-		return fmt.Errorf("failed to find pods using pvc: %v", err)
-	}
-
-	if len(pods) > 0 {
-		return fmt.Errorf("persistentvolumeclaims is still used by pods: %s", strings.Join(pods, ","))
-	}
-
-	return replacePVTopology(ctx, c.kclient, c.namespace, pvc, pv, vol, vol.Node())
-}
-
-// reportRecovery logs the state a failed migration left behind. While the claim is still held
-// by migrateFinalizer, the original objects are intact. Once it is gone, the claim and possibly
-// the PV have to be recreated, so their manifests for the node holding the disk are printed.
+// reportRecovery logs the state a failed migration left behind, and how to recover from it.
+// pvc and pv are the objects the migration held.
 func (c *migrateCmd) reportRecovery(
 	ctx context.Context,
+	held *rebind.Rebind,
+	target rebind.Target,
 	pvc *corev1.PersistentVolumeClaim,
 	pv *corev1.PersistentVolume,
-	vol *volume.Volume,
-	node string,
+	stage recoveryStage,
+	source, destination string,
 ) {
-	live, err := c.kclient.CoreV1().PersistentVolumeClaims(c.namespace).Get(ctx, pvc.Name, metav1.GetOptions{})
-	if err == nil && live.UID == pvc.UID && slices.Contains(live.Finalizers, migrateFinalizer) {
-		logger.Errorf("migration failed, leaving persistentvolumeclaims %s terminating with finalizer %s and persistentvolume %s retained for manual recovery",
-			pvc.Name, migrateFinalizer, pv.Name)
+	// The cleanup context may be used up by the failed restore: look the claim up on a
+	// context of its own.
+	lookupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), time.Minute)
+	defer cancel()
+
+	live, err := c.kclient.CoreV1().PersistentVolumeClaims(c.namespace).Get(lookupCtx, target.Claim, metav1.GetOptions{})
+	if err != nil && !apierrors.IsNotFound(err) {
+		logger.Errorf("migration failed, and the state of persistentvolumeclaims %s is unknown: %v. "+
+			"Check whether it is still terminating with its hold finalizer before changing anything, persistentvolume %s is retained",
+			target.Claim, err, pv.Name)
+
+		if stage == recoveryMoveFailed {
+			logger.Errorf("the disk move failed, the disk may be on proxmox node %s or %s: check where it is before recovering it", source, destination)
+		}
+
+		// After a moved disk, the objects for the new node are needed whatever the claim's state.
+		if stage != recoveryAfterMove {
+			return
+		}
+	}
+
+	stillHeld := err == nil && live.DeletionTimestamp != nil && rebind.IsHeld(live)
+
+	// A claim under the name that the migration did not create must never get the disk.
+	foreign := fmt.Sprintf("If persistentvolumeclaims %s exists without the annotation %s=%s, another claim took the name: stop, "+
+		"and do not reserve the disk for it.", target.Claim, rebind.AnnRebindFrom, pvc.UID)
+
+	switch stage {
+	case recoveryBeforeMove, recoveryMoveFailed:
+		if stillHeld {
+			if stage == recoveryBeforeMove {
+				logger.Errorf("migration failed, persistentvolumeclaims %s is left terminating with its hold finalizer and persistentvolume %s is retained, "+
+					"the disk is on proxmox node %s, run the migration again to resume it", target.Claim, pv.Name, source)
+			} else {
+				logger.Errorf("disk move failed, persistentvolumeclaims %s is left terminating with its hold finalizer and persistentvolume %s is retained. "+
+					"The disk may be on proxmox node %s or %s: check where it is before running the migration again or recovering it manually",
+					target.Claim, pv.Name, source, destination)
+			}
+
+			return
+		}
+
+		if stage == recoveryMoveFailed {
+			logger.Errorf("disk move failed after persistentvolumeclaims %s was released. The disk may be on proxmox node %s or %s: "+
+				"check where it is first, the steps below are for proxmox node %s", target.Claim, source, destination, source)
+		}
+
+		logger.Errorf("persistentvolumeclaims %s was released, persistentvolume %s is retained. %s "+
+			"Otherwise create the claim from the manifest below, then reserve the persistentvolume for it, with CLAIM_UID set to the uid of that claim:\n"+
+			"  kubectl patch pv %s --type=json -p '[{\"op\":\"test\",\"path\":\"/metadata/uid\",\"value\":%q},"+
+			"{\"op\":\"add\",\"path\":\"/spec/claimRef\",\"value\":{\"kind\":\"PersistentVolumeClaim\",\"apiVersion\":\"v1\",\"namespace\":%q,\"name\":%q,\"uid\":\"CLAIM_UID\"}}]'\n"+
+			"Once the claim is Bound, restore the reclaim policy recorded in the %s annotation of the persistentvolume",
+			target.Claim, pv.Name, foreign, pv.Name, pv.UID, c.namespace, target.Claim, rebind.AnnReclaimPolicy)
+
+	case recoveryAfterMove:
+		logger.Errorf("the disk was moved to proxmox node %s, but persistentvolumeclaims %s could not be recreated there. "+
+			"Do not run the migration again, recreate the objects from the manifests below:", destination, target.Claim)
+
+		if stillHeld {
+			logger.Errorf("  1. persistentvolumeclaims %s is terminating with its hold finalizer, remove the finalizer so it is deleted", target.Claim)
+		}
+
+		logger.Errorf("  2. if persistentvolume %s still exists with the volume handle %s, delete it: it is retained, so the disk is kept", pv.Name, pv.Spec.CSI.VolumeHandle)
+		logger.Errorf("  3. %s Otherwise create the claim from the first manifest, unless it exists with that annotation", foreign)
+		logger.Errorf("  4. if persistentvolume %s exists with the new handle and the annotation %s=%s, and is not being deleted, reserve it for that claim, "+
+			"with PV_UID set to its uid and CLAIM_UID to the uid of the claim:\n"+
+			"  kubectl patch pv %s --type=json -p '[{\"op\":\"test\",\"path\":\"/metadata/uid\",\"value\":\"PV_UID\"},"+
+			"{\"op\":\"add\",\"path\":\"/spec/claimRef\",\"value\":{\"kind\":\"PersistentVolumeClaim\",\"apiVersion\":\"v1\",\"namespace\":%q,\"name\":%q,\"uid\":\"CLAIM_UID\"}}]'\n"+
+			"  Otherwise set spec.claimRef.uid in the persistentvolume manifest to the uid of that claim, then create the persistentvolume",
+			pv.Name, rebind.AnnRebindFrom, pv.UID, pv.Name, c.namespace, target.Claim)
+		logger.Errorf("  5. once the claim is Bound, restore the reclaim policy recorded in the %s annotation of the persistentvolume", rebind.AnnReclaimPolicy)
+	}
+
+	objs, err := held.Manifests(target)
+	if err != nil {
+		logger.Errorf("failed to build recovery manifests: %v", err)
 
 		return
 	}
 
-	newPVC, newPV := newPVTopology(c.namespace, pvc, pv, vol, node)
-	newPVC.TypeMeta = metav1.TypeMeta{APIVersion: "v1", Kind: "PersistentVolumeClaim"}
-	newPV.TypeMeta = metav1.TypeMeta{APIVersion: "v1", Kind: "PersistentVolume"}
-
-	logger.Errorf("migration failed after persistentvolumeclaims %s was released, the disk %s on proxmox node %s is retained, "+
-		"but persistentvolumeclaims %s and persistentvolume %s may be missing, recreate them from the manifests below",
-		pvc.Name, vol.Disk(), node, pvc.Name, pv.Name)
-
-	for _, obj := range []any{newPV, newPVC} {
+	for _, obj := range objs {
 		manifest, err := json.Marshal(obj)
 		if err != nil {
 			logger.Errorf("failed to marshal manifest: %v", err)
@@ -494,6 +561,30 @@ func (c *migrateCmd) reportRecovery(
 		}
 
 		fmt.Println(string(manifest))
+	}
+}
+
+// nodeAffinity returns the node affinity of a volume on the given Proxmox node.
+func nodeAffinity(region, node string) *corev1.VolumeNodeAffinity {
+	return &corev1.VolumeNodeAffinity{
+		Required: &corev1.NodeSelector{
+			NodeSelectorTerms: []corev1.NodeSelectorTerm{
+				{
+					MatchExpressions: []corev1.NodeSelectorRequirement{
+						{
+							Key:      corev1.LabelTopologyRegion,
+							Operator: corev1.NodeSelectorOpIn,
+							Values:   []string{region},
+						},
+						{
+							Key:      corev1.LabelTopologyZone,
+							Operator: corev1.NodeSelectorOpIn,
+							Values:   []string{node},
+						},
+					},
+				},
+			},
+		},
 	}
 }
 
