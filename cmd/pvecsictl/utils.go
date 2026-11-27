@@ -21,8 +21,8 @@ import (
 	"fmt"
 
 	pxpool "github.com/sergelogvinov/go-proxmox-pool"
-	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/csi"
 	tools "github.com/sergelogvinov/proxmox-csi-plugin/pkg/tools/kubernetes"
+	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/tools/kubernetes/rebind"
 
 	rbacv1 "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -46,13 +46,13 @@ func clearClaimBinding(pvc *corev1.PersistentVolumeClaim) {
 	delete(pvc.ObjectMeta.Annotations, annBoundByController)
 }
 
-// annMigratedAt is set on the StatefulSets of a migrated claim, so the StatefulSet controller
-// retries them without waiting for its backoff to expire.
-const annMigratedAt = csi.DriverName + "/migrated-at"
-
-// pvcProtectionFinalizer is held by Kubernetes while a scheduled pod uses a claim. The kubelet
-// refuses to start a pod with a Terminating claim only once this finalizer is gone.
-const pvcProtectionFinalizer = "kubernetes.io/pvc-protection"
+// triggerStatefulSets gets the StatefulSets of the pods a Rebind drained to create them again
+// right away. The claims are already in place, so a failure only delays the pod start.
+func triggerStatefulSets(ctx context.Context, held *rebind.Rebind) {
+	if err := held.TriggerStatefulSets(ctx); err != nil {
+		logger.Warnf("%v", err)
+	}
+}
 
 func cordoneNodeWithPVs(
 	ctx context.Context,

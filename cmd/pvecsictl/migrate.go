@@ -39,15 +39,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 	clientkubernetes "k8s.io/client-go/kubernetes"
-)
-
-// triggerAttempts and triggerInterval bound how long triggerStatefulSets waits for the
-// StatefulSet controller to recreate the pod of a migrated claim.
-const (
-	triggerAttempts = 5
-	triggerInterval = 5 * time.Second
 )
 
 type migrateCmd struct {
@@ -136,12 +128,10 @@ func (c *migrateCmd) runMigration(cmd *cobra.Command, args []string) (retErr err
 
 	pods := []string{}
 	vmName := ""
-	statefulSets := []string{}
 
 	for _, pod := range usedBy {
 		pods = append(pods, pod.Name)
 		vmName = pod.Spec.NodeName
-		statefulSets = appendStatefulSetOwner(statefulSets, &pod)
 	}
 
 	if len(pods) > 0 && !force {
@@ -161,6 +151,8 @@ func (c *migrateCmd) runMigration(cmd *cobra.Command, args []string) (retErr err
 	if err != nil {
 		return fmt.Errorf("failed to hold persistentvolumeclaims: %v", err)
 	}
+
+	held.Logf = logger.Infof
 
 	done := false
 	moveStarted := false
@@ -186,7 +178,7 @@ func (c *migrateCmd) runMigration(cmd *cobra.Command, args []string) (retErr err
 			}
 
 			if err == nil {
-				c.triggerStatefulSets(cleanupCtx, pvc, statefulSets)
+				triggerStatefulSets(cleanupCtx, held)
 
 				return
 			}
@@ -201,7 +193,7 @@ func (c *migrateCmd) runMigration(cmd *cobra.Command, args []string) (retErr err
 			err := held.Commit(cleanupCtx, target)
 			if err == nil {
 				logger.Infof("persistentvolumeclaims %s has been migrated to proxmox node %s", pvc, node)
-				c.triggerStatefulSets(cleanupCtx, pvc, statefulSets)
+				triggerStatefulSets(cleanupCtx, held)
 
 				retErr = nil
 
@@ -217,18 +209,13 @@ func (c *migrateCmd) runMigration(cmd *cobra.Command, args []string) (retErr err
 		}
 	}()
 
-	podNodes, podStatefulSets, err := c.waitPVCUnused(ctx, kubePVC, force)
-
-	// Merged before the error check: pods may have been deleted already, and a restored
-	// claim needs their StatefulSets triggered too.
-	for _, name := range podStatefulSets {
-		if !slices.Contains(statefulSets, name) {
-			statefulSets = append(statefulSets, name)
-		}
-	}
-
+	podNodes, err := held.Drain(ctx, force)
 	if err != nil {
-		return err
+		if errors.Is(err, rebind.ErrInUse) {
+			return fmt.Errorf("persistentvolumeclaims %s started being used while it was being held, re-run with --force to migrate it: %v", pvc, err)
+		}
+
+		return fmt.Errorf("failed to wait for persistentvolumeclaims %s to be released: %v", pvc, err)
 	}
 
 	// The disk has to be detached from every node a pod was seen on, including one from the
@@ -276,177 +263,9 @@ func (c *migrateCmd) runMigration(cmd *cobra.Command, args []string) (retErr err
 
 	logger.Infof("persistentvolumeclaims %s has been migrated to proxmox node %s", pvc, node)
 
-	c.triggerStatefulSets(ctx, pvc, statefulSets)
+	triggerStatefulSets(ctx, held)
 
 	return nil
-}
-
-// triggerStatefulSets annotates the StatefulSets of the pods that used the migrated claim. A
-// StatefulSet that failed to create its pod while the claim was locked backs off, and may wait
-// minutes before it notices the new claim. An update of the object requeues it right away.
-// Only the metadata is changed, which does not roll out its pods. The controller may handle the
-// update before its cache has the recreated claim, and back off again, so the trigger is repeated
-// with a new annotation value until a pod using the claim is created, for a bounded number of
-// attempts. The claim is already in place, so a failure here only delays the pod start and is
-// just logged. It runs with its own timeout, as the given context may be about to expire after a
-// long disk move.
-func (c *migrateCmd) triggerStatefulSets(ctx context.Context, pvcName string, statefulSets []string) {
-	if len(statefulSets) == 0 {
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), time.Minute)
-	defer cancel()
-
-	for attempt := 1; attempt <= triggerAttempts; attempt++ {
-		created, err := c.pvcPodCreated(ctx, pvcName)
-		if err != nil {
-			logger.Warnf("failed to check pods of persistentvolumeclaims %s: %v", pvcName, err)
-		}
-
-		if created {
-			return
-		}
-
-		// Each attempt needs a new value, an unchanged object is not an update.
-		patch := fmt.Appendf(nil, `{"metadata":{"annotations":{%q:%q}}}`, annMigratedAt, time.Now().UTC().Format(time.RFC3339Nano))
-
-		for _, name := range statefulSets {
-			logger.Infof("triggering statefulset %s (attempt %d/%d)", name, attempt, triggerAttempts)
-
-			if _, err = c.kclient.AppsV1().StatefulSets(c.namespace).Patch(ctx, name, types.MergePatchType, patch, metav1.PatchOptions{}); err != nil && !apierrors.IsNotFound(err) {
-				logger.Warnf("failed to trigger statefulset %s of persistentvolumeclaims %s: %v", name, pvcName, err)
-			}
-		}
-
-		select {
-		case <-ctx.Done():
-			logger.Warnf("pod using persistentvolumeclaims %s was not created: %v", pvcName, ctx.Err())
-
-			return
-		case <-time.After(triggerInterval):
-		}
-	}
-
-	created, err := c.pvcPodCreated(ctx, pvcName)
-	if err != nil {
-		logger.Warnf("failed to check pods of persistentvolumeclaims %s: %v", pvcName, err)
-	}
-
-	if !created {
-		logger.Warnf("pod using persistentvolumeclaims %s was not created after %d triggers of statefulsets %s",
-			pvcName, triggerAttempts, strings.Join(statefulSets, ","))
-	}
-}
-
-// pvcPodCreated reports whether a pod that uses the claim exists and is not being deleted,
-// whether it is scheduled yet or not.
-func (c *migrateCmd) pvcPodCreated(ctx context.Context, pvcName string) (bool, error) {
-	podList, err := c.kclient.CoreV1().Pods(c.namespace).List(ctx, metav1.ListOptions{})
-	if err != nil {
-		return false, fmt.Errorf("failed to list pods: %v", err)
-	}
-
-	for _, pod := range podList.Items {
-		if pod.DeletionTimestamp != nil {
-			continue
-		}
-
-		for _, volume := range pod.Spec.Volumes {
-			if volume.PersistentVolumeClaim != nil && volume.PersistentVolumeClaim.ClaimName == pvcName {
-				return true, nil
-			}
-		}
-	}
-
-	return false, nil
-}
-
-// appendStatefulSetOwner adds the StatefulSet controlling the pod, if any, to the list.
-func appendStatefulSetOwner(statefulSets []string, pod *corev1.Pod) []string {
-	owner := metav1.GetControllerOf(pod)
-	if owner == nil || owner.APIVersion != "apps/v1" || owner.Kind != "StatefulSet" || slices.Contains(statefulSets, owner.Name) {
-		return statefulSets
-	}
-
-	return append(statefulSets, owner.Name)
-}
-
-// waitPVCUnused waits until no pod can use the locked claim anymore. The kubelet refuses to
-// start a pod with a Terminating claim only once pvcProtectionFinalizer is gone, and no
-// finalizer can be added back to a Terminating object, so from then on the disk is safe to
-// detach and move. Pods found using the claim meanwhile are deleted in force mode, and stop
-// the migration otherwise. It returns the nodes and the StatefulSets of all pods seen using
-// the claim, as the deleted pods cannot be looked up afterwards.
-func (c *migrateCmd) waitPVCUnused(ctx context.Context, pvc *corev1.PersistentVolumeClaim, force bool) (nodes, statefulSets []string, err error) {
-	deleted := map[string]bool{}
-
-	for {
-		var live *corev1.PersistentVolumeClaim
-
-		live, err = c.kclient.CoreV1().PersistentVolumeClaims(c.namespace).Get(ctx, pvc.Name, metav1.GetOptions{})
-		if err != nil {
-			return nodes, statefulSets, fmt.Errorf("failed to get pvc: %v", err)
-		}
-
-		if live.UID != pvc.UID {
-			return nodes, statefulSets, fmt.Errorf("persistentvolumeclaims %s was replaced during the migration", pvc.Name)
-		}
-
-		var pods []corev1.Pod
-
-		pods, err = tools.PVCPods(ctx, c.kclient, c.namespace, pvc.Name)
-		if err != nil {
-			return nodes, statefulSets, fmt.Errorf("failed to find pods using pvc: %v", err)
-		}
-
-		names := []string{}
-
-		for _, pod := range pods {
-			names = append(names, pod.Name)
-
-			if !slices.Contains(nodes, pod.Spec.NodeName) {
-				nodes = append(nodes, pod.Spec.NodeName)
-			}
-
-			statefulSets = appendStatefulSetOwner(statefulSets, &pod)
-		}
-
-		if len(pods) == 0 && !slices.Contains(live.Finalizers, pvcProtectionFinalizer) {
-			return nodes, statefulSets, nil
-		}
-
-		if len(pods) > 0 && !force {
-			return nodes, statefulSets, fmt.Errorf("persistentvolumeclaims %s started being used by pods: %s while it was being locked, re-run with --force to migrate it",
-				pvc.Name, strings.Join(names, ","))
-		}
-
-		for _, pod := range pods {
-			if deleted[pod.Name] {
-				continue
-			}
-
-			logger.Infof("persistentvolumeclaims is using by pod %s on node %s, terminating it", pod.Name, pod.Spec.NodeName)
-
-			if err = c.kclient.CoreV1().Pods(c.namespace).Delete(ctx, pod.Name, metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
-				return nodes, statefulSets, fmt.Errorf("failed to delete pod: %v", err)
-			}
-
-			deleted[pod.Name] = true
-		}
-
-		if len(pods) > 0 {
-			logger.Infof("waiting pods: %s", strings.Join(names, " "))
-		} else {
-			logger.Infof("waiting for persistentvolumeclaims %s to be released", pvc.Name)
-		}
-
-		select {
-		case <-ctx.Done():
-			return nodes, statefulSets, ctx.Err()
-		case <-time.After(2 * time.Second):
-		}
-	}
 }
 
 // recoveryStage is how far a failed migration got.

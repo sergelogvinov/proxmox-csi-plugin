@@ -18,6 +18,7 @@ package rebind_test
 
 import (
 	"fmt"
+	"slices"
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
@@ -36,7 +37,10 @@ const namespace = "default"
 var (
 	pvcResource = schema.GroupVersionResource{Version: "v1", Resource: "persistentvolumeclaims"}
 	pvResource  = schema.GroupVersionResource{Version: "v1", Resource: "persistentvolumes"}
+	podResource = schema.GroupVersionResource{Version: "v1", Resource: "pods"}
 )
+
+const pvcProtection = "kubernetes.io/pvc-protection"
 
 // fakeKube is a fake clientset that adds the apiserver behavior the rebind module relies on,
 // which the plain fake lacks: UIDs and resource versions, UID and resource version
@@ -53,6 +57,10 @@ type fakeKube struct {
 	writes int
 
 	version int
+
+	// protection simulates the pvc-protection controller: kubernetes.io/pvc-protection is
+	// removed from a Terminating claim once no running pod references it.
+	protection bool
 
 	// violations collects volumes that were deleted while not retained, and volumes that were
 	// reserved for a claim by name only, which any claim with that name could bind.
@@ -72,6 +80,7 @@ func newFakeKube(t *testing.T, objs ...runtime.Object) *fakeKube {
 
 	f.Clientset = fake.NewClientset(objs...)
 	f.PrependReactor("*", "*", f.react)
+	f.PrependReactor("delete", "pods", f.deletePod)
 
 	return f
 }
@@ -95,6 +104,9 @@ func (f *fakeKube) react(action k8stesting.Action) (bool, runtime.Object, error)
 	}
 
 	obj, err := f.write(action)
+	if err == nil && f.protection && res == pvcResource && action.GetVerb() == "delete" {
+		f.releaseProtection()
+	}
 
 	if f.writes == f.failAt && f.lost {
 		return true, nil, fmt.Errorf("injected lost response at write %d (%s %s, applied: %v)", f.writes, action.GetVerb(), res.Resource, err == nil)
@@ -211,6 +223,68 @@ func (f *fakeKube) write(action k8stesting.Action) (runtime.Object, error) {
 	}
 
 	return nil, fmt.Errorf("unexpected verb %s", action.GetVerb())
+}
+
+// deletePod deletes a pod, and lets the simulated pvc-protection controller release the claims
+// it used.
+func (f *fakeKube) deletePod(action k8stesting.Action) (bool, runtime.Object, error) {
+	a := action.(k8stesting.DeleteAction) //nolint: errcheck
+
+	if err := f.Tracker().Delete(podResource, a.GetNamespace(), a.GetName()); err != nil {
+		return true, nil, err
+	}
+
+	if f.protection {
+		f.releaseProtection()
+	}
+
+	return true, nil, nil
+}
+
+// releaseProtection removes kubernetes.io/pvc-protection from every Terminating claim that no
+// scheduled, unfinished pod references, and deletes the claim if no finalizer is left.
+func (f *fakeKube) releaseProtection() {
+	tracker := f.Tracker()
+
+	claims, err := tracker.List(pvcResource, schema.GroupVersionKind{Version: "v1", Kind: "PersistentVolumeClaim"}, namespace)
+	if err != nil {
+		return
+	}
+
+	pods, err := tracker.List(podResource, schema.GroupVersionKind{Version: "v1", Kind: "Pod"}, namespace)
+	if err != nil {
+		return
+	}
+
+	for _, pvc := range claims.(*corev1.PersistentVolumeClaimList).Items {
+		if pvc.DeletionTimestamp == nil || !slices.Contains(pvc.Finalizers, pvcProtection) {
+			continue
+		}
+
+		used := slices.ContainsFunc(pods.(*corev1.PodList).Items, func(pod corev1.Pod) bool {
+			if pod.Spec.NodeName == "" || pod.Status.Phase == corev1.PodSucceeded || pod.Status.Phase == corev1.PodFailed {
+				return false
+			}
+
+			return slices.ContainsFunc(pod.Spec.Volumes, func(v corev1.Volume) bool {
+				return v.PersistentVolumeClaim != nil && v.PersistentVolumeClaim.ClaimName == pvc.Name
+			})
+		})
+		if used {
+			continue
+		}
+
+		pvc.Finalizers = slices.DeleteFunc(pvc.Finalizers, func(s string) bool { return s == pvcProtection })
+
+		if len(pvc.Finalizers) == 0 {
+			_ = tracker.Delete(pvcResource, namespace, pvc.Name) //nolint: errcheck
+
+			continue
+		}
+
+		pvc.ResourceVersion = f.nextVersion()
+		_ = tracker.Update(pvcResource, &pvc, namespace) //nolint: errcheck
+	}
 }
 
 // checkReservation records a volume written with a claimRef that has no UID.

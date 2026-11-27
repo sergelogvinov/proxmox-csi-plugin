@@ -21,8 +21,11 @@ limitations under the License.
 // A Rebind has two phases. Hold pins each volume to Retain, records its original reclaim
 // policy, and deletes the claim while a finalizer keeps it Terminating, so no pod can start
 // with it and no StatefulSet can recreate it. Commit then recreates every held claim as its
-// Target; Abort puts the claims back as they were. Work that has to happen while the claims
-// are held, such as moving a disk, runs between the two.
+// Target; Abort puts the claims back as they were. Drain, between the two, waits until no pod
+// can use the held claims anymore, deleting their pods in force mode; Commit refuses to run
+// before. Work that has to happen while the claims are held and unused, such as moving a disk,
+// runs after Drain. TriggerStatefulSets, after Commit or Abort, gets the StatefulSets of the
+// drained pods to create them again right away.
 package rebind
 
 import (
@@ -105,6 +108,9 @@ type Target struct {
 
 // Rebind is a set of held claims on their way to their targets. It is not safe for concurrent use.
 type Rebind struct {
+	// Logf, if set, receives progress messages of Drain and TriggerStatefulSets.
+	Logf func(format string, args ...any)
+
 	kube      kubernetes.Interface
 	namespace string
 	claims    []*heldClaim
@@ -120,6 +126,9 @@ type heldClaim struct {
 	// release is done.
 	recreating bool
 	released   bool
+
+	// statefulSets are the StatefulSets of the pods Drain saw referencing the claim.
+	statefulSets []string
 }
 
 // plan is a held claim paired with its target.
@@ -137,6 +146,7 @@ type plan struct {
 //
 // Hold does not wait for pods using the claims: the claims stay Terminating with
 // kubernetes.io/pvc-protection until those pods are gone, and Commit refuses to run before.
+// Drain waits for them.
 func Hold(ctx context.Context, kube kubernetes.Interface, namespace string, claims ...string) (*Rebind, error) {
 	if len(claims) == 0 {
 		return nil, errors.New("rebind: no claims to hold")

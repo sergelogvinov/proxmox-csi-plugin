@@ -25,7 +25,7 @@ rules:
   - apiGroups: [""]
     resources: ["pods"]
     verbs: ["get", "list", "watch", "delete"]
-  # Trigger StatefulSets waiting for a migrated PVC
+  # Trigger StatefulSets waiting for a migrated, renamed or swapped PVC
   - apiGroups: ["apps"]
     resources: ["statefulsets"]
     verbs: ["patch"]
@@ -130,12 +130,12 @@ you can force the process by adding the `--force` flag
 ```shell
 pvecsictl migrate --config=hack/cloud-config.yaml -n default storage-test-0 hvm-2 --force
 
-INFO locking persistentvolumeclaims storage-test-0
-INFO persistentvolumeclaims is using by pod test-0 on node kube-store-11, terminating it
-INFO waiting pods: test-0
+INFO holding persistentvolumeclaims storage-test-0
+INFO terminating pod test-0 on node kube-store-11
+INFO waiting for pods: test-0
 ...
-INFO waiting pods: test-0
-INFO waiting for persistentvolumeclaims storage-test-0 to be released
+INFO waiting for pods: test-0
+INFO waiting for claims storage-test-0 to be released
 INFO waiting for disk vm-9999-pvc-0d79713b-6d0b-41e5-b387-42af370d083f to detach from kubernetes node kube-store-11 (Proxmox VMID 1011)
 INFO moving disk vm-9999-pvc-0d79713b-6d0b-41e5-b387-42af370d083f to proxmox node hvm-2
 INFO replacing persistentvolume topology
@@ -144,7 +144,7 @@ INFO triggering statefulset test (attempt 1/5)
 ```
 
 After the migration, or after the PVC is restored on a failed one, the StatefulSets of the pods that used the PVC are annotated with
-`csi.proxmox.sinextra.dev/migrated-at`, so the StatefulSet controller retries them right away.
+`csi.proxmox.sinextra.dev/rebound-at`, so the StatefulSet controller retries them right away.
 The annotation is updated up to 5 times, 5 seconds apart, until a pod using the PVC is recreated.
 
 To check that the zone has changed run

@@ -9,8 +9,12 @@ Recreating one or more **Claims** against their existing PersistentVolumes, with
 _Avoid_: recreate, replace, rebuild
 
 **Hold**:
-The state of a **Claim** that is being **Rebound**: its volume is pinned to Retain, its original reclaim policy is recorded, and the Claim is Terminating but kept by a finalizer. No new pod can start with it and no StatefulSet can recreate it, but pods already using it keep it in use until they are gone.
+The state of a **Claim** that is being **Rebound**: its volume is pinned to Retain, its original reclaim policy is recorded, and the Claim is Terminating but kept by a finalizer. No new pod can start with it and no StatefulSet can recreate it, but pods already using it keep it in use until they are gone. A **Drain** follows it.
 _Avoid_: lock
+
+**Drain**:
+Waiting until no pod can use a held **Claim** anymore (Kubernetes has released `kubernetes.io/pvc-protection`), deleting the pods that use it in force mode. Required before **Commit**. The StatefulSets of the drained pods are triggered after **Commit** or **Abort**, so they recreate their pods without waiting for their backoff.
+_Avoid_: evict, wait unused
 
 **Target**:
 What a held **Claim** becomes when the **Rebind** is committed: its name, and for a **Migration** the volume's new handle and node topology.

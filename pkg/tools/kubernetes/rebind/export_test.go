@@ -25,4 +25,9 @@ func init() {
 	pollInterval = time.Millisecond
 	volumeSettleDelay = 0
 	waitTimeout = 5 * time.Second
+	drainInterval = time.Millisecond
+	triggerInterval = time.Millisecond
 }
+
+// TriggerAttempts exposes the number of StatefulSet triggers to the tests.
+var TriggerAttempts = triggerAttempts
