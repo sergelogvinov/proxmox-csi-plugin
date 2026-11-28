@@ -12,6 +12,10 @@ _Avoid_: recreate, replace, rebuild
 The state of a **Claim** that is being **Rebound**: its volume is pinned to Retain, its original reclaim policy is recorded, and the Claim is Terminating but kept by a finalizer. No new pod can start with it and no StatefulSet can recreate it, but pods already using it keep it in use until they are gone.
 _Avoid_: lock
 
+**Vacate**:
+Ending every use of held **Claims**: in force mode deleting the pods that use them, then waiting until Kubernetes no longer protects them, so the **Commit** (or a disk move) can proceed. Nodes are never cordoned; the **Hold** alone keeps new pods from starting.
+_Avoid_: drain, evict, release
+
 **Target**:
 What a held **Claim** becomes when the **Rebind** is committed: its name, and for a **Migration** the volume's new handle and node topology.
 

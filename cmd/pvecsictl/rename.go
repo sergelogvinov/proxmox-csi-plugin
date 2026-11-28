@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"time"
 
 	cobra "github.com/spf13/cobra"
 
@@ -28,6 +27,7 @@ import (
 	"github.com/sergelogvinov/proxmox-csi-plugin/pkg/tools/kubernetes/rebind"
 
 	rbacv1 "k8s.io/api/authorization/v1"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/validation"
@@ -64,6 +64,7 @@ func setrenameCmdFlags(cmd *cobra.Command) {
 	flags.StringP("namespace", "n", "", "namespace of the PersistentVolumeClaims")
 
 	flags.BoolP("force", "f", false, "force rename even if the PersistentVolumeClaims is in use")
+	flags.Int("timeout", rebindTimeout, "timeout in seconds")
 }
 
 // nolint: cyclop, gocyclo
@@ -71,9 +72,15 @@ func (c *renameCmd) runRename(cmd *cobra.Command, args []string) error {
 	flags := cmd.Flags()
 	force, _ := flags.GetBool("force") //nolint: errcheck
 
-	var err error
+	seconds, _ := flags.GetInt("timeout") //nolint: errcheck
 
-	ctx := context.Background()
+	timeout, err := commandTimeout(seconds, rebindTimeout)
+	if err != nil {
+		return err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
 
 	oldName, newName := args[0], args[1]
 
@@ -96,41 +103,17 @@ func (c *renameCmd) runRename(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to get resources: %v", err)
 	}
 
-	pods, vmName, err := tools.PVCPodUsage(ctx, c.kclient, c.namespace, oldName)
+	// Fail fast, before anything is changed. The authoritative check is vacate.
+	usedBy, err := tools.PVCPods(ctx, c.kclient, c.namespace, oldName)
 	if err != nil {
 		return fmt.Errorf("failed to find pods using pvc: %v", err)
 	}
 
-	if len(pods) > 0 {
-		if !force {
-			return fmt.Errorf("persistentvolumeclaims is using by pods: %s on node %s, cannot rename it", strings.Join(pods, ","), vmName)
-		}
+	pods, nodes, statefulSets := podUsage(oldName, usedBy)
 
-		if srcPV.Spec.CSI == nil {
-			return fmt.Errorf("only CSI PersistentVolumes can be renamed in force mode")
-		}
+	if len(pods) > 0 && !force {
+		return fmt.Errorf("persistentvolumeclaims is using by pods: %s on node %s, cannot rename it", strings.Join(pods, ","), strings.Join(nodes, ","))
 	}
-
-	cordonedNodes := []string{}
-	unsafeToUncordon := false
-
-	defer func() {
-		if len(cordonedNodes) == 0 {
-			return
-		}
-
-		if unsafeToUncordon {
-			logger.Errorf("rename failed after storage changes started, leaving nodes cordoned for manual recovery: %s", strings.Join(cordonedNodes, ","))
-
-			return
-		}
-
-		logger.Infof("uncordoning nodes: %s", strings.Join(cordonedNodes, ","))
-
-		if err := tools.UncondonNodes(ctx, c.kclient, cordonedNodes); err != nil {
-			logger.Errorf("failed to uncordon nodes: %v", err)
-		}
-	}()
 
 	target := rebind.Target{Claim: oldName, NewName: newName}
 
@@ -143,54 +126,37 @@ func (c *renameCmd) runRename(cmd *cobra.Command, args []string) error {
 
 	done := false
 
-	// Runs before the uncordon above, so it can tell whether the nodes are safe to uncordon.
 	defer func() {
 		if done {
 			return
 		}
 
-		if !abortAndReport(ctx, c.namespace, held, []heldClaimRef{{Name: oldName, UID: srcPVC.UID, Volume: srcPV.Name, NewName: newName}}, "rename") {
-			unsafeToUncordon = true
+		// The claim is back under its name, unless a pod still uses it: restart the pods deleted for it.
+		if abortAndReport(ctx, c.namespace, held, []heldClaimRef{{Name: oldName, UID: srcPVC.UID, Volume: srcPV.Name, NewName: newName}}, "rename") {
+			triggerStatefulSets(ctx, c.kclient, c.namespace, statefulSets)
 		}
 	}()
 
 	if len(pods) > 0 {
-		logger.Infof("persistentvolumeclaims is using by pods: %s on node %s, trying to force rename\n", strings.Join(pods, ","), vmName)
-
-		cordonedNodes, err = cordoneNodeWithPVs(ctx, c.kclient, srcPV)
-		if err != nil {
-			return fmt.Errorf("failed to cordon nodes: %v", err)
-		}
-
-		logger.Infof("cordoned nodes: %s", strings.Join(cordonedNodes, ","))
-		logger.Infof("terminated pods: %s", strings.Join(pods, ","))
-
-		if err = deletePods(ctx, c.kclient, c.namespace, pods); err != nil {
-			return err
-		}
-
-		for {
-			p, _, e := tools.PVCPodUsage(ctx, c.kclient, c.namespace, oldName)
-			if e != nil {
-				return fmt.Errorf("failed to find pods using pvc: %v", e)
-			}
-
-			if len(p) == 0 {
-				break
-			}
-
-			logger.Infof("waiting pods: %s", strings.Join(p, " "))
-
-			time.Sleep(2 * time.Second)
-		}
+		logger.Infof("persistentvolumeclaims is using by pods: %s on node %s, trying to force rename", strings.Join(pods, ","), strings.Join(nodes, ","))
 	}
 
-	if err = commitWhenReleased(ctx, held, target); err != nil {
+	seen, err := vacate(ctx, c.kclient, c.namespace, []*corev1.PersistentVolumeClaim{srcPVC}, force)
+
+	// Merged before the error check: pods may have been deleted already.
+	mergeOwners(statefulSets, seen.StatefulSets)
+
+	if err != nil {
+		return err
+	}
+
+	if err = held.Commit(ctx, target); err != nil {
 		return fmt.Errorf("failed to rename persistentvolumeclaims: %v", err)
 	}
 
 	done = true
 
+	// The StatefulSets are not triggered: their pods use the old name, which is gone.
 	logger.Infof("persistentvolumeclaims %s has been renamed", oldName)
 
 	return nil
@@ -222,7 +188,7 @@ func (c *renameCmd) renameValidate(cmd *cobra.Command, _ []string) error {
 		{Group: "", Namespace: "", Resource: "persistentvolumes", Verb: "delete"},
 		{Group: "", Namespace: "", Resource: "persistentvolumes", Verb: "patch"},
 		{Group: "", Namespace: c.namespace, Resource: "pods", Verb: "delete"},
-		{Group: "", Namespace: "", Resource: "nodes", Verb: "patch"},
+		{Group: "apps", Namespace: c.namespace, Resource: "statefulsets", Verb: "patch"},
 	}
 
 	return checkPermissions(context.TODO(), c.kclient, accessCheck)

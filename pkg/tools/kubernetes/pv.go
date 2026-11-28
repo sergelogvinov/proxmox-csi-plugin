@@ -40,28 +40,12 @@ func PVCResources(ctx context.Context, clientset clientkubernetes.Interface, nam
 	return pvc, pv, nil
 }
 
-// PVCPodUsage returns the list of pods and the node that are using the specified PersistentVolumeClaim.
+// PVCPods returns the pods that use the specified PersistentVolumeClaim.
 //
 // Only pods that are Pending and have not yet been assigned a node are excluded: they
 // cannot have mounted the volume yet. A Pending pod that is already scheduled to a node
 // (e.g. still running init containers or ContainerCreating) may already be using the
 // volume, so it must still be counted.
-func PVCPodUsage(ctx context.Context, clientset clientkubernetes.Interface, namespace, pvcName string) (pods []string, node string, err error) {
-	podList, err := PVCPods(ctx, clientset, namespace, pvcName)
-	if err != nil {
-		return nil, "", err
-	}
-
-	for _, pod := range podList {
-		pods = append(pods, pod.Name)
-		node = pod.Spec.NodeName
-	}
-
-	return pods, node, nil
-}
-
-// PVCPods returns the pods that use the specified PersistentVolumeClaim, with the same
-// selection as PVCPodUsage.
 func PVCPods(ctx context.Context, clientset clientkubernetes.Interface, namespace, pvcName string) ([]corev1.Pod, error) {
 	podList, err := clientset.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{})
 	if err != nil {

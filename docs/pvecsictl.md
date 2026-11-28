@@ -25,14 +25,10 @@ rules:
   - apiGroups: [""]
     resources: ["pods"]
     verbs: ["list", "delete"]
-  # Trigger StatefulSets waiting for a migrated PVC
+  # Trigger StatefulSets waiting for a held PVC (migrate, rename, swap)
   - apiGroups: ["apps"]
     resources: ["statefulsets"]
     verbs: ["patch"]
-  # Find the nodes running the CSI driver (rename, swap)
-  - apiGroups: ["storage.k8s.io"]
-    resources: ["csinodes"]
-    verbs: ["list"]
   # Recreate PVs, set their reclaim policy and claimRef; list PVs (clean)
   - apiGroups: [""]
     resources: ["persistentvolumes"]
@@ -41,10 +37,10 @@ rules:
   - apiGroups: [""]
     resources: ["persistentvolumeclaims"]
     verbs: ["get", "create", "update", "delete"]
-  # Resolve Proxmox VMs of nodes (migrate, clean), cordon nodes (rename, swap)
+  # Resolve Proxmox VMs of nodes (migrate, clean)
   - apiGroups: [""]
     resources: ["nodes"]
-    verbs: ["get", "patch"]
+    verbs: ["get"]
 ```
 
 The tool also creates `selfsubjectaccessreviews` to check these permissions, which the default `system:basic-user` ClusterRole grants to all authenticated users.
@@ -148,8 +144,8 @@ INFO triggering statefulset test (attempt 1/5)
 ```
 
 After the migration, or after the PVC is restored on a failed one, the StatefulSets of the pods that used the PVC are annotated with
-`csi.proxmox.sinextra.dev/migrated-at`, so the StatefulSet controller retries them right away.
-The annotation is updated up to 5 times, 5 seconds apart, until a pod using the PVC is recreated.
+`csi.proxmox.sinextra.dev/rebound-at`, so the StatefulSet controller retries them right away.
+The annotation is updated up to 5 times, 5 seconds apart, until each StatefulSet has recreated its pod.
 
 To check that the zone has changed run
 ```shell
@@ -244,15 +240,26 @@ You can force the process by adding the `--force` flag
 ```shell
 pvecsictl rename -n default storage-test-0 storage-test-2 --force
 
+INFO holding persistentvolumeclaims storage-test-0
 INFO persistentvolumeclaims is using by pods: test-0 on node kube-21, trying to force rename
-INFO cordoning nodes: kube-11,kube-12,kube-21,kube-22,kube-store-11,kube-store-21
-INFO terminated pods: test-0
+INFO persistentvolumeclaims is using by pod test-0 on node kube-21, terminating it
 INFO waiting pods: test-0
 ...
-INFO waiting pods: test-0
-INFO uncordoning nodes: kube-11,kube-12,kube-21,kube-22,kube-store-11,kube-store-21
+INFO waiting for persistentvolumeclaims storage-test-0 to be released
 INFO persistentvolumeclaims storage-test-0 has been renamed
 ```
+
+Rename and swap never cordon nodes. Like a migration, they hold the PersistentVolumeClaims:
+each one is deleted while the `csi.proxmox.sinextra.dev/rebind` finalizer keeps it `Terminating`, so no new pod can start with it,
+and all other workloads keep scheduling normally. With `--force`, the pods using the PersistentVolumeClaims are deleted,
+and the PersistentVolumeClaims are recreated once Kubernetes has released them (the `kubernetes.io/pvc-protection` finalizer is gone).
+If a pod starts using a held PersistentVolumeClaim without `--force`, the command stops; a PersistentVolumeClaim that pod still uses is left held, re-run the command with `--force` to continue.
+`--timeout` (default 600 seconds) bounds the whole command.
+
+After a swap, or after the PersistentVolumeClaims are put back on a failed rename or swap, the StatefulSets of the deleted pods
+are annotated with `csi.proxmox.sinextra.dev/rebound-at`, as after a migration.
+Each StatefulSet is annotated until it has a pod using each of its PersistentVolumeClaims again,
+and not at all while one of them is still held. After a rename they are not annotated: their pods use the old name.
 
 Check the result:
 
@@ -307,14 +314,15 @@ Swap PVCs:
 ```shell
 pvecsictl swap -n default storage-test-0 storage-test-1 -f
 
-INFO persistentvolumeclaims is using by pods: test-0 on node builder-03a, trying to force swap
-INFO persistentvolumeclaims is using by pods: test-1 on node builder-04b, trying to force swap
-INFO cordoned nodes: builder-03a,builder-03b,builder-04a,builder-04b
-INFO terminated pods: test-0,test-1
-INFO waiting pods: test-0
-INFO waiting pods: test-0
+INFO holding persistentvolumeclaims storage-test-0,storage-test-1
+INFO persistentvolumeclaims storage-test-0 is using by pods: test-0 on node builder-03a, trying to force swap
+INFO persistentvolumeclaims storage-test-1 is using by pods: test-1 on node builder-04b, trying to force swap
+INFO persistentvolumeclaims is using by pod test-0 on node builder-03a, terminating it
+INFO persistentvolumeclaims is using by pod test-1 on node builder-04b, terminating it
+INFO waiting pods: test-0 test-1
+INFO waiting for persistentvolumeclaims storage-test-0,storage-test-1 to be released
 INFO persistentvolumeclaims storage-test-0,storage-test-1 has been swapped
-INFO uncordoning nodes: builder-03a,builder-03b,builder-04a,builder-04b
+INFO triggering statefulset test (attempt 1/5)
 ```
 
 Check the result:
